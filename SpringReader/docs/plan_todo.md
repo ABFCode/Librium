@@ -10,6 +10,8 @@
   - Simple component for calling our backend just a button probably
   - Display parsed content
 
+
+
 ## Project Description
 
 This application is a web-based e-reader designed to let users upload, store, and read their digital books.
