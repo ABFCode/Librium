@@ -4,7 +4,7 @@
 ## Current Plan
 - **Spring Boot**
   - Rest endpoint for reading/parsing an epub
-  - Parse epub
+  - Parse epub (just text for now)
   - Returns parsed epub
 - **React**
   - Simple component for calling our backend just a button probably
