@@ -42,6 +42,11 @@ I found https://www.youtube.com/watch?v=w3WibDOie1Y, which I'll likely follow.
 8. Open the content file and return the text.
 9. Read file contents as a string and display (for now).
 
+---
+
+Doing testing using: https://www.gutenberg.org/ebooks/11 (Alice in Wonderland)  
+Using all 3 of their EPUB options.
+
 
 ## References
 1. https://www.editepub.com/understanding-the-epub-format/
