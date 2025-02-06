@@ -1,6 +1,7 @@
 package com.example.springreader.utility;
 
 import lombok.extern.slf4j.Slf4j;
+import org.jsoup.Jsoup;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 
@@ -129,14 +130,14 @@ public class EpubParser {
 
 
             //Our chapter content finally
-            chapter1Content = new String(zipFile.getInputStream(chapter1ZipEntry).readAllBytes(), StandardCharsets.UTF_8);
+            String chapter1ContentHTML = new String(zipFile.getInputStream(chapter1ZipEntry).readAllBytes(), StandardCharsets.UTF_8);
             //log.info(chapter1Content);
-
-
+            chapter1Content = Jsoup.parse(chapter1ContentHTML).text();
 
         } catch (Exception e) {
             System.out.println("Error opening the epub," + e);
         }
+
 
         return chapter1Content;
 
