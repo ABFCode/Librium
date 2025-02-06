@@ -131,7 +131,14 @@ public class EpubParser {
 
             //Have to fix the path as our chapterHref is giving a relative path to the OEBPS directory
             //ZipEntry needs path from the root of the Zip
-            String chapterPath = Paths.get(opfFilePath).getParent().resolve(chapterHref).toString();
+            String chapterPath = "";
+            if(Paths.get(opfFilePath).getParent() != null){
+                chapterPath = Paths.get(opfFilePath).getParent().resolve(chapterHref).toString();
+            }
+            else{
+                chapterPath = chapterHref;
+            }
+
 
 
             //log.info("Our final chapter 1 path " + chapter1Path);
