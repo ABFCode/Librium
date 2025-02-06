@@ -4,11 +4,11 @@ import "./App.css";
 function App() {
   const [message, setMessage] = useState("");
 
-  const fetchHello = async () => {
+  const fetchEpub = async () => {
     try {
-      const response = await fetch("http://localhost:8080/hello");
+      const response = await fetch("http://localhost:8080/epub");
       if (!response.ok) {
-        throw new Error("Not ok");
+        throw new Error("not ok");
       }
       const text = await response.text();
       setMessage(text);
@@ -21,8 +21,8 @@ function App() {
   return (
     <div className="App">
       <h1>Test</h1>
-      <button onClick={fetchHello}>Fetch hello</button>
-      <p>Response: {message}</p>
+      <button onClick={fetchEpub}>Load a Chapter</button>
+      <div>{message}</div>
     </div>
   );
 }
