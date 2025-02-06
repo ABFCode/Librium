@@ -19,7 +19,7 @@ public class EpubParser {
 
     public static String parseEpub() {
         File epubFile = new File("src/main/resources/files/pg11.epub");
-
+        String chapter1Content = "";
 
 
         try(ZipFile zipFile = new ZipFile(epubFile)) {
@@ -129,14 +129,16 @@ public class EpubParser {
 
 
             //Our chapter content finally
-            String chapter1Content = new String(zipFile.getInputStream(chapter1ZipEntry).readAllBytes(), StandardCharsets.UTF_8);
+            chapter1Content = new String(zipFile.getInputStream(chapter1ZipEntry).readAllBytes(), StandardCharsets.UTF_8);
             //log.info(chapter1Content);
 
-            return chapter1Content;
+
 
         } catch (Exception e) {
             System.out.println("Error opening the epub," + e);
         }
+
+        return chapter1Content;
 
     }
 
