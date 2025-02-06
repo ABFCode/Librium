@@ -33,8 +33,7 @@ Some are very barebones, while others have a lot of extra files.
 **Plan to parse just the text**
 1. Open the EPUB as a zip file.
 2. Locate `container.xml`
-3. Parse the xml, in java you can do this by using the `DocumentBuilder` class. 
-I found https://www.youtube.com/watch?v=w3WibDOie1Y, which I'll likely follow.
+3. Parse the xml, in java you can do this by using the `DocumentBuilder` class. Credit: https://www.geeksforgeeks.org/java-xml-parsers-1/ and https://www.youtube.com/watch?v=w3WibDOie1Y
 4. Extract the path to the `.opf` file.
 5. Open the OPF file using the path
 6. Parse the OPF file (it's XML based as well)
