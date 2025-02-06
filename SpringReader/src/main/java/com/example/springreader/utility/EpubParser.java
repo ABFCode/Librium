@@ -10,6 +10,8 @@ import java.io.File;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -18,9 +20,9 @@ public class EpubParser {
 
 
 
-    public static String parseEpub() {
-        File epubFile = new File("src/main/resources/files/pg11.epub");
-        String chapter1Content = "";
+    public static Map<String, Object> parseEpub(File epubFile, int chapterIndex) {
+        Map<String, Object> response = new HashMap<>();
+        String chapterContent = "";
 
 
         try(ZipFile zipFile = new ZipFile(epubFile)) {
@@ -85,9 +87,10 @@ public class EpubParser {
              *   </spine>
              */
 
+            //spineList is our how we get our reading order
             NodeList spineList = opfDocument.getElementsByTagName("itemref");
-            String firstChapterSpine = spineList.item(2).getAttributes().getNamedItem("idref").getTextContent();
-            log.info("corresponding id of my first chapter in the manifest: " + firstChapterSpine);
+            String chapterSpine = spineList.item(chapterIndex).getAttributes().getNamedItem("idref").getTextContent();
+            //log.info("corresponding id of my first chapter in the manifest: " + chapterSpine);
 
 
 
@@ -108,38 +111,52 @@ public class EpubParser {
 
 
             NodeList manifestList = opfDocument.getElementsByTagName("item");
-            String chapterHref = manifestList.item(4).getAttributes().getNamedItem("href").getTextContent();
-            log.info("href of my the first chapter: " + chapterHref);
+            //String chapterHref = manifestList.item(4).getAttributes().getNamedItem("href").getTextContent();
+
+            String chapterHref = "";
+            for(int i =0 ; i <manifestList.getLength(); i++){
+                if(manifestList.item(i).getAttributes().getNamedItem("id").getTextContent().equals(chapterSpine)){
+                    chapterHref = manifestList.item(i).getAttributes().getNamedItem("href").getTextContent();
+                    break;
+                }
+            }
+            if(chapterHref == null){
+                log.error("Chapter not found");
+                return null;
+            }
+
+            //log.info("href of the first chapter: " + chapterHref);
+            log.info("Chapter href: {}", chapterHref);
 
 
             //Have to fix the path as our chapterHref is giving a relative path to the OEBPS directory
             //ZipEntry needs path from the root of the Zip
-            String chapter1Path = Paths.get(opfFilePath).getParent().resolve(chapterHref).toString();
+            String chapterPath = Paths.get(opfFilePath).getParent().resolve(chapterHref).toString();
 
 
-            log.info("Our final chapter 1 path " + chapter1Path);
+            //log.info("Our final chapter 1 path " + chapter1Path);
 
             //Need to replace all of our backslashes with forward ones in order for our ZipEntry class to work.
-            chapter1Path = chapter1Path.replace("\\", "/");
+            chapterPath = chapterPath.replace("\\", "/");
 
-            ZipEntry chapter1ZipEntry = zipFile.getEntry(chapter1Path);
+            ZipEntry chapterZipEntry = zipFile.getEntry(chapterPath);
             //ZipEntry testPath = zipFile.getEntry("OEBPS/229714655232534212_11-h-1.htm.html");
 
 
-            log.info(chapter1ZipEntry.toString());
+            log.info(chapterZipEntry.toString());
 
-
-            //Our chapter content finally
-            String chapter1ContentHTML = new String(zipFile.getInputStream(chapter1ZipEntry).readAllBytes(), StandardCharsets.UTF_8);
+            //Read the chapter file
+            String chapter1ContentHTML = new String(zipFile.getInputStream(chapterZipEntry).readAllBytes(), StandardCharsets.UTF_8);
             //log.info(chapter1Content);
-            chapter1Content = Jsoup.parse(chapter1ContentHTML).text();
+            chapterContent = Jsoup.parse(chapter1ContentHTML).text();
+            response.put("chapterContent", chapterContent);
 
         } catch (Exception e) {
             System.out.println("Error opening the epub," + e);
         }
 
 
-        return chapter1Content;
+        return response;
 
     }
 
