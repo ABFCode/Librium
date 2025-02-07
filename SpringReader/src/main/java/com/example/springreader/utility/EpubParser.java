@@ -3,6 +3,7 @@ package com.example.springreader.utility;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -10,7 +11,9 @@ import java.io.File;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -96,6 +99,7 @@ public class EpubParser {
 
             if(tocHref.isEmpty()){
                 log.info("Could not find toc.ncx");
+                //Do something
             }
             else{
                 //check if in root of zip or not
@@ -106,11 +110,57 @@ public class EpubParser {
                 else{
                     tocPath = tocHref;
                 }
-                log.info(tocPath);
+                log.info("tocPath is: " + tocPath);
+
+                tocPath = tocPath.replace("\\", "/");
+                ZipEntry tocEntry = zipFile.getEntry(tocPath);
+                if(tocEntry == null){
+                    log.error("TOC not found at: {}", tocPath);
+                }
+                else{
+                    Document tocDoc = parseXML(zipFile.getInputStream(tocEntry));
+                    NodeList navPoints = tocDoc.getElementsByTagName("navPoint");
+
+                    //A list of maps, each map will have a title, contentPath, and the index of the chapter
+                    List<Map<String,String>> tocList = new ArrayList<>();
+
+                    for(int i =0; i < navPoints.getLength(); i++){
+                        Element navPoint = (Element) navPoints.item(i);
+                        String chapterTitle = "";
+
+                        NodeList navLabels = tocDoc.getElementsByTagName("navLabel");
+
+                        chapterTitle = navLabels.item(i).getTextContent();
+                        log.info("chapterTitle is : {}", chapterTitle);
+
+                        NodeList contentList = navPoint.getElementsByTagName("content");
+                        String contentSrc = "";
+
+                        //log.info("ContestList length is: {}", contentList.getLength());
+
+
+                        if(contentList.getLength() > 0){
+                            contentSrc = contentList.item(0).getAttributes().getNamedItem("src").getTextContent();
+                            log.info("ContentSrc is : {}", contentSrc);
+                        }
+
+                        String index = String.valueOf(i);
+
+                        log.info("Index is : {}", index);
+                        Map<String, String> tocMap = new HashMap<>();
+
+
+                        //Title index and path of the chapter
+                        tocMap.put("Title", chapterTitle);
+                        tocMap.put("contentSrc", contentSrc);
+                        tocMap.put("index", index);
+                        tocList.add(tocMap);
+
+                    }
+                    response.put("toc", tocList);
+                }
+
             }
-
-
-
 
         }
         catch (Exception e){
@@ -141,6 +191,7 @@ public class EpubParser {
             //Need to get the rootfile element from the container.xml
             //Which is inside the rootfiles element
             //Which has an attribute full-path that contains the path to the OPF file
+
             Document containerDocument = parseXML(zipFile.getInputStream(containerEntry));
 
             //NodeList is a collection of XML elements, in our case it's just one, 'rootfile'.

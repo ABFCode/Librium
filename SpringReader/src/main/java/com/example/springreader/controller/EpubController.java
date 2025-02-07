@@ -26,4 +26,17 @@ public class EpubController {
         }
 
     }
+
+
+    @GetMapping("/meta")
+    public ResponseEntity<Map<String, Object>> getEpubMeta(){
+        try{
+            File epubFile = new File("src/main/resources/files/pg11.epub");
+            Map<String, Object> meta = EpubParser.parseMeta(epubFile);
+            return ResponseEntity.ok(meta);
+        }
+        catch(Exception e){
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.singletonMap("error", e.getMessage()));
+        }
+    }
 }
