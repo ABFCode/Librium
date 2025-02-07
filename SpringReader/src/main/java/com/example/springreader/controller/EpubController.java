@@ -19,7 +19,7 @@ public class EpubController {
     public ResponseEntity<Map<String, Object>> getEpubChapter(@PathVariable Integer index){
         try {
             File epubFile = new File("src/main/resources/files/pg11.epub");
-            Map<String, Object> chapter = EpubParser.parseEpub(epubFile, index);
+            Map<String, Object> chapter = EpubParser.parseContent(epubFile, index);
             return ResponseEntity.ok(chapter);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.singletonMap("error", e.getMessage()));

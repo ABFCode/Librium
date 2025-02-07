@@ -19,8 +19,110 @@ import java.util.zip.ZipFile;
 public class EpubParser {
 
 
+    public static Map<String, Object> parseMeta(File epubFile){
+        Map<String, Object> response = new HashMap<>();
 
-    public static Map<String, Object> parseEpub(File epubFile, int chapterIndex) {
+        try(ZipFile zipFile = new ZipFile(epubFile)){
+            ZipEntry containerEntry = zipFile.getEntry("META-INF/container.xml");
+            Document containerDocument = parseXML(zipFile.getInputStream(containerEntry));
+
+            NodeList containerRootFiles = containerDocument.getElementsByTagName("rootfile");
+
+            String opfFilePath = containerRootFiles.item(0).getAttributes().getNamedItem("full-path").getTextContent();
+
+            ZipEntry opfEntry = zipFile.getEntry(opfFilePath);
+            Document opfDocument = parseXML(zipFile.getInputStream(opfEntry));
+
+            String title = opfDocument.getElementsByTagName("dc:title").item(0).getTextContent();
+            String author = opfDocument.getElementsByTagName("dc:creator").item(0).getTextContent();
+            response.put("title", title);
+            response.put("author", author);
+
+            //TABLE OF CONTENTS - There should be a toc.ncx file that looks like this:
+            /**
+             * <?xml version='1.0' encoding='UTF-8'?>
+             * <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="en">
+             *   <head>
+             *     <meta name="dtb:uid" content="http://www.gutenberg.org/11"/>
+             *     <meta name="dtb:depth" content="1"/>
+             *     <meta name="dtb:generator" content="Ebookmaker 0.13.4 by Project Gutenberg"/>
+             *     <meta name="dtb:totalPageCount" content="0"/>
+             *     <meta name="dtb:maxPageNumber" content="0"/>
+             *   </head>
+             *   <docTitle>
+             *     <text>Alice's Adventures in Wonderland</text>
+             *   </docTitle>
+             *   <navMap>
+             *     <navPoint id="np-1" playOrder="1">
+             *       <navLabel>
+             *         <text>Alice’s Adventures in Wonderland</text>
+             *       </navLabel>
+             *       <content src="229714655232534212_11-h-0.htm.html#pgepubid00000"/>
+             *     </navPoint>
+             *     <navPoint id="np-2" playOrder="2">
+             *       <navLabel>
+             *         <text>THE MILLENNIUM FULCRUM EDITION 3.0</text>
+             *       </navLabel>
+             *       <content src="229714655232534212_11-h-0.htm.html#pgepubid00001"/>
+             *     </navPoint>
+             *     <navPoint id="np-3" playOrder="3">
+             *       <navLabel>
+             *         <text>Contents</text>
+             *       </navLabel>
+             *       <content src="229714655232534212_11-h-0.htm.html#pgepubid00002"/>
+             *     </navPoint>
+             *     <navPoint id="np-4" playOrder="4">
+             *       <navLabel>
+             *         <text>CHAPTER I. Down the Rabbit-Hole</text>
+             *       </navLabel>
+             *       <content src="229714655232534212_11-h-1.htm.html#pgepubid00003"/>
+             *     </navPoint>
+             */
+
+
+            NodeList manifestItems = opfDocument.getElementsByTagName("item");
+            String tocHref = "";
+            for( int i = 0; i < manifestItems.getLength(); i++){
+                String mediaType = manifestItems.item(i).getAttributes().getNamedItem("media-type").getTextContent();
+                //only our toc.ncx has this media type
+                if(mediaType.equals("application/x-dtbncx+xml")){
+                    tocHref = manifestItems.item(i).getAttributes().getNamedItem("href").getTextContent();
+                    break;
+                }
+            }
+
+            log.info(tocHref);
+
+
+            if(tocHref.isEmpty()){
+                log.info("Could not find toc.ncx");
+            }
+            else{
+                //check if in root of zip or not
+                String tocPath = "";
+                if(Paths.get(opfFilePath).getParent() != null){
+                    tocPath = Paths.get(opfFilePath).getParent().resolve(tocHref).toString();
+                }
+                else{
+                    tocPath = tocHref;
+                }
+                log.info(tocPath);
+            }
+
+
+
+
+        }
+        catch (Exception e){
+            log.error("Error opening epub", e);
+        }
+
+
+
+        return response;
+    }
+
+    public static Map<String, Object> parseContent(File epubFile, int chapterIndex) {
         Map<String, Object> response = new HashMap<>();
         String chapterContent = "";
 
@@ -66,12 +168,12 @@ public class EpubParser {
             //Get what we want from the opfFile
 
             //Title
-            NodeList titleNodeList = opfDocument.getElementsByTagName("dc:title");
-            String title = titleNodeList.item(0).getTextContent();
-
-            //Author
-            NodeList authorNodeList = opfDocument.getElementsByTagName("dc:creator");
-            String author = authorNodeList.item(0).getTextContent();
+//            NodeList titleNodeList = opfDocument.getElementsByTagName("dc:title");
+//            String title = titleNodeList.item(0).getTextContent();
+//
+//            //Author
+//            NodeList authorNodeList = opfDocument.getElementsByTagName("dc:creator");
+//            String author = authorNodeList.item(0).getTextContent();
 
             //log.info(titleNodeList.item(0).getTextContent());
             //Spine processing, example:
