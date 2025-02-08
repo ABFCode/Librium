@@ -75,22 +75,26 @@ function App() {
   };
 
   return (
-    <div>
+    <div className="app">
       {chapterIndex === null ? (
         <button onClick={loadBook}>Load the Book! </button>
       ) : chapterContent ? (
-        <div>
+        <div className="chapter-layout">
           <header>
             <h1>{metaData.author}</h1>
             <h3>{metaData.title}</h3>
           </header>
-          <nav>
-            <h4>Table of Contents</h4>
-            {renderToc()}
-          </nav>
-          <div>{chapterContent}</div>
-          <button onClick={prevChapter}>Prev</button>
-          <button onClick={nextChapter}>Next</button>
+          <main className="chapter-content">
+            <aside className="toc">
+              <h4>Table of Contents</h4>
+              {renderToc()}
+            </aside>
+            <div className="nav-buttons">
+              <button onClick={prevChapter}>Prev</button>
+              <button onClick={nextChapter}>Next</button>
+            </div>
+            <article className="chapter-text">{chapterContent}</article>
+          </main>
         </div>
       ) : (
         <div>
