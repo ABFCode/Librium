@@ -18,7 +18,7 @@ public class EpubController {
     @GetMapping("/{index}")
     public ResponseEntity<Map<String, Object>> getEpubChapter(@PathVariable Integer index){
         try {
-            File epubFile = new File("src/main/resources/files/pg11.epub");
+            File epubFile = new File("src/main/resources/files/book1.epub");
             Map<String, Object> chapter = EpubParser.parseContent(epubFile, index);
             return ResponseEntity.ok(chapter);
         } catch (Exception e) {
@@ -31,7 +31,7 @@ public class EpubController {
     @GetMapping("/meta")
     public ResponseEntity<Map<String, Object>> getEpubMeta(){
         try{
-            File epubFile = new File("src/main/resources/files/pg11.epub");
+            File epubFile = new File("src/main/resources/files/book1.epub");
             Map<String, Object> meta = EpubParser.parseMeta(epubFile);
             return ResponseEntity.ok(meta);
         }
