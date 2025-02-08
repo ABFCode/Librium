@@ -7,7 +7,6 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-import javax.swing.text.html.Option;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.File;
 import java.io.InputStream;
@@ -105,71 +104,69 @@ public class EpubParser {
 
 
             Optional<OpfData> opfData = getOpfDocument(zipFile);
-            Document opfDocument;
-            String opfFilePath;
-            if(opfData.isPresent()){
-                opfDocument = opfData.get().getOpfDocument();
-                opfFilePath = opfData.get().getOpfFilePath();
+            if(opfData.isEmpty()){
+                log.error("Failed to get OPFData");
+                return response;
             }
-            else{
-                log.error("Failed to receive OPFDocument");
+            Document opfDocument = opfData.get().getOpfDocument();
+            String opfFilePath = opfData.get().getOpfFilePath();
+
+            Optional<Document> tocDocument = getToc(zipFile, opfDocument, opfFilePath);
+            if(tocDocument.isEmpty()){
+                log.error("Could not receive TocDocument");
                 return response;
             }
 
-            NodeList manifestItems;
 
-            String tocHref = "";
-            for( int i = 0; i < manifestItems.getLength(); i++){
-                String mediaType = manifestItems.item(i).getAttributes().getNamedItem("media-type").getTextContent();
-                //only our toc.ncx has this media type
-                if(mediaType.equals("application/x-dtbncx+xml")){
-                    tocHref = manifestItems.item(i).getAttributes().getNamedItem("href").getTextContent();
-                    break;
-                }
+            NodeList contentList = tocDocument.get().getElementsByTagName("content");
+            //log.info("contentList length is: " + String.valueOf(contentList.getLength()));
+            //log.info("Check chapter: " + contentList.item(chapterIndex).getAttributes().getNamedItem("src").getTextContent());
+
+            String rawChapterSrc = contentList.item(chapterIndex).getAttributes().getNamedItem("src").getTextContent();
+            log.info(rawChapterSrc);
+
+            int hashIndex = rawChapterSrc.indexOf('#');
+            if (hashIndex != -1) {
+                // Extract the anchor if you want it...
+                String anchor = rawChapterSrc.substring(hashIndex + 1);
+                // Then remove it from your file path
+                rawChapterSrc = rawChapterSrc.substring(0, hashIndex);
+            }
+            log.info(rawChapterSrc);
+
+            String chapterPath;
+            if (Paths.get(opfFilePath).getParent() != null) {
+                chapterPath = Paths.get(opfFilePath).getParent()
+                        .resolve(rawChapterSrc)
+                        .toString();
+            } else {
+                // If the OPF is at the root of the zip, just use rawSrc
+                chapterPath = rawChapterSrc;
             }
 
 
-            if(tocHref.isEmpty()){
-                log.info("Could not find toc.ncx");
-                //Do something
-            }
-            else {
-            }
-
-            //Have to fix the path as our chapterHref is giving a relative path to the OEBPS directory
-            //ZipEntry needs path from the root of the Zip
-            String chapterPath = "";
-            if(Paths.get(opfFilePath).getParent() != null){
-                chapterPath = Paths.get(opfFilePath).getParent().resolve(chapterHref).toString();
-            }
-            else{
-                chapterPath = chapterHref;
-            }
-
-
-
-            //log.info("Our final chapter 1 path " + chapter1Path);
-
-            //Need to replace all of our backslashes with forward ones in order for our ZipEntry class to work.
             chapterPath = chapterPath.replace("\\", "/");
 
             ZipEntry chapterZipEntry = zipFile.getEntry(chapterPath);
-            //ZipEntry testPath = zipFile.getEntry("OEBPS/229714655232534212_11-h-1.htm.html");
 
 
             log.info(chapterZipEntry.toString());
 
-            //Read the chapter file
             String chapter1ContentHTML = new String(zipFile.getInputStream(chapterZipEntry).readAllBytes(), StandardCharsets.UTF_8);
-            //log.info(chapter1Content);
-            chapterContent = Jsoup.parse(chapter1ContentHTML).text();
+            //chapterContent = Jsoup.parse(chapter1ContentHTML).text();
+
+            org.jsoup.nodes.Document chapterDocument = Jsoup.parse(chapter1ContentHTML);
+            chapterDocument.head().remove();
+            chapterContent = chapterDocument.text();
             response.put("chapterContent", chapterContent);
+
 
         } catch (Exception e) {
             System.out.println("Error opening the epub," + e);
 
         }
         return response;
+
 
 }
 
@@ -267,4 +264,5 @@ public class EpubParser {
             }
         }
     }
+
 }

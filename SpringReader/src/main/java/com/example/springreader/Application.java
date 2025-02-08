@@ -1,7 +1,6 @@
 package com.example.springreader;
 
 
-import com.example.springreader.utility.EpubParser;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
@@ -16,7 +15,8 @@ public class Application {
         File epubFile = new File("src/main/resources/files/pg11.epub");
         SpringApplication.run(Application.class, args);
         //EpubParser.parseEpub();
-        EpubParser.parseMeta(epubFile);
+        //EpubParser.parseMeta(epubFile);
+        //EpubParser.parseContent(epubFile, 1);
     }
 
 }
