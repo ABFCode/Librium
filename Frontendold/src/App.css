@@ -1,0 +1,154 @@
+/*CSS RESET BY: https://piccalil.li/blog/a-more-modern-css-reset/ 
+Box sizing rules */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Prevent font size inflation */
+html {
+  -moz-text-size-adjust: none;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+}
+
+/* Remove default margin in favour of better control in authored CSS */
+body,
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+blockquote,
+dl,
+dd {
+  margin-block-end: 0;
+}
+
+/* Remove list styles on ul, ol elements with a list role, which suggests default styling will be removed */
+ul[role="list"],
+ol[role="list"] {
+  list-style: none;
+}
+
+/* Set core body defaults */
+body {
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* Set shorter line heights on headings and interactive elements */
+h1,
+h2,
+h3,
+h4,
+button,
+input,
+label {
+  line-height: 1.1;
+}
+
+/* Balance text wrapping on headings */
+h1,
+h2,
+h3,
+h4 {
+  text-wrap: balance;
+}
+
+/* A elements that don't have a class get default styles */
+a:not([class]) {
+  text-decoration-skip-ink: auto;
+  color: currentColor;
+}
+
+/* Make images easier to work with */
+img,
+picture {
+  max-width: 100%;
+  display: block;
+}
+
+/* Inherit fonts for inputs and buttons */
+input,
+button,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* Make sure textareas without a rows attribute are not tiny */
+textarea:not([rows]) {
+  min-height: 10em;
+}
+
+/* Anything that has been anchored to should have extra scroll margin */
+:target {
+  scroll-margin-block: 5ex;
+}
+
+body {
+  font-family: "open sans";
+  background-color: #f9f9f9;
+  color: #333;
+  line-height: 1.5;
+  padding: 1em;
+}
+
+header {
+  background-color: #fff;
+  padding: 1em;
+  border-bottom: 1px solid #eee;
+  z-index: 10;
+}
+
+.chapter-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+main.chapter-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.toc {
+  width: 250px;
+  padding: 1em;
+  border-right: 1px solid #eee;
+  overflow-y: auto;
+  background-color: #fff;
+}
+
+article.chapter-text {
+  flex: 1;
+  padding: 2em;
+  height: 100%;
+  overflow-y: auto;
+  max-width: 1200px;
+  margin: auto;
+}
+
+.nav-buttons {
+  display: flex;
+  justify-content: space-between;
+  padding: 1em;
+  background-color: #fff;
+  border-top: 1px solid #eee;
+}
+
+.nav-buttons button {
+  padding: 0.5em 1em;
+  border: none;
+  background-color: #007acc;
+  color: #fff;
+}
+
+.nav-buttons button:hover {
+  background-color: #005f99;
+}
