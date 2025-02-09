@@ -1,35 +1,43 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useEffect, useState } from "react";
+import "./App.css";
+
+interface Book {
+  id: number;
+  title: string;
+  author: string;
+}
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [books, setBooks] = useState<Book[]>([]);
+
+  useEffect(() => {
+    loadBooks();
+  }, []);
+
+  const loadBooks = async (): Promise<void> => {
+    try {
+      const response = await fetch("http://localhost:8080/library");
+      const data: Book[] = await response.json();
+      setBooks(data);
+      console.log(data);
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        console.error("Error fetching default books", e);
+      }
+    }
+  };
 
   return (
     <>
       <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+        <ul>
+          {books.map((book) => (
+            <li key={book.id}>{book.title} monkey</li>
+          ))}
+        </ul>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
     </>
-  )
+  );
 }
 
-export default App
+export default App;
