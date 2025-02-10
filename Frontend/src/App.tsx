@@ -49,7 +49,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Library />}></Route>
         <Route path="/signin" element={<SignIn />}></Route>
-        <Route path="/book" element={<Reader />}></Route>
+        <Route path="/epub/:bookId" element={<Reader />}></Route>
       </Routes>
     </Router>
   );

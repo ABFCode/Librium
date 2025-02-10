@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 interface Book {
   id: number;
@@ -33,13 +34,13 @@ function Library() {
         <ul className="cards">
           {books.map((book) => (
             <li key={book.id}>
-              <a href={`/`} className="card">
+              <Link to={`/epub/${book.id}`} className="card">
                 <img src={"book.jpg"} style={{ width: "100%" }} />
                 <div className="container">
                   <h4>{book.title}</h4>
                   <p>{book.author}</p>
                 </div>
-              </a>
+              </Link>
             </li>
           ))}
         </ul>
