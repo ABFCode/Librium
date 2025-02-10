@@ -32,3 +32,5 @@ build/
 .vscode/
 .idea/
 *.epub
+
+*.jpg

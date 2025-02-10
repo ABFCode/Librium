@@ -1,5 +1,7 @@
 package com.example.springreader.controller;
 
+import com.example.springreader.model.Book;
+import com.example.springreader.repository.BookRepository;
 import com.example.springreader.utility.EpubParser;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,12 +15,20 @@ import java.util.Map;
 @RequestMapping("/epub")
 @CrossOrigin(origins = "http://localhost:5173")
 public class EpubController {
+    private final BookRepository bookRepository;
+
+    public EpubController(BookRepository bookRepository) {
+        this.bookRepository = bookRepository;
+    }
     //File epubFile = new File("src/main/resources/files/pg11.epub");
 
-    @GetMapping("/{index}")
-    public ResponseEntity<Map<String, Object>> getEpubChapter(@PathVariable Integer index){
+    @GetMapping("{id}/chapter/{index}")
+    public ResponseEntity<Map<String, Object>> getEpubChapter(
+            @PathVariable Long id,
+            @PathVariable Integer index){
         try {
-            File epubFile = new File("src/main/resources/files/book1.epub");
+            Book book = bookRepository.findById(id).orElseThrow();
+            File epubFile = new File(book.getFilePath());
             Map<String, Object> chapter = EpubParser.parseContent(epubFile, index);
             return ResponseEntity.ok(chapter);
         } catch (Exception e) {
@@ -28,10 +38,13 @@ public class EpubController {
     }
 
 
-    @GetMapping("/meta")
-    public ResponseEntity<Map<String, Object>> getEpubMeta(){
+    @GetMapping("/{id}/meta")
+    public ResponseEntity<Map<String, Object>> getEpubMeta(@PathVariable Long id){
         try{
-            File epubFile = new File("src/main/resources/files/book1.epub");
+            Book book = bookRepository.findById(id).orElseThrow();
+
+            //File epubFile = new File("src/main/resources/files/book1.epub");
+            File epubFile = new File(book.getFilePath());
             Map<String, Object> meta = EpubParser.parseMeta(epubFile);
             return ResponseEntity.ok(meta);
         }

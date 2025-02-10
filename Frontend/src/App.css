@@ -89,3 +89,44 @@ textarea:not([rows]) {
 :target {
   scroll-margin-block: 5ex;
 }
+
+/*https://www.w3schools.com/howto/howto_css_cards.asp*/
+.card {
+  /* Add shadows to create the "card" effect */
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+  transition: 0.3s;
+  border-radius: 5px; /* 5px rounded corners */
+}
+
+a.card {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+/* On mouse-over, add a deeper shadow */
+a.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* Add some padding inside the card container */
+.container {
+  padding: 2px 16px;
+}
+
+img {
+  border-radius: 5px 5px 0 0;
+}
+
+/* For grid layout https://wpengine.com/resources/card-layout-css-grid-layout-how-to/ */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: auto;
+  grid-gap: 1rem;
+  list-style: none;
+}
