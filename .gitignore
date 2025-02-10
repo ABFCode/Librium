@@ -31,6 +31,8 @@ build/
 ### VS Code ###
 .vscode/
 .idea/
-*.epub
 
+
+*.epub
 *.jpg
+*.DS_Store
