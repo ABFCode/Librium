@@ -1,8 +1,8 @@
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
-import "./App.css";
-import Library from "./components/Library";
+//import "./App.css";
+import Library from "./components/Library/Library";
 import SignIn from "./components/SignIn";
-import Reader from "./components/Reader";
+import Reader from "./components/Reader/Reader";
 
 function App() {
   // const [books, setBooks] = useState<Book[]>([]);

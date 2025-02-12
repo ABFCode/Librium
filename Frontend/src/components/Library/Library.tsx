@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import "./Library.css";
 
 interface Book {
   id: number;
@@ -30,7 +31,7 @@ function Library() {
 
   return (
     <>
-      <div>
+      <div className="library-container">
         <ul className="cards">
           {books.map((book) => (
             <li key={book.id}>
