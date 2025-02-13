@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import Library from "../Library/Library";
 import "./Reader.css";
 
 interface Meta {
@@ -17,7 +16,7 @@ function Reader() {
   const { bookId } = useParams<{ bookId: string }>();
   const [meta, setMeta] = useState<Meta | null>(null);
   const [toc, setToc] = useState<{ title: string; index: number }[]>();
-  const [index, setIndex] = useState<number>(0);
+  const [currentChapterIndex, setCurrentChapterIndex] = useState<number>(0);
   const [chapterContent, setChapterContent] = useState<string | "">("");
   const [isTocOpen, setIsTocOpen] = useState(false);
 
@@ -43,13 +42,41 @@ function Reader() {
       `http://localhost:8080/epub/${bookId}/chapter/${index}`
     );
     const data: ChapterContent = await response.json();
+    console.log(data);
     setChapterContent(data.chapterContent);
   };
 
   const handleChapterSelect = (index: number) => {
     loadChapter(index);
-    setIndex(index);
     setIsTocOpen(false);
+  };
+
+  const handleNext = () => {
+    console.log("Inside Next");
+    if (!toc) return;
+    const currentIndex = toc.findIndex(
+      (chapter) => chapter.index === currentChapterIndex
+    );
+    console.log(toc);
+    console.log(currentIndex);
+    console.log(currentChapterIndex);
+    if (currentChapterIndex < toc.length - 1) {
+      const nextIndex = toc[currentIndex + 1].index;
+      loadChapter(nextIndex);
+      setCurrentChapterIndex(nextIndex);
+    }
+  };
+
+  const handlePrev = () => {
+    if (!toc) return;
+    const currentIndex = toc.findIndex(
+      (chapter) => chapter.index === currentChapterIndex
+    );
+    if (currentIndex > 0) {
+      const prevIndex = toc[currentIndex - 1].index;
+      loadChapter(prevIndex);
+      setCurrentChapterIndex(prevIndex);
+    }
   };
 
   return (
@@ -75,6 +102,31 @@ function Reader() {
       </nav>
 
       <div className="content-wrapper">
+        <div className="prev-next">
+          <button
+            onClick={handlePrev}
+            disabled={
+              !toc ||
+              toc.findIndex(
+                (chapter) => chapter.index === currentChapterIndex
+              ) === 0
+            }
+          >
+            Prev
+          </button>
+          <button
+            onClick={handleNext}
+            disabled={
+              !toc ||
+              toc.findIndex(
+                (chapter) => chapter.index === currentChapterIndex
+              ) ===
+                toc.length - 1
+            }
+          >
+            Next
+          </button>
+        </div>
         <main className="main-content">{chapterContent}</main>
 
         <aside className={`sidebar right ${isTocOpen ? "open" : ""}`}>

@@ -19,7 +19,6 @@ import java.util.zip.ZipFile;
 @Slf4j //Creates a static log for me to use
 public class EpubParser {
 
-
     public static Map<String, Object> parseMeta(File epubFile){
         Map<String, Object> response = new HashMap<>();
 
