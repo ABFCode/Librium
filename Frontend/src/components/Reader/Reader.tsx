@@ -2,6 +2,11 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import "./Reader.css";
 
+interface TocItem {
+  title: string;
+  index: string;
+}
+
 interface Meta {
   title: string;
   author: string;
@@ -26,9 +31,15 @@ function Reader() {
 
   useEffect(() => {
     if (meta?.toc && meta.toc.length > 0) {
-      loadChapter(meta.toc[0].index);
+      setCurrentChapterIndex(0);
     }
   }, [meta]);
+
+  useEffect(() => {
+    if (meta?.toc && meta.toc.length > 0) {
+      loadChapter(currentChapterIndex);
+    }
+  }, [currentChapterIndex, meta]);
 
   const loadMeta = async () => {
     const reponse = await fetch(`http://localhost:8080/epub/${bookId}/meta`);
@@ -38,8 +49,12 @@ function Reader() {
   };
 
   const loadChapter = async (index: number) => {
+    if (!meta || !meta.toc[index] || !toc) return;
+
+    const chapterIndex = toc[index].index;
+
     const response = await fetch(
-      `http://localhost:8080/epub/${bookId}/chapter/${index}`
+      `http://localhost:8080/epub/${bookId}/chapter/${chapterIndex}`
     );
     const data: ChapterContent = await response.json();
     console.log(data);
@@ -47,36 +62,54 @@ function Reader() {
   };
 
   const handleChapterSelect = (index: number) => {
-    loadChapter(index);
+    setCurrentChapterIndex(index);
+    console.log("CurrentChapterIndex: ", index);
+    // loadChapter(index);
     setIsTocOpen(false);
   };
 
   const handleNext = () => {
-    console.log("Inside Next");
-    if (!toc) return;
-    const currentIndex = toc.findIndex(
-      (chapter) => chapter.index === currentChapterIndex
-    );
-    console.log(toc);
-    console.log(currentIndex);
-    console.log(currentChapterIndex);
-    if (currentChapterIndex < toc.length - 1) {
-      const nextIndex = toc[currentIndex + 1].index;
-      loadChapter(nextIndex);
-      setCurrentChapterIndex(nextIndex);
+    if (!meta?.toc) return;
+
+    if (currentChapterIndex < meta.toc.length - 1) {
+      console.log("CurrentChapterIndex: ", currentChapterIndex);
+      setCurrentChapterIndex(currentChapterIndex + 1);
+      console.log("CurrentChapterIndex: ", currentChapterIndex);
     }
+
+    // console.log("Inside Next");
+    // if (!toc) return;
+    // const currentIndex = toc.findIndex(
+    //   (chapter) => chapter.index === currentChapterIndex
+    // );
+    // console.log(toc);
+    // console.log(currentIndex);
+    // console.log(currentChapterIndex);
+    // if (currentChapterIndex < toc.length - 1) {
+    //   const nextIndex = toc[currentIndex + 1].index;
+    //   loadChapter(nextIndex);
+    //   setCurrentChapterIndex(nextIndex);
+    // }
   };
 
   const handlePrev = () => {
-    if (!toc) return;
-    const currentIndex = toc.findIndex(
-      (chapter) => chapter.index === currentChapterIndex
-    );
-    if (currentIndex > 0) {
-      const prevIndex = toc[currentIndex - 1].index;
-      loadChapter(prevIndex);
-      setCurrentChapterIndex(prevIndex);
+    if (!meta?.toc) return;
+
+    if (currentChapterIndex > 0) {
+      console.log("CurrentChapterIndex: ", currentChapterIndex);
+      setCurrentChapterIndex(currentChapterIndex - 1);
+      console.log("CurrentChapterIndex: ", currentChapterIndex);
     }
+
+    // if (!toc) return;
+    // const currentIndex = toc.findIndex(
+    //   (chapter) => chapter.index === currentChapterIndex
+    // );
+    // if (currentIndex > 0) {
+    //   const prevIndex = toc[currentIndex - 1].index;
+    //   loadChapter(prevIndex);
+    //   setCurrentChapterIndex(prevIndex);
+    // }
   };
 
   return (
