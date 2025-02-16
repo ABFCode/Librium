@@ -1,11 +1,10 @@
 package com.example.springreader.model;
 
 import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import lombok.Data;
 import org.w3c.dom.Document;
 
-@Getter
+@Data
 @AllArgsConstructor
 public class OpfData {
     private final Document opfDocument;

@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import "./Reader.css";
-
-interface TocItem {
-  title: string;
-  index: string;
-}
+import auth from "../../utility/auth";
 
 interface Meta {
   title: string;
@@ -25,6 +21,16 @@ function Reader() {
   const [chapterContent, setChapterContent] = useState<string | "">("");
   const [isTocOpen, setIsTocOpen] = useState(false);
 
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!auth.isAuthenticated()) {
+      navigate("/signin");
+      return;
+    }
+    loadMeta();
+  }, [bookId, navigate]);
+
   useEffect(() => {
     loadMeta();
   }, [bookId]);
@@ -42,10 +48,22 @@ function Reader() {
   }, [currentChapterIndex, meta]);
 
   const loadMeta = async () => {
-    const reponse = await fetch(`http://localhost:8080/epub/${bookId}/meta`);
-    const data: Meta = await reponse.json();
-    setMeta(data);
-    setToc(data.toc);
+    try {
+      const reponse = await fetch(`http://localhost:8080/epub/${bookId}/meta`, {
+        headers: auth.getAuthHeaders(),
+      });
+
+      if (reponse.status === 401 || reponse.status === 403) {
+        auth.logout();
+        return;
+      }
+
+      const data: Meta = await reponse.json();
+      setMeta(data);
+      setToc(data.toc);
+    } catch (error) {
+      console.error("Error fetching meta", error);
+    }
   };
 
   const loadChapter = async (index: number) => {
@@ -53,12 +71,22 @@ function Reader() {
 
     const chapterIndex = toc[index].index;
 
-    const response = await fetch(
-      `http://localhost:8080/epub/${bookId}/chapter/${chapterIndex}`
-    );
-    const data: ChapterContent = await response.json();
-    console.log(data);
-    setChapterContent(data.chapterContent);
+    try {
+      const response = await fetch(
+        `http://localhost:8080/epub/${bookId}/chapter/${chapterIndex}`,
+        { headers: auth.getAuthHeaders() }
+      );
+
+      if (response.status === 401 || response.status === 403) {
+        auth.logout();
+        return;
+      }
+      const data: ChapterContent = await response.json();
+      console.log(data);
+      setChapterContent(data.chapterContent);
+    } catch (error) {
+      console.error("Error fetching chapter", error);
+    }
   };
 
   const handleChapterSelect = (index: number) => {
