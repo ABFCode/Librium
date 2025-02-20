@@ -46,41 +46,69 @@ public class EpubParser {
 
             NodeList navPoints = tocDocument.get().getElementsByTagName("navPoint");
 
-            //A list of maps, each map will have a title, contentPath, and the index of the chapter
-            List<Map<String,String>> tocList = new ArrayList<>();
 
-            for(int i =0; i < navPoints.getLength(); i++){
+            //Outer map: Key: File path, Value: A list of maps, each map representing a chapter in the file
+            //Inner map: Key: Title, ContentSrc, anchor, index
+            Map<String, List<Map<String, String>>> tocOuterMap = new LinkedHashMap<>();
+
+            for(int i = 0; i < navPoints.getLength(); i++){
                 Element navPoint = (Element) navPoints.item(i);
-                String chapterTitle = "";
-
-                NodeList navLabels = tocDocument.get().getElementsByTagName("navLabel");
-
-                chapterTitle = navLabels.item(i).getTextContent();
-                //log.info("chapterTitle is : {}", chapterTitle);
+                String chapterTitle = navPoint.getElementsByTagName("navLabel").item(0).getTextContent();
 
                 NodeList contentList = navPoint.getElementsByTagName("content");
-                String contentSrc = "";
-
-                //log.info("ContestList length is: {}", contentList.getLength());
-
 
                 if(contentList.getLength() > 0){
-                    contentSrc = contentList.item(0).getAttributes().getNamedItem("src").getTextContent();
-                    //log.info("ContentSrc is : {}", contentSrc);
+                    String rawSrc = contentList.item(0).getAttributes().getNamedItem("src").getTextContent();
+                    int hashIndex = rawSrc.indexOf("#");
+                    String filePath = (hashIndex != -1) ? rawSrc.substring(0, hashIndex) : rawSrc;
+                    String anchor = (hashIndex != -1) ? rawSrc.substring(hashIndex + 1) : "";
+
+                    Map<String, String> tocInnerMap = new HashMap<>();
+                    tocInnerMap.put("chapterTitle", chapterTitle);
+                    tocInnerMap.put("anchor", anchor);
+                    tocInnerMap.put("filePath", filePath);
+                    tocInnerMap.put("index", String.valueOf(i));
+
+                    tocOuterMap.computeIfAbsent(filePath, k -> new ArrayList<>()).add(tocInnerMap);
                 }
-
-                String index = String.valueOf(i);
-
-                //log.info("Index is : {}", index);
-                Map<String, String> tocMap = new HashMap<>();
-
-                //Title index and path of the chapter
-                tocMap.put("title", chapterTitle);
-                tocMap.put("contentSrc", contentSrc);
-                tocMap.put("index", index);
-                tocList.add(tocMap);
-
             }
+
+
+            //A list of maps, each map will have a title, contentPath, and the index of the chapter
+//            List<Map<String,String>> tocList = new ArrayList<>();
+//
+//            for(int i =0; i < navPoints.getLength(); i++){
+//                Element navPoint = (Element) navPoints.item(i);
+//                String chapterTitle = "";
+//
+//                NodeList navLabels = tocDocument.get().getElementsByTagName("navLabel");
+//
+//                chapterTitle = navLabels.item(i).getTextContent();
+//                //log.info("chapterTitle is : {}", chapterTitle);
+//
+//                NodeList contentList = navPoint.getElementsByTagName("content");
+//                String contentSrc = "";
+//
+//                //log.info("ContestList length is: {}", contentList.getLength());
+//
+//
+//                if(contentList.getLength() > 0){
+//                    contentSrc = contentList.item(0).getAttributes().getNamedItem("src").getTextContent();
+//                    //log.info("ContentSrc is : {}", contentSrc);
+//                }
+//
+//                String index = String.valueOf(i);
+//
+//                //log.info("Index is : {}", index);
+//                Map<String, String> tocMap = new HashMap<>();
+//
+//                //Title index and path of the chapter
+//                tocMap.put("title", chapterTitle);
+//                tocMap.put("contentSrc", contentSrc);
+//                tocMap.put("index", index);
+//                tocList.add(tocMap);
+//
+//            }
             response.put("toc", tocList);
 
         }
