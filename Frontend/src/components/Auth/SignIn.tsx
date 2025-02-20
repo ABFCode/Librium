@@ -49,7 +49,7 @@ function SignIn() {
       // console.log(rawResponse);
 
       const data: AuthResponse = await response.json();
-      console.log(data);
+      //console.log(data);
 
       localStorage.setItem("token", data.token);
       if (data.status === "SUCCESS") {

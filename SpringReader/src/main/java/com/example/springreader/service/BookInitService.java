@@ -21,7 +21,7 @@ public class BookInitService {
         this.bookRepository = bookRepository;
     }
 
-    @PostConstruct
+    @PostConstruct //Marks a method that should be executed after the object has been constructed
     public void init(){
         if(bookRepository.count() == 0){
             log.info("Init is starting");

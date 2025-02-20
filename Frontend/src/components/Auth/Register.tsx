@@ -8,10 +8,10 @@ interface RegisterCredentials {
   confirmPassword: string;
 }
 
-interface AuthResponse {
-  token: string;
-  username: string;
-}
+// interface AuthResponse {
+//   token: string;
+//   status: string;
+// }
 
 function Register() {
   const navigate = useNavigate();
@@ -51,18 +51,19 @@ function Register() {
         }),
       });
 
-      const rawResponse = await response.text();
-      console.log("Raw response:", rawResponse);
+      // const rawResponse = await response.text();
+      // console.log("Raw response:", rawResponse);
 
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || "Registration failed");
       }
 
-      const data: AuthResponse = await response.json();
+      const data: string = await response.text();
+      console.log(data);
 
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("username", data.username);
+      // localStorage.setItem("token", data.token);
+      // localStorage.setItem("username", data.username);
 
       navigate("/");
     } catch (err) {

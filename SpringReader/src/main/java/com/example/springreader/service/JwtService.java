@@ -16,30 +16,33 @@ import java.util.function.Function;
 @Slf4j
 @Service
 public class JwtService {
+
     private final SecretKey key;
-    private final long ExpirationMs = 86400000;
 
     public JwtService(){
         //this.key = Keys.hmacShaKeyFor(jwtConfig.getSecret().getBytes());
+        //should make a one-off key and store in env variables or somewhere else
         this.key = Jwts.SIG.HS256.key().build();
     }
 
+    //Generating a token with no special claims
     public String generateToken(UserDetails userDetails){
         return generateToken(new HashMap<>(), userDetails);
     }
 
     public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails){
+        long expirationMs = 86400000; //24 hours
         return Jwts.builder()
                 .claims(extraClaims)
                 .subject(userDetails.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + ExpirationMs))
+                .expiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(key)
                 .compact();
     }
 
     public String extractUsername(String token) {
-        return extractClaim(token, Claims::getSubject);
+        return extractClaim(token, claims -> claims.getSubject());
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails){

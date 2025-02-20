@@ -16,7 +16,6 @@ public class UserService {
     private final JwtService jwtService;
 
 
-
     public LoginResponse authenticate(LoginRequest loginRequest) {
         return userRepository.findByUsername(loginRequest.username())
                 .filter(user -> passwordEncoder.matches(loginRequest.password(), user.getPassword()))

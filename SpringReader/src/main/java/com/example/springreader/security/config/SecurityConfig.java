@@ -21,8 +21,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 
 @Configuration
-@EnableWebSecurity
-@RequiredArgsConstructor
+@EnableWebSecurity //Spring security use this instead of defaults
+@RequiredArgsConstructor //Injects all final fields
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
