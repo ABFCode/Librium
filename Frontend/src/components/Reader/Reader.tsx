@@ -3,10 +3,16 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import "./Reader.css";
 import auth from "../../utility/auth";
 
+interface Chapter {
+  title: string;
+  anchor: string;
+  index: string;
+}
+
 interface Meta {
   title: string;
   author: string;
-  toc: { title: string; index: number }[];
+  toc: Record<string, Chapter[]>;
 }
 
 interface ChapterContent {

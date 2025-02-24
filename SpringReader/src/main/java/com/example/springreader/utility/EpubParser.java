@@ -109,7 +109,7 @@ public class EpubParser {
 //                tocList.add(tocMap);
 //
 //            }
-            response.put("toc", tocList);
+            response.put("toc", tocOuterMap);
 
         }
         catch (Exception e){
@@ -153,10 +153,9 @@ public class EpubParser {
             log.info(rawChapterSrc);
 
             int hashIndex = rawChapterSrc.indexOf('#');
+            String anchor = "";
             if (hashIndex != -1) {
-                // Extract the anchor if you want it...
-                String anchor = rawChapterSrc.substring(hashIndex + 1);
-                // Then remove it from your file path
+                anchor = rawChapterSrc.substring(hashIndex + 1);
                 rawChapterSrc = rawChapterSrc.substring(0, hashIndex);
             }
             log.info(rawChapterSrc);
@@ -182,10 +181,29 @@ public class EpubParser {
             String chapter1ContentHTML = new String(zipFile.getInputStream(chapterZipEntry).readAllBytes(), StandardCharsets.UTF_8);
             //chapterContent = Jsoup.parse(chapter1ContentHTML).text();
 
+
+
+
             org.jsoup.nodes.Document chapterDocument = Jsoup.parse(chapter1ContentHTML);
-            chapterDocument.head().remove();
-            chapterContent = chapterDocument.text();
-            response.put("chapterContent", chapterContent);
+
+            String anchorContent = "";
+            if(!anchor.isEmpty()){
+                chapterDocument = Jsoup.parse(chapterDocument.html());
+                org.jsoup.nodes.Element anchorElement = chapterDocument.getElementById(anchor);
+                anchorContent = anchorElement != null ? anchorElement.text() : null;
+                System.out.println(anchorContent);
+                System.out.println(anchor);
+                response.put("chapterContent", anchorContent);
+                //System.out.println(chapterDocument.html());
+            }
+            else{
+                chapterDocument.head().remove();
+
+                chapterContent = chapterDocument.text();
+                response.put("chapterContent", chapterContent);
+            }
+
+
 
 
         } catch (Exception e) {
