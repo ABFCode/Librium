@@ -4,8 +4,9 @@ import "./Reader.css";
 import auth from "../../utility/auth";
 
 interface Chapter {
-  title: string;
+  chapterTitle: string;
   anchor: string;
+  filePath: string;
   index: string;
 }
 
@@ -22,9 +23,9 @@ interface ChapterContent {
 function Reader() {
   const { bookId } = useParams<{ bookId: string }>();
   const [meta, setMeta] = useState<Meta | null>(null);
-  const [toc, setToc] = useState<{ title: string; index: number }[]>();
+  const [flattenedToc, setFlattenedToc] = useState<Chapter[]>([]);
   const [currentChapterIndex, setCurrentChapterIndex] = useState<number>(0);
-  const [chapterContent, setChapterContent] = useState<string | "">("");
+  const [chapterContent, setChapterContent] = useState<string>("");
   const [isTocOpen, setIsTocOpen] = useState(false);
 
   const navigate = useNavigate();
@@ -38,44 +39,55 @@ function Reader() {
   }, [bookId, navigate]);
 
   useEffect(() => {
-    loadMeta();
-  }, [bookId]);
+    if (meta?.toc) {
+      const flattened: Chapter[] = [];
+      Object.values(meta.toc).forEach((chaptersInFile) => {
+        chaptersInFile.forEach((chapter) => {
+          flattened.push(chapter);
+        });
+      });
 
-  useEffect(() => {
-    if (meta?.toc && meta.toc.length > 0) {
-      setCurrentChapterIndex(0);
+      flattened.sort((a, b) => parseInt(a.index) - parseInt(b.index));
+      setFlattenedToc(flattened);
+
+      if (flattened.length > 0) {
+        setCurrentChapterIndex(0);
+      }
     }
   }, [meta]);
 
   useEffect(() => {
-    if (meta?.toc && meta.toc.length > 0) {
+    if (flattenedToc.length > 0) {
       loadChapter(currentChapterIndex);
     }
-  }, [currentChapterIndex, meta]);
+  }, [currentChapterIndex, flattenedToc]);
 
   const loadMeta = async () => {
     try {
-      const reponse = await fetch(`http://localhost:8080/epub/${bookId}/meta`, {
-        headers: auth.getAuthHeaders(),
-      });
+      const response = await fetch(
+        `http://localhost:8080/epub/${bookId}/meta`,
+        {
+          headers: auth.getAuthHeaders(),
+        }
+      );
 
-      if (reponse.status === 401 || reponse.status === 403) {
+      if (response.status === 401 || response.status === 403) {
         auth.logout();
+        navigate("/signin");
         return;
       }
 
-      const data: Meta = await reponse.json();
+      const data: Meta = await response.json();
       setMeta(data);
-      setToc(data.toc);
     } catch (error) {
       console.error("Error fetching meta", error);
     }
   };
 
   const loadChapter = async (index: number) => {
-    if (!meta || !meta.toc[index] || !toc) return;
+    if (!flattenedToc || index < 0 || index >= flattenedToc.length) return;
 
-    const chapterIndex = toc[index].index;
+    const chapterIndex = parseInt(flattenedToc[index].index);
 
     try {
       const response = await fetch(
@@ -85,10 +97,11 @@ function Reader() {
 
       if (response.status === 401 || response.status === 403) {
         auth.logout();
+        navigate("/signin");
         return;
       }
+
       const data: ChapterContent = await response.json();
-      console.log(data);
       setChapterContent(data.chapterContent);
     } catch (error) {
       console.error("Error fetching chapter", error);
@@ -97,53 +110,19 @@ function Reader() {
 
   const handleChapterSelect = (index: number) => {
     setCurrentChapterIndex(index);
-    console.log("CurrentChapterIndex: ", index);
-    // loadChapter(index);
     setIsTocOpen(false);
   };
 
   const handleNext = () => {
-    if (!meta?.toc) return;
-
-    if (currentChapterIndex < meta.toc.length - 1) {
-      console.log("CurrentChapterIndex: ", currentChapterIndex);
+    if (currentChapterIndex < flattenedToc.length - 1) {
       setCurrentChapterIndex(currentChapterIndex + 1);
-      console.log("CurrentChapterIndex: ", currentChapterIndex);
     }
-
-    // console.log("Inside Next");
-    // if (!toc) return;
-    // const currentIndex = toc.findIndex(
-    //   (chapter) => chapter.index === currentChapterIndex
-    // );
-    // console.log(toc);
-    // console.log(currentIndex);
-    // console.log(currentChapterIndex);
-    // if (currentChapterIndex < toc.length - 1) {
-    //   const nextIndex = toc[currentIndex + 1].index;
-    //   loadChapter(nextIndex);
-    //   setCurrentChapterIndex(nextIndex);
-    // }
   };
 
   const handlePrev = () => {
-    if (!meta?.toc) return;
-
     if (currentChapterIndex > 0) {
-      console.log("CurrentChapterIndex: ", currentChapterIndex);
       setCurrentChapterIndex(currentChapterIndex - 1);
-      console.log("CurrentChapterIndex: ", currentChapterIndex);
     }
-
-    // if (!toc) return;
-    // const currentIndex = toc.findIndex(
-    //   (chapter) => chapter.index === currentChapterIndex
-    // );
-    // if (currentIndex > 0) {
-    //   const prevIndex = toc[currentIndex - 1].index;
-    //   loadChapter(prevIndex);
-    //   setCurrentChapterIndex(prevIndex);
-    // }
   };
 
   return (
@@ -170,26 +149,12 @@ function Reader() {
 
       <div className="content-wrapper">
         <div className="prev-next">
-          <button
-            onClick={handlePrev}
-            disabled={
-              !toc ||
-              toc.findIndex(
-                (chapter) => chapter.index === currentChapterIndex
-              ) === 0
-            }
-          >
+          <button onClick={handlePrev} disabled={currentChapterIndex === 0}>
             Prev
           </button>
           <button
             onClick={handleNext}
-            disabled={
-              !toc ||
-              toc.findIndex(
-                (chapter) => chapter.index === currentChapterIndex
-              ) ===
-                toc.length - 1
-            }
+            disabled={currentChapterIndex === flattenedToc.length - 1}
           >
             Next
           </button>
@@ -199,13 +164,15 @@ function Reader() {
         <aside className={`sidebar right ${isTocOpen ? "open" : ""}`}>
           <div className="toc-content">
             <h3>Table of Contents</h3>
-            {toc?.map((chapter) => (
+            {flattenedToc.map((chapter, idx) => (
               <button
                 key={chapter.index}
-                onClick={() => handleChapterSelect(chapter.index)}
-                className="toc-item"
+                onClick={() => handleChapterSelect(idx)}
+                className={`toc-item ${
+                  currentChapterIndex === idx ? "active" : ""
+                }`}
               >
-                {chapter.title}
+                {chapter.chapterTitle}
               </button>
             ))}
           </div>

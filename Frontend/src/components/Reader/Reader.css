@@ -3,6 +3,7 @@
   flex-direction: column;
   background-color: lightgray;
   height: 100vh;
+  overflow: hidden;
 }
 
 .top-nav {
@@ -75,17 +76,21 @@
 
   margin-top: 60px;
   height: calc(100vh - 60px);
+  overflow: hidden;
 }
 
 .main-content {
   background-color: #666;
   margin: 0;
+  width: 100%;
+  height: 100%;
   max-width: 1000px;
   padding: 2rem 3rem;
   overflow-y: auto;
   line-height: 1.8;
   font-family: "Open sans";
   font-size: 1.2rem;
+  box-sizing: border-box;
 }
 
 .main-content p {
