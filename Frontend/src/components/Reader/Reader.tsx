@@ -159,7 +159,11 @@ function Reader() {
             Next
           </button>
         </div>
-        <main className="main-content">{chapterContent}</main>
+        <main className="main-content">
+          {chapterContent.split("\n\n").map((paragraph, index) => (
+            <p key={index}>{paragraph}</p>
+          ))}
+        </main>
 
         <aside className={`sidebar right ${isTocOpen ? "open" : ""}`}>
           <div className="toc-content">
