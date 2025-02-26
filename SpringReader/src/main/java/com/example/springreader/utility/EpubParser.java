@@ -14,7 +14,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.File;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
@@ -88,8 +88,33 @@ public class EpubParser {
                     }
                     //Add the chapter to the content file
                     contentFile.addChapter(new EpubChapter(chapterTitle, anchor, i));
+                    //log.info("Adding chapter: title={}, anchor={}, index={}", chapterTitle, anchor, i);
                 }
             }
+
+            /**
+             * {
+             *   "title": "Book Title",
+             *   "author": "Author Name",
+             *   "toc": {
+             *     "contentFiles": [
+             *       {
+             *         "filePath": "chapter1.html",
+             *         "chapters": [
+             *           { "chapterTitle": "Chapter 1", "anchor": "ch1", "index": 0 },
+             *           { "chapterTitle": "Chapter 2", "anchor": "ch2", "index": 1 }
+             *         ]
+             *       },
+             *       {
+             *         "filePath": "chapter2.html",
+             *         "chapters": [
+             *           { "chapterTitle": "Chapter 3", "anchor": "ch3", "index": 2 }
+             *         ]
+             *       }
+             *     ]
+             *   }
+             * }
+             */
 
 
             //A list of maps, each map will have a title, contentPath, and the index of the chapter
@@ -194,8 +219,8 @@ public class EpubParser {
             log.info(rawChapterSrc);
 
             String chapterPath;
-            if (Paths.get(opfFilePath).getParent() != null) {
-                chapterPath = Paths.get(opfFilePath).getParent()
+            if (Path.of(opfFilePath).getParent() != null) {
+                chapterPath = Path.of(opfFilePath).getParent()
                         .resolve(rawChapterSrc)
                         .toString();
             } else {
@@ -382,8 +407,8 @@ public class EpubParser {
         }
         else{
             String tocPath = "";
-            if(Paths.get(opfFilePath).getParent() != null){
-                tocPath = Paths.get(opfFilePath).getParent().resolve(tocHref).toString();
+            if(Path.of(opfFilePath).getParent() != null){
+                tocPath = Path.of(opfFilePath).getParent().resolve(tocHref).toString();
             }
             else{
                 tocPath = tocHref;

@@ -39,16 +39,24 @@ function Reader() {
   }, [bookId, navigate]);
 
   useEffect(() => {
-    if (meta?.toc) {
+    if (meta?.toc?.contentFiles) {
       const flattened: Chapter[] = [];
-      Object.values(meta.toc).forEach((chaptersInFile) => {
-        chaptersInFile.forEach((chapter) => {
-          flattened.push(chapter);
-        });
-      });
-
+      meta.toc.contentFiles.forEach(
+        (contentFile: { filePath: string; chapters?: Chapter[] }) => {
+          if (contentFile.chapters && Array.isArray(contentFile.chapters)) {
+            contentFile.chapters.forEach((chapter: Chapter) => {
+              flattened.push({
+                ...chapter,
+                filePath: contentFile.filePath,
+                index: chapter.index.toString(),
+              });
+            });
+          }
+        }
+      );
       flattened.sort((a, b) => parseInt(a.index) - parseInt(b.index));
       setFlattenedToc(flattened);
+      console.log("Flattened TOC:", flattened);
 
       if (flattened.length > 0) {
         setCurrentChapterIndex(0);
@@ -78,6 +86,11 @@ function Reader() {
       }
 
       const data: Meta = await response.json();
+      if (!data.toc) {
+        console.error("No TOC found in meta");
+        return;
+      }
+
       setMeta(data);
     } catch (error) {
       console.error("Error fetching meta", error);
@@ -88,6 +101,10 @@ function Reader() {
     if (!flattenedToc || index < 0 || index >= flattenedToc.length) return;
 
     const chapterIndex = parseInt(flattenedToc[index].index);
+    if (isNaN(chapterIndex)) {
+      console.error("Invalid chapter index", chapterIndex);
+      return;
+    }
 
     try {
       const response = await fetch(

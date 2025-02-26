@@ -5,9 +5,12 @@ import com.example.springreader.service.LibraryService;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Controller class for managing books in a library.
@@ -15,16 +18,23 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/library")
-@CrossOrigin(origins = "http://localhost:5173")
 public class LibraryController {
     private final LibraryService libraryService;
+    private final String uploadDir;
 
-    public LibraryController(LibraryService libraryService){
+    public LibraryController(LibraryService libraryService, String uploadDir){
         this.libraryService = libraryService;
+        this.uploadDir = uploadDir;
     }
 
     /**
      * Handles the upload of a book file and adds it to the library.
+     *
+     * Creates a random filename for the book we're uploading. This is to prepare for multiple users.
+     * Copies the file we uploaded to the filepath we just made, replacing any books with the same name, though no books should
+     *
+     * Sends book to our library service which will add it to our DB, need to change newer Path to old File since I haven't
+     * finished refactoring rest of project to use Path.
      *
      * @param file the MultipartFile containing the book to be uploaded
      * @return the Book object created and stored in the library
@@ -32,12 +42,28 @@ public class LibraryController {
      */
     @PostMapping("/upload")
     public Book uploadBook(@RequestParam("file") MultipartFile file) throws IOException {
-        File tempFile = File.createTempFile("upload-", ".epub");
-        file.transferTo(tempFile);
 
-        return libraryService.addBook(tempFile);
+        String originalFileName = file.getOriginalFilename();
+        String filename = UUID.randomUUID().toString() + "-" + (originalFileName);
+
+        Path filepath = Path.of(uploadDir, filename);
+
+
+        Files.copy(file.getInputStream(), filepath, StandardCopyOption.REPLACE_EXISTING);
+
+        //Maybe change libraryService to use Path
+        Book book = libraryService.addBook(filepath.toFile());
+
+        return book;
+
+
     }
 
+    /**
+     * Retrieves a list of all books stored in the library.
+     *
+     * @return a list of Book objects representing all books in the db
+     */
     @GetMapping
     public List<Book> listBooks(){
         return libraryService.ListAll();
