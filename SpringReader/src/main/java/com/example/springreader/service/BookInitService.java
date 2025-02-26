@@ -33,10 +33,11 @@ public class BookInitService {
                 File[] epubFiles = defaultBooksDir.listFiles();
 
                 if (epubFiles != null) {
-                    for(File epub: epubFiles){
+                    for(File epub: epubFiles) {
                         Map<String, Object> meta = EpubParser.parseMeta(epub);
-                        String title = (String) meta.get("title");
-                        String author = (String) meta.get("author");
+                        String title = EpubParser.getTitle(meta);
+                        String author = EpubParser.getAuthor(meta);
+
                         Book book = new Book(
                                 title,
                                 author,

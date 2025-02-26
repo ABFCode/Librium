@@ -20,8 +20,8 @@ public class LibraryService {
 
     public Book addBook(File epubFile){
         Map<String, Object> meta = EpubParser.parseMeta(epubFile);
-        String title = (String) meta.getOrDefault("title", "No title");
-        String author = (String) meta.getOrDefault("author", "No author");
+        String title = EpubParser.getTitle(meta);
+        String author = EpubParser.getAuthor(meta);
 
         Book book = new Book(title, author, epubFile.getAbsolutePath());
         return  bookRepository.save(book);

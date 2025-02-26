@@ -12,6 +12,9 @@ interface Book {
 function Library() {
   const navigate = useNavigate();
   const [books, setBooks] = useState<Book[]>([]);
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -47,16 +50,78 @@ function Library() {
     navigate("/signin");
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
+  // In your handleUpload function, modify the fetch call:
+  const handleUpload = async () => {
+    if (!selectedFile) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      // Use this approach for setting headers with FormData
+      const response = await fetch("http://localhost:8080/library/upload", {
+        method: "POST",
+        headers: {
+          // Only set Authorization, not Content-Type (browser sets it with boundary)
+          Authorization: `Bearer ${auth.getToken()}`,
+        },
+        body: formData,
+      });
+
+      if (response.ok) {
+        // Refresh book list
+        loadBooks();
+        setShowUploadForm(false);
+        setSelectedFile(null);
+      } else {
+        console.error("Upload failed");
+      }
+    } catch (error) {
+      console.error("Error uploading file:", error);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <div className="library-page">
       <header className="library-header">
         <h1>Library</h1>
         <div className="user-controls">
+          <button
+            onClick={() => setShowUploadForm(!showUploadForm)}
+            className="upload-button"
+          >
+            {showUploadForm ? "Cancel" : "Add Book"}
+          </button>
           <button onClick={handleLogout} className="logout-button">
             Logout
           </button>
         </div>
       </header>
+
+      {showUploadForm && (
+        <div className="upload-form-container">
+          <div className="upload-form">
+            <h3>Upload EPUB Book</h3>
+            <input type="file" accept=".epub" onChange={handleFileChange} />
+            <button
+              onClick={handleUpload}
+              disabled={!selectedFile || isUploading}
+            >
+              {isUploading ? "Uploading..." : "Upload"}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="library-container">
         <ul className="cards">
           {books.map((book) => (

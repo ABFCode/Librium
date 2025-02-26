@@ -19,7 +19,6 @@ public class UserInitService {
         if (userRepository.findByUsername("debug").isEmpty()) {
             User user = new User();
             user.setUsername("debug");
-            // Hash the password!  Important for security
             user.setPassword(passwordEncoder.encode("123"));
             userRepository.save(user);
             System.out.println("Initial user created: debug");
