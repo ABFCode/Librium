@@ -1,5 +1,8 @@
 package com.example.springreader.utility;
 
+import com.example.springreader.model.EpubChapter;
+import com.example.springreader.model.EpubContentFile;
+import com.example.springreader.model.EpubToc;
 import com.example.springreader.model.OpfData;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
@@ -14,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
 @Slf4j //Creates a static log for me to use
@@ -22,6 +26,11 @@ public class EpubParser {
     public static Map<String, Object> parseMeta(File epubFile){
         Map<String, Object> response = new HashMap<>();
 
+        if (epubFile == null) {
+            log.error("epubFile does not exist");
+            return response;
+        }
+
         try(ZipFile zipFile = new ZipFile(epubFile)){
             Optional<OpfData> opfData = getOpfDocument(zipFile);
 
@@ -29,8 +38,8 @@ public class EpubParser {
                 log.error("Failed to get OPFData");
                 return response;
             }
-            Document opfDocument = opfData.get().getOpfDocument();
-            String opfFilePath = opfData.get().getOpfFilePath();
+            Document opfDocument = opfData.get().opfDocument();
+            String opfFilePath = opfData.get().opfFilePath();
 
 
             String title = opfDocument.getElementsByTagName("dc:title").item(0).getTextContent();
@@ -46,6 +55,7 @@ public class EpubParser {
 
             NodeList navPoints = tocDocument.get().getElementsByTagName("navPoint");
 
+            EpubToc toc = new EpubToc();
 
             //Outer map: Key: File path, Value: A list of maps, each map representing a chapter in the file
             //Inner map: Key: Title, ContentSrc, anchor, index
@@ -63,13 +73,21 @@ public class EpubParser {
                     String filePath = (hashIndex != -1) ? rawSrc.substring(0, hashIndex) : rawSrc;
                     String anchor = (hashIndex != -1) ? rawSrc.substring(hashIndex + 1) : "";
 
-                    Map<String, String> tocInnerMap = new HashMap<>();
-                    tocInnerMap.put("chapterTitle", chapterTitle);
-                    tocInnerMap.put("anchor", anchor);
-                    tocInnerMap.put("filePath", filePath);
-                    tocInnerMap.put("index", String.valueOf(i));
+                    //Find the content file in our toc, or create a new one
+                    EpubContentFile contentFile = null;
+                    for (EpubContentFile cf : toc.getContentFiles()) {
+                        if (cf.getFilePath().equals(filePath)) {
+                            contentFile = cf;
+                            break;
+                        }
+                    }
 
-                    tocOuterMap.computeIfAbsent(filePath, k -> new ArrayList<>()).add(tocInnerMap);
+                    if (contentFile == null) {
+                        contentFile = new EpubContentFile(filePath);
+                        toc.addContentFile(contentFile);
+                    }
+                    //Add the chapter to the content file
+                    contentFile.addChapter(new EpubChapter(chapterTitle, anchor, i));
                 }
             }
 
@@ -109,11 +127,15 @@ public class EpubParser {
 //                tocList.add(tocMap);
 //
 //            }
-            response.put("toc", tocOuterMap);
+            response.put("toc", toc);
 
+        }
+        catch (ZipException e){
+            log.error("Invalid Zip/Epub file: {}", epubFile, e);
         }
         catch (Exception e){
             log.error("Error opening epub", e);
+            return response;
         }
 
 
@@ -125,6 +147,11 @@ public class EpubParser {
         Map<String, Object> response = new HashMap<>();
         String chapterContent = "";
 
+        if(epubFile == null) {
+            log.error("Epub file does not exist");
+            return response;
+        }
+
 
         try(ZipFile zipFile = new ZipFile(epubFile)) {
             System.out.println("Epub file opened");
@@ -135,8 +162,8 @@ public class EpubParser {
                 log.error("Failed to get OPFData");
                 return response;
             }
-            Document opfDocument = opfData.get().getOpfDocument();
-            String opfFilePath = opfData.get().getOpfFilePath();
+            Document opfDocument = opfData.get().opfDocument();
+            String opfFilePath = opfData.get().opfFilePath();
 
             Optional<Document> tocDocument = getToc(zipFile, opfDocument, opfFilePath);
             if(tocDocument.isEmpty()){
@@ -148,6 +175,12 @@ public class EpubParser {
             NodeList contentList = tocDocument.get().getElementsByTagName("content");
             //log.info("contentList length is: " + String.valueOf(contentList.getLength()));
             //log.info("Check chapter: " + contentList.item(chapterIndex).getAttributes().getNamedItem("src").getTextContent());
+
+            if(chapterIndex < 0 || chapterIndex >= contentList.getLength()) {
+                log.error("Invalid index {}", chapterIndex);
+                return response;
+            }
+
 
             String rawChapterSrc = contentList.item(chapterIndex).getAttributes().getNamedItem("src").getTextContent();
             log.info(rawChapterSrc);
@@ -375,6 +408,33 @@ public class EpubParser {
 
             }
         }
+    }
+
+    /**
+     * Gets the ToC from our metadata map
+     * @param meta Our finished metadata map that we return from parseMeta
+     * @return Our custom EpubToc object (which is a list of contentFiles, where each contentFile is a list of chapters)
+     */
+    public static EpubToc getToc(Map<String, Object> meta) {
+        return (EpubToc) meta.get("toc");
+    }
+
+    /**
+     * Gets our book title our meta map
+     * @param meta Our finished metadata map that we return from parseMeta
+     * @return A string with the title
+     */
+    public static String getTitle(Map<String, Object> meta) {
+        return (String) meta.get("title");
+    }
+
+    /**
+     * Gets our author for our book from the meta hashmap
+     * @param meta Our finished metadata map that we return from parseMeta
+     * @return A string author
+     */
+    public static String getAuthor(Map<String, Object> meta){
+        return (String) meta.get("author");
     }
 
 }

@@ -9,6 +9,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * Controller class for managing books in a library.
+ * allows for uploading and  retrieving a list of books.
+ */
 @RestController
 @RequestMapping("/library")
 @CrossOrigin(origins = "http://localhost:5173")
@@ -19,12 +23,19 @@ public class LibraryController {
         this.libraryService = libraryService;
     }
 
+    /**
+     * Handles the upload of a book file and adds it to the library.
+     *
+     * @param file the MultipartFile containing the book to be uploaded
+     * @return the Book object created and stored in the library
+     * @throws IOException if an error occurs during file processing
+     */
     @PostMapping("/upload")
-    public Book uploadBook(@RequestParam("file")MultipartFile file) throws IOException {
-        File uploadedFile = new File("uploads", file.getOriginalFilename());
-        file.transferTo(uploadedFile);
+    public Book uploadBook(@RequestParam("file") MultipartFile file) throws IOException {
+        File tempFile = File.createTempFile("upload-", ".epub");
+        file.transferTo(tempFile);
 
-        return libraryService.addBook(uploadedFile);
+        return libraryService.addBook(tempFile);
     }
 
     @GetMapping
