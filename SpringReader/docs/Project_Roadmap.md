@@ -97,6 +97,8 @@ as if you were reading it on a local app.
 - **Robust Testing and Documentation:** With plans to include comprehensive 
   - JUnit tests and detailed JavaDoc comments. Would like to have much more thorough testing rather than just simple JUnit tests.
   - Full E2E as well as mocked tests for anything relevant/important. 
+- **Behavioral Patterns implemented:** With plans to incorporate at least
+  - one additional behavioral pattern (strategy) to handle the different file types we will be parsing.
 
 ## Intended Audience
 
