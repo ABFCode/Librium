@@ -30,6 +30,8 @@ Some are very barebones, while others have a lot of extra files.
 ---
 
 ##
+**Old:**
+
 **Plan to parse just the text**
 1. Open the EPUB as a zip file.
 2. Locate `container.xml`
@@ -43,8 +45,7 @@ Some are very barebones, while others have a lot of extra files.
 
 ---
 
-Doing testing using: https://www.gutenberg.org/ebooks/11 (Alice in Wonderland)  
-Using all 3 of their EPUB options.
+Doing testing using: https://www.gutenberg.org/ebooks/11 (Alice in Wonderland)
 
 
 ## References
