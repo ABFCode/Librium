@@ -8,6 +8,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+/**
+ * Service class responsible for user-related operations like authentication
+ * and registration
+ */
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -16,6 +20,15 @@ public class UserService {
     private final JwtService jwtService;
 
 
+    /**
+     * Authenticates a user based on a given login request.
+     * The method validates the username and password, and if successful,
+     * generates a JWT token to be sent back to the user.
+     *
+     * @param loginRequest the login request containing the username and password.
+     * @return an object containing a success or failure status,
+     *         and a generated JWT token if the authentication is successful
+     */
     public LoginResponse authenticate(LoginRequest loginRequest) {
         return userRepository.findByUsername(loginRequest.username())
                 .filter(user -> passwordEncoder.matches(loginRequest.password(), user.getPassword()))
@@ -23,12 +36,20 @@ public class UserService {
                 .orElse(LoginResponse.FAILURE);
     }
 
-    public boolean register(String username, String password) {
-        if (userRepository.findByUsername(username).isPresent()) {
+
+    /**
+     * Registers a new user. Does not log them in or pass them a JWT token.
+     * Only creates a user from their details and saves to DB.
+     *
+     * @param loginRequest login request record, contains just a user/pass
+     * @return if username is already present false, else true
+     */
+    public boolean register(LoginRequest loginRequest) {
+        if (userRepository.findByUsername(loginRequest.username()).isPresent()) {
             return false;
         }
 
-        User newUser = new User(username, passwordEncoder.encode(password));
+        User newUser = new User(loginRequest.username(), passwordEncoder.encode(loginRequest.password()));
         userRepository.save(newUser);
         return true;
     }

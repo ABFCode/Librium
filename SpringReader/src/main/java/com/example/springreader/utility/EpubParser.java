@@ -20,9 +20,55 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
+
+/**
+ * A collection of methods for handling parsing epubs.
+ * Can parse the metadata from a novel, right now just title/author/toc.
+ *
+ * As well as extract plain text chapter contents with simple formatting
+ */
 @Slf4j //Creates a static log for me to use
 public class EpubParser {
 
+
+
+    /**
+     * This method is used parsing and extracting metadata from EPUB files.
+     *
+     * It provides methods for extracting book titles, authors, table of contents,
+     * and chapter content files from the EPUB file structure.
+     *
+     * The table of contents is processed into a structure.
+     * including each chapter's title, file path, and position(index)
+     *
+     * Full metadata structure:
+     * {
+     *   "title": "Book Title",
+     *   "author": "Author Name",
+     *   "toc": {
+     *     "contentFiles": [
+     *       {
+     *         "filePath": "chapter1.html",
+     *         "chapters": [
+     *           { "chapterTitle": "Chapter 1", "anchor": "ch1", "index": 0 },
+     *           { "chapterTitle": "Chapter 2", "anchor": "ch2", "index": 1 }
+     *         ]
+     *       },
+     *       {
+     *         "filePath": "chapter2.html",
+     *         "chapters": [
+     *           { "chapterTitle": "Chapter 3", "anchor": "ch3", "index": 2 }
+     *         ]
+     *       }
+     *     ]
+     *   }
+     * }
+     *
+     *
+     * @param epubFile the epub to extract the metadata from
+     * @return a hashmap structure as shown above
+     *
+     */
     public static Map<String, Object> parseMeta(File epubFile){
         Map<String, Object> response = new HashMap<>();
 
@@ -59,7 +105,7 @@ public class EpubParser {
 
             //Outer map: Key: File path, Value: A list of maps, each map representing a chapter in the file
             //Inner map: Key: Title, ContentSrc, anchor, index
-            Map<String, List<Map<String, String>>> tocOuterMap = new LinkedHashMap<>();
+            //Map<String, List<Map<String, String>>> tocOuterMap = new LinkedHashMap<>();
 
             for(int i = 0; i < navPoints.getLength(); i++){
                 Element navPoint = (Element) navPoints.item(i);
@@ -92,29 +138,10 @@ public class EpubParser {
                 }
             }
 
-            /**
-             * {
-             *   "title": "Book Title",
-             *   "author": "Author Name",
-             *   "toc": {
-             *     "contentFiles": [
-             *       {
-             *         "filePath": "chapter1.html",
-             *         "chapters": [
-             *           { "chapterTitle": "Chapter 1", "anchor": "ch1", "index": 0 },
-             *           { "chapterTitle": "Chapter 2", "anchor": "ch2", "index": 1 }
-             *         ]
-             *       },
-             *       {
-             *         "filePath": "chapter2.html",
-             *         "chapters": [
-             *           { "chapterTitle": "Chapter 3", "anchor": "ch3", "index": 2 }
-             *         ]
-             *       }
-             *     ]
-             *   }
-             * }
-             */
+
+
+
+
 
 
             //A list of maps, each map will have a title, contentPath, and the index of the chapter
@@ -168,6 +195,25 @@ public class EpubParser {
         return response;
     }
 
+    /**
+     * Parses the content of a specific chapter from an epub file.
+     *
+     * Needs to be completely redone. Likely using the ToC we built from parseMeta.
+     * As it is now we load the entire novel each time we want to fetch a chapter.
+     *
+     * Extracts simple text content of a specified chapter from its headings
+     * and paragraphs elements from an epub file.
+     *
+     * If an anchor is present in the chapter's content reference, it will use it to extract content starting from the specified anchor until
+     * the next anchor, otherwise:
+     * If no anchor is provided, it extracts all text content of the chapter.
+     *
+     *
+     * @param epubFile     The epub file to parse.
+     * @param chapterIndex The index of the chapter to retrieve
+     * @return A map containing the parsed chapter content under the key "chapterContent".
+     *         In case of errors or weird behavior, returns an empty map.
+     */
     public static Map<String, Object> parseContent(File epubFile, int chapterIndex) {
         Map<String, Object> response = new HashMap<>();
         String chapterContent = "";
@@ -259,6 +305,9 @@ public class EpubParser {
                         //Look for a heading, if present.
                         org.jsoup.nodes.Element heading = anchorElement.select("h1, h2, h3, h4, h5, h6").first();
                         if (heading != null) {
+                            /**
+                             * ("\n\n") so we can format between paragraphs/headings/etc on front end easily.
+                             */
                             contentBuilder.append(heading.text()).append("\n\n");
                         }
 
@@ -342,6 +391,12 @@ public class EpubParser {
 
 
 
+    /**
+     * Parses an XML file from the given InputStream and returns an Optional containing the parsed Document.
+     *
+     * @param input the InputStream representing the XML to be parsed
+     * @return an Optional containing the parsed Document, or an empty Optional if parsing fails
+     */
     private static Optional<Document> parseXML(InputStream input) {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         try {
@@ -352,6 +407,16 @@ public class EpubParser {
         }
     }
 
+    /**
+     * Retrieves the OPF document from the provided zip file.
+     *
+     * This method extracts and parses the OPF document located within an EPUB file
+     * by finding the container.xml file and then fetching the OPF document from information given on the container
+     *
+     * @param zipFile the zip file representing the EPUB
+     * @return an Optional containing the extracted OPF data, or an empty Optional if
+     * the OPF document is not found or cannot be parsed
+     */
     private static Optional<OpfData> getOpfDocument(ZipFile zipFile){
         try{
             ZipEntry containerEntry = zipFile.getEntry("META-INF/container.xml");
@@ -387,6 +452,17 @@ public class EpubParser {
 
     }
 
+    /**
+     * Retrieves the toc (table of contents) file from a ZIP file, based on some metadata of an opf document.
+     *
+     *
+     * @param zipFile our epub file represented as java ZipFile
+     * @param opfDocument the OPF document of the eBook, which gives us a lot of metadata on the book, relevant to us
+     *                    is the toc.ncx path
+     * @param opfFilePath the file path of the OPF document within the archive
+     * @return an Optional containing the TOC document if found,
+     *         or an empty Optional if not found or an error occurs
+     */
     private static Optional<Document> getToc(ZipFile zipFile, Document opfDocument, String opfFilePath){
 
         NodeList manifestItems = opfDocument.getElementsByTagName("item");
@@ -406,6 +482,7 @@ public class EpubParser {
             return Optional.empty();
         }
         else{
+            //Compute full path
             String tocPath = "";
             if(Path.of(opfFilePath).getParent() != null){
                 tocPath = Path.of(opfFilePath).getParent().resolve(tocHref).toString();
@@ -415,6 +492,7 @@ public class EpubParser {
             }
             log.info("tocPath is: " + tocPath);
 
+            //Dont need to do this if I change to Path instead of File -> future stuff
             tocPath = tocPath.replace("\\", "/");
             ZipEntry tocEntry = zipFile.getEntry(tocPath);
             if(tocEntry == null){

@@ -9,6 +9,10 @@ import java.io.File;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Provides methods to interact with our bookRepo thereby interacting with our DB. Right now we can jsut add a book
+ * and list all of them.
+ */
 @Service
 public class LibraryService {
     private final BookRepository bookRepository;
@@ -18,6 +22,12 @@ public class LibraryService {
     }
 
 
+    /**
+     * Adds a new book to the repository (which will save it to our DB)
+     *
+     * @param epubFile the EPUB file containing the book's info
+     * @return the saved Book object
+     */
     public Book addBook(File epubFile){
         Map<String, Object> meta = EpubParser.parseMeta(epubFile);
         String title = EpubParser.getTitle(meta);
@@ -27,7 +37,11 @@ public class LibraryService {
         return  bookRepository.save(book);
     }
 
-    public List<Book> ListAll(){
+    /**
+     * Lists all books
+     * @return A list of all books in our DB
+     */
+   public List<Book> ListAll(){
         return bookRepository.findAll();
     }
 
