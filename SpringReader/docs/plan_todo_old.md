@@ -1,7 +1,7 @@
 # Plan for SpringReader Application
 
 
-## Current Plan
+## Current Plan - 2/4/25
 - **Spring Boot**
   - Rest endpoint for reading/parsing an epub
   - Parse epub (just text for now)
