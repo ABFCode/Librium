@@ -11,6 +11,15 @@ import java.util.Collection;
 import java.util.List;
 
 
+/**
+ * This class represents a User entity in our DB
+ *
+ * The User class implements the UserDetails interface, which is necessary for
+ * Spring Security. It has
+ * basic user details such as a unique username and password, along with other default implementations
+ * for userdetails
+ *
+ */
 @Entity
 @Table(name = "users")
 @Data
@@ -30,11 +39,21 @@ public class User implements UserDetails {
         this.password = password;
     }
 
+    /**
+     * Returns the authorities granted to the user. In practice this method means every user is being assigned a default
+     * "USER" role. I'm not using roles anywhere in my app at the moment.
+     *
+     * @return a collection of GrantedAuthority objects representing the roles or privileges assigned to the user
+     */
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("USER"));
     }
 
+
+    /**
+     * Not implemented yet
+     */
     @Override
     public boolean isAccountNonExpired() {
         return true;

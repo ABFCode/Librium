@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Controller class for handling user operations like authentication and registration.
+ */
 @RestController
 @RequestMapping("/api/user")
 public class UserController {
@@ -19,12 +22,25 @@ public class UserController {
     }
 
 
+    /**
+     * Authenticates a user using a given loginRequest (user/pass)
+     *
+     * @param loginRequest the login request containing user & pass
+     * @return a ResponseEntity containing a LoginResponse object with authentication details and status
+     */
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest loginRequest){
         LoginResponse response = userService.authenticate(loginRequest);
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Registers a new user in the system using provided details (user/pass).
+     *
+     * @param registrationRequest the registration request containing username and password
+     * @return a ResponseEntity containing a success message if registration is successful,
+     *         or an error if the username already exists
+     */
     @PostMapping("/register")
     public ResponseEntity<String> register(@RequestBody LoginRequest registrationRequest) {
         boolean success = userService.register(registrationRequest.username(), registrationRequest.password());

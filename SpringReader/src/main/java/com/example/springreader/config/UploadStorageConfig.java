@@ -11,6 +11,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+/**
+ * Configuration class for managing the upload storage directory.
+ *
+ * This class initializes and configures the directory for file uploads during startup.
+ * IT will clear the directory if it already exists
+ */
 @Configuration
 public class UploadStorageConfig {
     private static final Logger logger = LoggerFactory.getLogger(UploadStorageConfig.class);
@@ -18,6 +24,14 @@ public class UploadStorageConfig {
     @Value("${books.upload.dir:${user.dir}/uploads}")
     private String uploadDir;
 
+    /**
+     * Initializes the directory for file uploads during startup.
+     *
+     * This method ensures the upload directory exists, and if it already exists,
+     * clears all files within the directory. It is run automatically after our UploadStorageConfig
+     * class is fully setup and all dependencies injected (uploadDir) in this case.
+     *
+     */
     @PostConstruct
     public void init() {
         Path directory = Path.of(uploadDir);
@@ -46,6 +60,11 @@ public class UploadStorageConfig {
         }
     }
 
+    /**
+     * Provides the uploadDir to the spring app context, to be used wherever.
+     *
+     * @return the path of the upload dir as a string
+     */
     @Bean
     public String uploadDir() {
         return uploadDir;
