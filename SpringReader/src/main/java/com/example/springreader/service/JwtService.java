@@ -1,10 +1,10 @@
 package com.example.springreader.service;
 
+import com.example.springreader.model.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
@@ -13,6 +13,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Service class that provides methods for generating, parsing, and validating JWT tokens.
+ */
 @Slf4j
 @Service
 public class JwtService {
@@ -22,40 +25,87 @@ public class JwtService {
     public JwtService(){
         //this.key = Keys.hmacShaKeyFor(jwtConfig.getSecret().getBytes());
         //should make a one-off key and store in env variables or somewhere else
+        //as is, every restart = new token needed as we build a new key
         this.key = Jwts.SIG.HS256.key().build();
     }
 
-    //Generating a token with no special claims
-    public String generateToken(UserDetails userDetails){
-        return generateToken(new HashMap<>(), userDetails);
+
+
+    /**
+     * Convenience method, for generating tokens when we don't have extra claims to add on.
+     * Passes in an empty hashmap representing any extra claims(none in the case we're using this method)
+     * @param user The user for which we are generating a token
+     * @return a JWT token as a string
+     */
+    public String generateToken(User user){
+        return generateToken(new HashMap<>(), user);
     }
 
-    public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails){
+
+
+    /**
+     * Generates a JWT token for a specified user.
+     *
+     * @param extraClaims a map of additional claims to include in the token (will always be empty in currnet impl.)
+     * @param user the user details for which the token is being generated
+     * @return a JWT token as a string
+     */
+    public String generateToken(Map<String, Object> extraClaims, User user){
         long expirationMs = 86400000; //24 hours
         return Jwts.builder()
                 .claims(extraClaims)
-                .subject(userDetails.getUsername())
+                .subject(user.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(key)
                 .compact();
     }
 
+    /**
+     * Extracts the username from a given JWT token.
+     *
+     * @param token the JWT token from which the username should be extracted
+     * @return the username from the token
+     */
     public String extractUsername(String token) {
         return extractClaim(token, claims -> claims.getSubject());
     }
 
-    public boolean isTokenValid(String token, UserDetails userDetails){
+    /**
+     * Validates a JWT token against the provided user details. Right now we are only checking
+     * if the extracted username matches the user given by the passed in user or if it is expired.
+     *
+     * @param token the JWT token to be validated
+     * @param user the user to verify the token's ownership
+     * @return true if the token is valid and belongs to the provided user
+     */
+    public boolean isTokenValid(String token, User user){
         final String username = extractUsername(token);
-        return(username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+        return(username.equals(user.getUsername())) && !isTokenExpired(token);
     }
 
+    /**
+     * Extracts a specific claim from a given JWT token using the provided claims resolver function.
+     * CLaims can be in many times so this needs to be generic. (data/string/int)
+     *
+     * @param <T> the type of the claim to be returned
+     * @param token the JWT token from which the claim is to be extracted
+     * @param claimsResolver a function that defines how to extract the desired claim from the token's claims
+     * @return the extracted claim of type T
+     */
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         final Claims claims =
                 extractAllClaims(token);
         return claimsResolver.apply(claims);
     }
 
+    /**
+     * Extracts all claims from a given JWT token.
+     *
+     * @param token the JWT token that we are extracting from
+     * @return the claims contained in the token
+     * @throws JwtException if the token is invalid or cannot be parsed
+     */
     private Claims extractAllClaims(String token){
         try{
             return Jwts.parser()
@@ -70,13 +120,24 @@ public class JwtService {
         }
     }
 
+    /**
+     * Checks if token is it has expired by seeing if expiration data is before now
+     * @param token token to check
+     * @return if expired: true
+     */
     private boolean isTokenExpired(String token){
         return extractExpiration(token)
                 .before(new Date());
     }
 
+    /**
+     * Extracts the expiration date
+     *
+     * @param token extract expir data from
+     * @return the expiration date of the token as a Date
+     */
     private Date extractExpiration(String token){
-        return extractClaim(token, Claims::getExpiration);
+        return extractClaim(token, claims -> claims.getExpiration());
     }
 
 

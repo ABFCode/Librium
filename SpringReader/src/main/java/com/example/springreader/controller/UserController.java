@@ -43,7 +43,7 @@ public class UserController {
      */
     @PostMapping("/register")
     public ResponseEntity<String> register(@RequestBody LoginRequest registrationRequest) {
-        boolean success = userService.register(registrationRequest.username(), registrationRequest.password());
+        boolean success = userService.register(registrationRequest);
 
         if(success) {
             return ResponseEntity.ok("Registration was successful");
