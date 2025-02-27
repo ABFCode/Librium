@@ -20,6 +20,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 
+/**
+ * Security configuration class, defines our application security settings for spring security.
+ */
 @Configuration
 @EnableWebSecurity //Spring security use this instead of defaults
 @RequiredArgsConstructor //Injects all final fields
@@ -28,6 +31,18 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final UserDetailsService userDetailsService;
 
+    /**
+     * Configures the security filter chain for the app. Each request goes through this chain first before hitting
+     * our endpoints. My particular setup includes disabling CSRF (not needed when using JWT auth),
+     * basic CORS setup, allowing unauthenticated access to specific endpoints(login/register/consoleDB - to be removed),
+     * all other endpoints will be need to be hit by an authenticated user.
+     * Sets stateless session management as we're using JWTs, as well as adds our custom JWT filter.
+     *The headers frameOption disable is for our console DB to work. Will be removed once we move past h2
+     *
+     * @param http the HttpSecurity object used to configure security for HTTP requests
+     * @return our configured SecurityFilterChain
+     * @throws Exception if an error occurs
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -44,6 +59,17 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Creates and configures our AuthenticationProvider. It is responsible for user authentication.
+     * is based on DAO(data access object) authentication, linking a provided UserDetailsService and a PasswordEncoder.
+     *
+     * 1. User Logins: Submitting User/Pass
+     * 2. Uses our MyUserDetailsService to look up a user based on the provided username
+     * 3. Uses the given password encoder to compare the submitted password with the stored one.
+     *
+     * @return an AuthenticationProvider instance configured to use our
+     *         UserDetailsService and PasswordEncoder.
+     */
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
@@ -57,6 +83,11 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * Provides a configuration source for CORS in our app.
+     * Allows all methods and headers coming from our front end
+     * @return a CorsConfigurationSource instance containing our config
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
