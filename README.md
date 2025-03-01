@@ -1,14 +1,20 @@
 frontend:
+
 install node.js
+
 use npm to install pnpm
+
 pnpm install
 
 to run: pnpm run dev
 
 
 server:
-open in IntelliJ
+
+open in IntelliJ - it should happen the build dependencies itself
+
 make a directory under resources called "files"
+
 and then another one inside files "defaults"
 
 This is for our default books path in our BookInitService:"src/main/resources/files/defaults"
