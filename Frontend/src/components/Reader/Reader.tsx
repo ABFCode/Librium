@@ -40,6 +40,7 @@ function Reader() {
 
   useEffect(() => {
     if (meta?.toc?.contentFiles) {
+      //should flatten the toc on server and just send the flattened toc
       const flattened: Chapter[] = [];
       meta.toc.contentFiles.forEach(
         (contentFile: { filePath: string; chapters?: Chapter[] }) => {

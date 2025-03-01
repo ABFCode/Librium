@@ -17,7 +17,6 @@ function Library() {
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
-    // Check if user is authenticated
     if (!auth.isAuthenticated()) {
       navigate("/signin");
       return;
@@ -56,7 +55,6 @@ function Library() {
     }
   };
 
-  // In your handleUpload function, modify the fetch call:
   const handleUpload = async () => {
     if (!selectedFile) return;
 
@@ -64,19 +62,15 @@ function Library() {
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
-
-      // Use this approach for setting headers with FormData
       const response = await fetch("http://localhost:8080/library/upload", {
         method: "POST",
         headers: {
-          // Only set Authorization, not Content-Type (browser sets it with boundary)
           Authorization: `Bearer ${auth.getToken()}`,
         },
         body: formData,
       });
 
       if (response.ok) {
-        // Refresh book list
         loadBooks();
         setShowUploadForm(false);
         setSelectedFile(null);
@@ -110,13 +104,13 @@ function Library() {
       {showUploadForm && (
         <div className="upload-form-container">
           <div className="upload-form">
-            <h3>Upload EPUB Book</h3>
+            <h3>Upload EPUB</h3>
             <input type="file" accept=".epub" onChange={handleFileChange} />
             <button
               onClick={handleUpload}
               disabled={!selectedFile || isUploading}
             >
-              {isUploading ? "Uploading..." : "Upload"}
+              {isUploading ? "Currently Uploading..." : "Upload"}
             </button>
           </div>
         </div>
