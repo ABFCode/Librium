@@ -2,6 +2,7 @@ package com.example.springreader.controller;
 
 import com.example.springreader.model.Book;
 import com.example.springreader.repository.BookRepository;
+import com.example.springreader.service.LibraryService;
 import com.example.springreader.utility.EpubParser;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,13 +21,15 @@ import java.util.Map;
 @CrossOrigin(origins = "http://localhost:5173")
 public class EpubController {
     private final BookRepository bookRepository;
+    private final LibraryService libraryService;
 
     /**
      * Constructor
      * @param bookRepository repository used to manage book entities, handles direct connection with DB
      */
-    public EpubController(BookRepository bookRepository) {
+    public EpubController(BookRepository bookRepository, LibraryService libraryService) {
         this.bookRepository = bookRepository;
+        this.libraryService = libraryService;
     }
     //File epubFile = new File("src/main/resources/files/pg11.epub");
 
@@ -68,7 +71,7 @@ public class EpubController {
 
             //File epubFile = new File("src/main/resources/files/book1.epub");
             File epubFile = new File(book.getFilePath());
-            Map<String, Object> meta = EpubParser.parseMeta(epubFile);
+            Map<String, Object> meta = libraryService.getBookMeta(epubFile);
             return ResponseEntity.ok(meta);
         }
         catch(Exception e){

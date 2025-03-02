@@ -13,7 +13,7 @@ interface Chapter {
 interface Meta {
   title: string;
   author: string;
-  toc: Record<string, Chapter[]>;
+  flatToc: Chapter[];
 }
 
 interface ChapterContent {
@@ -39,27 +39,11 @@ function Reader() {
   }, [bookId, navigate]);
 
   useEffect(() => {
-    if (meta?.toc?.contentFiles) {
-      //should flatten the toc on server and just send the flattened toc
-      const flattened: Chapter[] = [];
-      meta.toc.contentFiles.forEach(
-        (contentFile: { filePath: string; chapters?: Chapter[] }) => {
-          if (contentFile.chapters && Array.isArray(contentFile.chapters)) {
-            contentFile.chapters.forEach((chapter: Chapter) => {
-              flattened.push({
-                ...chapter,
-                filePath: contentFile.filePath,
-                index: chapter.index.toString(),
-              });
-            });
-          }
-        }
-      );
-      flattened.sort((a, b) => parseInt(a.index) - parseInt(b.index));
-      setFlattenedToc(flattened);
-      console.log("Flattened TOC:", flattened);
+    if (meta?.flatToc) {
+      setFlattenedToc(meta.flatToc);
+      console.log("Flattened TOC:", meta.flatToc);
 
-      if (flattened.length > 0) {
+      if (meta.flatToc.length > 0) {
         setCurrentChapterIndex(0);
       }
     }
@@ -87,7 +71,7 @@ function Reader() {
       }
 
       const data: Meta = await response.json();
-      if (!data.toc) {
+      if (!data.flatToc) {
         console.error("No TOC found in meta");
         return;
       }
