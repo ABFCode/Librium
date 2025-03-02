@@ -1,11 +1,15 @@
 package com.example.springreader.service;
 
 import com.example.springreader.model.Book;
+import com.example.springreader.model.EpubChapter;
+import com.example.springreader.model.EpubContentFile;
+import com.example.springreader.model.EpubToc;
 import com.example.springreader.repository.BookRepository;
 import com.example.springreader.utility.EpubParser;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -37,12 +41,46 @@ public class LibraryService {
         return  bookRepository.save(book);
     }
 
+
+    /**
+     * Flatterns the toc object into a single list of epubchapter objects.
+     * It does this by iterating through each content file, extracting all the chapters, and appending them to a single
+     * list.
+     * @param toc Our EpubToc object
+     * @return A list of chapters in order
+     */
+
+
+
+
+
     /**
      * Lists all books
      * @return A list of all books in our DB
      */
    public List<Book> ListAll(){
         return bookRepository.findAll();
+   }
+
+    public List<EpubChapter> flattenToc(EpubToc toc) {
+        List<EpubChapter> flattenedToc = new ArrayList<>();
+        if(toc != null && toc.getContentFiles() != null){
+            for (EpubContentFile contentFile : toc.getContentFiles()){
+                flattenedToc.addAll(contentFile.getChapters());
+            }
+        }
+        return flattenedToc;
+    }
+
+    public Map<String, Object> getBookMeta(File epubFile){
+       Map<String, Object> meta = EpubParser.parseMeta(epubFile);
+       if (meta.containsKey("toc")){
+           EpubToc toc = (EpubToc) meta.get("toc");
+           List<EpubChapter> chapters = flattenToc(toc);
+           meta.put("flatToc", chapters);
+           meta.remove("toc");
+       }
+       return meta;
     }
 
 
