@@ -9,3 +9,6 @@
 
 ## Java Files
 1. https://www.marcobehler.com/guides/java-files
+
+## Postgres
+1. https://hackernoon.com/using-postgres-effectively-in-spring-boot-applications
