@@ -3,15 +3,16 @@ import { Link, useNavigate } from "react-router-dom";
 import "./Library.css";
 import auth from "../../utility/auth";
 
-interface Book {
+interface BookDTO {
   id: string;
   title: string;
   author: string;
+  lastChapterIndex: number;
 }
 
 function Library() {
   const navigate = useNavigate();
-  const [books, setBooks] = useState<Book[]>([]);
+  const [books, setBooks] = useState<BookDTO[]>([]);
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -35,7 +36,7 @@ function Library() {
         return;
       }
 
-      const data: Book[] = await response.json();
+      const data: BookDTO[] = await response.json();
       setBooks(data);
     } catch (e: unknown) {
       if (e instanceof Error) {

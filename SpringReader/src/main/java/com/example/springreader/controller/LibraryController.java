@@ -1,7 +1,13 @@
 package com.example.springreader.controller;
 
+import com.example.springreader.dto.BookDTO;
 import com.example.springreader.model.Book;
+import com.example.springreader.model.User;
+import com.example.springreader.model.UserBook;
 import com.example.springreader.service.LibraryService;
+import com.example.springreader.service.UserBookService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -11,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Controller class for managing books in a library.
@@ -21,10 +28,12 @@ import java.util.UUID;
 public class LibraryController {
     private final LibraryService libraryService;
     private final String uploadDir;
+    private final UserBookService userBookService;
 
-    public LibraryController(LibraryService libraryService, String uploadDir){
+    public LibraryController(LibraryService libraryService, String uploadDir, UserBookService userBookService){
         this.libraryService = libraryService;
         this.uploadDir = uploadDir;
+        this.userBookService = userBookService;
     }
 
     /**
@@ -41,7 +50,7 @@ public class LibraryController {
      * @throws IOException if an error occurs during file processing
      */
     @PostMapping("/upload")
-    public Book uploadBook(@RequestParam("file") MultipartFile file) throws IOException {
+    public Book uploadBook(@RequestParam("file") MultipartFile file, @AuthenticationPrincipal User user) throws IOException {
 
         String originalFileName = file.getOriginalFilename();
         String filename = UUID.randomUUID().toString() + "-" + (originalFileName);
@@ -54,9 +63,20 @@ public class LibraryController {
         //Maybe change libraryService to use Path
         Book book = libraryService.addBook(filepath.toFile());
 
+        userBookService.createUserBook(user, book);
+
         return book;
 
 
+    }
+
+    @GetMapping()
+    public ResponseEntity<List<BookDTO>> getUserBooks(@AuthenticationPrincipal User user){
+        List<UserBook> userBooks = userBookService.getUserBooks(user.getId());
+        List<BookDTO> bookDTOS = userBooks.stream()
+                .map(userBook -> BookDTO.fromUserBook(userBook))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(bookDTOS);
     }
 
     /**
@@ -64,8 +84,8 @@ public class LibraryController {
      *
      * @return a list of Book objects representing all books in the db
      */
-    @GetMapping
-    public List<Book> listBooks(){
-        return libraryService.ListAll();
-    }
+//    @GetMapping
+//    public List<Book> listBooks(){
+//        return libraryService.ListAll();
+//    }
 }
