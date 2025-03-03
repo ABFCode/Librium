@@ -24,7 +24,9 @@ function Reader() {
   const { bookId } = useParams<{ bookId: string }>();
   const [meta, setMeta] = useState<Meta | null>(null);
   const [flattenedToc, setFlattenedToc] = useState<Chapter[]>([]);
-  const [currentChapterIndex, setCurrentChapterIndex] = useState<number>(0);
+  const [currentChapterIndex, setCurrentChapterIndex] = useState<number | null>(
+    null
+  );
   const [chapterContent, setChapterContent] = useState<string>("");
   const [isTocOpen, setIsTocOpen] = useState(false);
 
@@ -37,52 +39,37 @@ function Reader() {
     }
 
     const initializeReader = async () => {
-      await loadMeta();
-      await loadProgress();
+      try {
+        const [metaResponse, progressResponse] = await Promise.all([
+          fetch(`http://localhost:8080/epub/${bookId}/meta`, {
+            headers: auth.getAuthHeaders(),
+          }),
+          fetch(`http://localhost:8080/progress/get?bookId=${bookId}`, {
+            headers: auth.getAuthHeaders(),
+          }),
+        ]);
+
+        if (metaResponse.ok && progressResponse.ok) {
+          const metaDeta = await metaResponse.json();
+          const progressData = await progressResponse.json();
+
+          setMeta(metaDeta);
+          setFlattenedToc(metaDeta.flatToc);
+          setCurrentChapterIndex(progressData);
+        }
+      } catch (error) {
+        console.error("Error during reader init", error);
+      }
     };
 
     initializeReader();
   }, [bookId, navigate]);
 
   useEffect(() => {
-    if (meta?.flatToc) {
-      setFlattenedToc(meta.flatToc);
-      console.log("Flattened TOC:", meta.flatToc);
-    }
-  }, [meta]);
-
-  useEffect(() => {
-    if (flattenedToc.length > 0 && currentChapterIndex >= 0) {
+    if (flattenedToc.length > 0 && currentChapterIndex !== null) {
       loadChapter(currentChapterIndex);
     }
   }, [currentChapterIndex, flattenedToc]);
-
-  const loadMeta = async () => {
-    try {
-      const response = await fetch(
-        `http://localhost:8080/epub/${bookId}/meta`,
-        {
-          headers: auth.getAuthHeaders(),
-        }
-      );
-
-      if (response.status === 401 || response.status === 403) {
-        auth.logout();
-        navigate("/signin");
-        return;
-      }
-
-      const data: Meta = await response.json();
-      if (!data.flatToc) {
-        console.error("No TOC found in meta");
-        return;
-      }
-
-      setMeta(data);
-    } catch (error) {
-      console.error("Error fetching meta", error);
-    }
-  };
 
   const loadChapter = async (index: number) => {
     if (!flattenedToc || index < 0 || index >= flattenedToc.length) return;
@@ -132,26 +119,6 @@ function Reader() {
     }
   };
 
-  const loadProgress = async () => {
-    //console.log("Loading progress");
-    try {
-      const response = await fetch(
-        `http://localhost:8080/progress/get?bookId=${bookId}`,
-        {
-          headers: auth.getAuthHeaders(),
-        }
-      );
-
-      if (response.ok) {
-        const data: number = await response.json();
-        setCurrentChapterIndex(data);
-        console.log(`Loaded progress: ${data}`);
-      }
-    } catch (error) {
-      console.error("Error fetching book progress", error);
-    }
-  };
-
   const handleChapterSelect = (index: number) => {
     setCurrentChapterIndex(index);
     saveProgress(index);
@@ -159,18 +126,22 @@ function Reader() {
   };
 
   const handleNext = () => {
-    if (currentChapterIndex < flattenedToc.length - 1) {
-      const nextIndex = currentChapterIndex + 1;
-      setCurrentChapterIndex(nextIndex);
-      saveProgress(nextIndex);
+    if (currentChapterIndex != null) {
+      if (currentChapterIndex < flattenedToc.length - 1) {
+        const nextIndex = currentChapterIndex + 1;
+        setCurrentChapterIndex(nextIndex);
+        saveProgress(nextIndex);
+      }
     }
   };
 
   const handlePrev = () => {
-    if (currentChapterIndex > 0) {
-      const prevIndex = currentChapterIndex - 1;
-      setCurrentChapterIndex(prevIndex);
-      saveProgress(prevIndex);
+    if (currentChapterIndex != null) {
+      if (currentChapterIndex > 0) {
+        const prevIndex = currentChapterIndex - 1;
+        setCurrentChapterIndex(prevIndex);
+        saveProgress(prevIndex);
+      }
     }
   };
 
