@@ -35,22 +35,24 @@ function Reader() {
       navigate("/signin");
       return;
     }
-    loadMeta();
+
+    const initializeReader = async () => {
+      await loadMeta();
+      await loadProgress();
+    };
+
+    initializeReader();
   }, [bookId, navigate]);
 
   useEffect(() => {
     if (meta?.flatToc) {
       setFlattenedToc(meta.flatToc);
       console.log("Flattened TOC:", meta.flatToc);
-
-      if (meta.flatToc.length > 0) {
-        setCurrentChapterIndex(0);
-      }
     }
   }, [meta]);
 
   useEffect(() => {
-    if (flattenedToc.length > 0) {
+    if (flattenedToc.length > 0 && currentChapterIndex >= 0) {
       loadChapter(currentChapterIndex);
     }
   }, [currentChapterIndex, flattenedToc]);
@@ -110,20 +112,65 @@ function Reader() {
     }
   };
 
+  const saveProgress = async (chapterIndex: number) => {
+    //console.log(`Saving progress at ${chapterIndex}`);
+    try {
+      await fetch("http://localhost:8080/progress/save", {
+        method: "POST",
+        headers: {
+          ...auth.getAuthHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          bookId: bookId,
+          lastChapterIndex: chapterIndex,
+        }),
+      });
+      console.log(`Progress saved at chapter ${chapterIndex}`);
+    } catch (error) {
+      console.error("Error saving book progress", error);
+    }
+  };
+
+  const loadProgress = async () => {
+    //console.log("Loading progress");
+    try {
+      const response = await fetch(
+        `http://localhost:8080/progress/get?bookId=${bookId}`,
+        {
+          headers: auth.getAuthHeaders(),
+        }
+      );
+
+      if (response.ok) {
+        const data: number = await response.json();
+        setCurrentChapterIndex(data);
+        console.log(`Loaded progress: ${data}`);
+      }
+    } catch (error) {
+      console.error("Error fetching book progress", error);
+    }
+  };
+
   const handleChapterSelect = (index: number) => {
     setCurrentChapterIndex(index);
+    saveProgress(index);
     setIsTocOpen(false);
   };
 
   const handleNext = () => {
     if (currentChapterIndex < flattenedToc.length - 1) {
-      setCurrentChapterIndex(currentChapterIndex + 1);
+      const nextIndex = currentChapterIndex + 1;
+      setCurrentChapterIndex(nextIndex);
+      saveProgress(nextIndex);
     }
   };
 
   const handlePrev = () => {
     if (currentChapterIndex > 0) {
-      setCurrentChapterIndex(currentChapterIndex - 1);
+      const prevIndex = currentChapterIndex - 1;
+      setCurrentChapterIndex(prevIndex);
+      saveProgress(prevIndex);
     }
   };
 

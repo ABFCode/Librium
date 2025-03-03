@@ -42,13 +42,7 @@ public class LibraryService {
     }
 
 
-    /**
-     * Flatterns the toc object into a single list of epubchapter objects.
-     * It does this by iterating through each content file, extracting all the chapters, and appending them to a single
-     * list.
-     * @param toc Our EpubToc object
-     * @return A list of chapters in order
-     */
+
 
 
 
@@ -62,6 +56,13 @@ public class LibraryService {
         return bookRepository.findAll();
    }
 
+    /**
+     * Flatterns the toc object into a single list of epubchapter objects.
+     * It does this by iterating through each content file, extracting all the chapters, and appending them to a single
+     * list.
+     * @param toc Our EpubToc object
+     * @return A list of chapters in order
+     */
     public List<EpubChapter> flattenToc(EpubToc toc) {
         List<EpubChapter> flattenedToc = new ArrayList<>();
         if(toc != null && toc.getContentFiles() != null){
@@ -72,6 +73,11 @@ public class LibraryService {
         return flattenedToc;
     }
 
+    /**
+     * Retrieves the meta from our parseMeta method, flattens the toc and replaces the one in meta.
+     * @param epubFile File object representing an epub
+     * @return Our adjusted meta object containing the flattened toc
+     */
     public Map<String, Object> getBookMeta(File epubFile){
        Map<String, Object> meta = EpubParser.parseMeta(epubFile);
        if (meta.containsKey("toc")){
@@ -82,6 +88,8 @@ public class LibraryService {
        }
        return meta;
     }
+
+
 
 
 }
