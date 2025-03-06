@@ -19,6 +19,7 @@ function SignIn() {
     password: "",
   });
   const [error, setError] = useState<string>("");
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -33,7 +34,7 @@ function SignIn() {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:8080/api/user/login", {
+      const response = await fetch(`${API_URL}/user/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

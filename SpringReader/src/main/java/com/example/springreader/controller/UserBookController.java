@@ -10,7 +10,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/progress")
+@RequestMapping("/api/progress")
 @RequiredArgsConstructor
 public class UserBookController {
     private final UserBookService userBookService;

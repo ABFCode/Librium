@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
  * allows for uploading and  retrieving a list of books.
  */
 @RestController
-@RequestMapping("/library")
+@RequestMapping("/api/library")
 public class LibraryController {
     private final LibraryService libraryService;
     private final String uploadDir;

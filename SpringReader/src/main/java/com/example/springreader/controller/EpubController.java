@@ -17,8 +17,7 @@ import java.util.Map;
  * of chapters and metadata associated with a given book in the DB.
  */
 @RestController
-@RequestMapping("/epub")
-@CrossOrigin(origins = "http://localhost:5173")
+@RequestMapping("/api/epub")
 public class EpubController {
     private final BookRepository bookRepository;
     private final LibraryService libraryService;
