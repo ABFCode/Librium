@@ -32,7 +32,9 @@ build/
 ### VS Code ###
 .vscode/
 .idea/
-.db/
+
+.db/password.txt
+
 
 *.epub
 *.jpg
