@@ -33,6 +33,7 @@ build/
 .vscode/
 .idea/
 
+secrets.properties
 db
 
 *.epub
