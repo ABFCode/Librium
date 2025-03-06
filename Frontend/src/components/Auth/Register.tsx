@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./Auth.css";
 
+
 interface RegisterCredentials {
   username: string;
   password: string;
@@ -21,6 +22,7 @@ function Register() {
     confirmPassword: "",
   });
   const [error, setError] = useState<string>("");
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -40,7 +42,7 @@ function Register() {
     }
 
     try {
-      const response = await fetch("http://localhost:8080/api/user/register", {
+      const response = await fetch(`${API_URL}/user/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
