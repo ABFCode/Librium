@@ -31,6 +31,7 @@ function Reader() {
   const [isTocOpen, setIsTocOpen] = useState(false);
 
   const navigate = useNavigate();
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
   useEffect(() => {
     if (!auth.isAuthenticated()) {
@@ -41,10 +42,10 @@ function Reader() {
     const initializeReader = async () => {
       try {
         const [metaResponse, progressResponse] = await Promise.all([
-          fetch(`http://localhost:8080/epub/${bookId}/meta`, {
+          fetch(`${API_URL}/epub/${bookId}/meta`, {
             headers: auth.getAuthHeaders(),
           }),
-          fetch(`http://localhost:8080/progress/get?bookId=${bookId}`, {
+          fetch(`${API_URL}/progress/get?bookId=${bookId}`, {
             headers: auth.getAuthHeaders(),
           }),
         ]);
@@ -63,7 +64,7 @@ function Reader() {
     };
 
     initializeReader();
-  }, [bookId, navigate]);
+  }, [bookId, navigate, API_URL]);
 
   useEffect(() => {
     if (flattenedToc.length > 0 && currentChapterIndex !== null) {
@@ -82,7 +83,7 @@ function Reader() {
 
     try {
       const response = await fetch(
-        `http://localhost:8080/epub/${bookId}/chapter/${chapterIndex}`,
+        `${API_URL}/epub/${bookId}/chapter/${chapterIndex}`,
         { headers: auth.getAuthHeaders() }
       );
 
@@ -102,7 +103,7 @@ function Reader() {
   const saveProgress = async (chapterIndex: number) => {
     //console.log(`Saving progress at ${chapterIndex}`);
     try {
-      await fetch("http://localhost:8080/progress/save", {
+      await fetch(`${API_URL}/progress/save`, {
         method: "POST",
         headers: {
           ...auth.getAuthHeaders(),

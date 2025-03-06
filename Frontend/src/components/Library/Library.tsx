@@ -16,6 +16,7 @@ function Library() {
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
   useEffect(() => {
     if (!auth.isAuthenticated()) {
@@ -27,7 +28,7 @@ function Library() {
 
   const loadBooks = async (): Promise<void> => {
     try {
-      const response = await fetch("http://localhost:8080/library", {
+      const response = await fetch(`${API_URL}/library`, {
         headers: auth.getAuthHeaders(),
       });
 
@@ -63,7 +64,7 @@ function Library() {
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
-      const response = await fetch("http://localhost:8080/library/upload", {
+      const response = await fetch(`${API_URL}/library/upload`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${auth.getToken()}`,

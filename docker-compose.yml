@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    container_name: postgres-db
+    environment:
+      POSTGRES_USER: springreader
+      POSTGRES_PASSWORD: monkeyforkshoe
+      POSTGRES_DB: springreaderdb
+    ports:
+      - "5431:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    restart: unless-stopped
+    build:
+      context: ./SpringReader
+      dockerfile: Dockerfile
+    container_name: backend-app
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/springreaderdb
+      SPRING_DATASOURCE_USERNAME: springreader
+      SPRING_DATASOURCE_PASSWORD: monkeyforkshoe
+      BOOKS_UPLOAD_DIR: /uploads
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    volumes:
+      - uploads:/uploads
+
+  frontend:
+    restart: unless-stopped
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend-app
+    environment:
+      VITE_API_URL: http://localhost:8080
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  uploads:
