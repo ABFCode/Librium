@@ -33,8 +33,7 @@ build/
 .vscode/
 .idea/
 
-.db/password.txt
-
+db
 
 *.epub
 *.jpg
