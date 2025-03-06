@@ -39,3 +39,4 @@ db
 *.epub
 *.jpg
 *.DS_Store
+.env
