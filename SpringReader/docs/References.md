@@ -16,3 +16,7 @@
 ## Docker
 1. https://www.youtube.com/watch?v=dfTco9hmXEM
 2. https://elvisciotti.medium.com/dockerizing-areact-and-spring-boot-application-359fed5adb7d
+
+
+## Vps/Hosting
+1. https://www.youtube.com/watch?v=F-9KWQByeU0
