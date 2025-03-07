@@ -36,6 +36,8 @@ build/
 secrets.properties
 db
 
+.env.production
+
 *.epub
 *.jpg
 *.DS_Store
