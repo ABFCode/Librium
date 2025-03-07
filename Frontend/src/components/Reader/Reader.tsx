@@ -4,9 +4,8 @@ import "./Reader.css";
 import auth from "../../utility/auth";
 
 interface Chapter {
-  chapterTitle: string;
+  title: string;
   anchor: string;
-  filePath: string;
   index: string;
 }
 
@@ -31,7 +30,7 @@ function Reader() {
   const [isTocOpen, setIsTocOpen] = useState(false);
 
   const navigate = useNavigate();
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
   useEffect(() => {
     if (!auth.isAuthenticated()) {
@@ -56,6 +55,7 @@ function Reader() {
 
           setMeta(metaDeta);
           setFlattenedToc(metaDeta.flatToc);
+          console.log(flattenedToc);
           setCurrentChapterIndex(progressData);
         }
       } catch (error) {
@@ -197,7 +197,7 @@ function Reader() {
                   currentChapterIndex === idx ? "active" : ""
                 }`}
               >
-                {chapter.chapterTitle}
+                {chapter.title}
               </button>
             ))}
           </div>
