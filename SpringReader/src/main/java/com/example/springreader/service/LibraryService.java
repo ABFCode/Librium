@@ -65,13 +65,17 @@ public class LibraryService {
      */
     public List<EpubChapter> flattenToc(EpubToc toc) {
         List<EpubChapter> flattenedToc = new ArrayList<>();
-        if(toc != null && toc.getContentFiles() != null){
-            for (EpubContentFile contentFile : toc.getContentFiles()){
-                flattenedToc.addAll(contentFile.getChapters());
+        if (toc != null && toc.getContentFiles() != null) {
+            for (EpubContentFile contentFile : toc.getContentFiles()) {
+                for (EpubChapter chapter : contentFile.getChapters()) {
+                    String trimmedTitle = chapter.title() != null ? chapter.title().trim() : null;
+                    flattenedToc.add(new EpubChapter(trimmedTitle, chapter.anchor(), chapter.index()));
+                }
             }
         }
         return flattenedToc;
     }
+
 
     /**
      * Retrieves the meta from our parseMeta method, flattens the toc and replaces the one in meta.
@@ -80,12 +84,17 @@ public class LibraryService {
      */
     public Map<String, Object> getBookMeta(File epubFile){
        Map<String, Object> meta = EpubParser.parseMeta(epubFile);
+        //System.out.println("Meta before flattening: " + meta);
+
        if (meta.containsKey("toc")){
            EpubToc toc = (EpubToc) meta.get("toc");
            List<EpubChapter> chapters = flattenToc(toc);
            meta.put("flatToc", chapters);
            meta.remove("toc");
+           //System.out.println("Flattened toc: " + chapters);
        }
+
+        //System.out.println("Meta after flattening: " + meta);
        return meta;
     }
 

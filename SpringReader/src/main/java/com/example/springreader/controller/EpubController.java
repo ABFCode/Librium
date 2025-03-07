@@ -71,6 +71,8 @@ public class EpubController {
             //File epubFile = new File("src/main/resources/files/book1.epub");
             File epubFile = new File(book.getFilePath());
             Map<String, Object> meta = libraryService.getBookMeta(epubFile);
+
+            System.out.println("Flat TOC: " + meta.get("flatToc"));
             return ResponseEntity.ok(meta);
         }
         catch(Exception e){
