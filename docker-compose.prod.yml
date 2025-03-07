@@ -67,12 +67,12 @@ services:
       - "traefik.http.routers.frontend.priority=50"
     build:
       context: ./Frontend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: "https://librium.dev/api"
     container_name: frontend-app
-    environment:
-      VITE_API_URL: https://librium.dev/api
     ports:
-      - "5173:5173"
+      - "80:80"
     depends_on:
       - backend
 
