@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import auth from "../../utility/auth";
 import ThemeToggle from "../ThemeToggle";
@@ -72,6 +72,21 @@ function Reader() {
     }
   }, [currentChapterIndex, flattenedToc]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowLeft") {
+        handlePrev();
+      } else if (event.key === "ArrowRight") {
+        handleNext();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [currentChapterIndex, flattenedToc.length]);
+
   const loadChapter = async (index: number) => {
     if (!flattenedToc || index < 0 || index >= flattenedToc.length) return;
 
@@ -100,25 +115,28 @@ function Reader() {
     }
   };
 
-  const saveProgress = async (chapterIndex: number) => {
-    //console.log(`Saving progress at ${chapterIndex}`);
-    try {
-      await fetch(`${API_URL}/progress/save`, {
-        method: "POST",
-        headers: {
-          ...auth.getAuthHeaders(),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          bookId: bookId,
-          lastChapterIndex: chapterIndex,
-        }),
-      });
-      console.log(`Progress saved at chapter ${chapterIndex}`);
-    } catch (error) {
-      console.error("Error saving book progress", error);
-    }
-  };
+  const saveProgress = useCallback(
+    async (chapterIndex: number) => {
+      //console.log(`Saving progress at ${chapterIndex}`);
+      try {
+        await fetch(`${API_URL}/progress/save`, {
+          method: "POST",
+          headers: {
+            ...auth.getAuthHeaders(),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            bookId: bookId,
+            lastChapterIndex: chapterIndex,
+          }),
+        });
+        console.log(`Progress saved at chapter ${chapterIndex}`);
+      } catch (error) {
+        console.error("Error saving book progress", error);
+      }
+    },
+    [API_URL, bookId]
+  );
 
   const handleChapterSelect = (index: number) => {
     setCurrentChapterIndex(index);
@@ -126,7 +144,7 @@ function Reader() {
     setIsTocOpen(false);
   };
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (currentChapterIndex != null) {
       if (currentChapterIndex < flattenedToc.length - 1) {
         const nextIndex = currentChapterIndex + 1;
@@ -134,9 +152,9 @@ function Reader() {
         saveProgress(nextIndex);
       }
     }
-  };
+  }, [currentChapterIndex, flattenedToc.length, saveProgress]);
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (currentChapterIndex != null) {
       if (currentChapterIndex > 0) {
         const prevIndex = currentChapterIndex - 1;
@@ -144,7 +162,7 @@ function Reader() {
         saveProgress(prevIndex);
       }
     }
-  };
+  }, [currentChapterIndex, saveProgress]);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-base-200">
@@ -171,25 +189,39 @@ function Reader() {
         </div>
       </div>
 
-      <div className="flex justify-center mt-16 h-[calc(100vh-4rem)]">
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 flex gap-4 z-10">
-          <button
-            onClick={handlePrev}
-            disabled={currentChapterIndex === 0}
-            className="btn btn-primary"
-          >
-            Prev
-          </button>
-          <button
-            onClick={handleNext}
-            disabled={currentChapterIndex === flattenedToc.length - 1}
-            className="btn btn-primary"
-          >
-            Next
-          </button>
-        </div>
+      <div className="flex justify-center mt-16 h-[calc(100vh-4rem)] relative">
+        <div
+          onClick={handlePrev}
+          className={`fixed left-0 top-16 w-1/4 h-[calc(100vh-4rem)] z-0 cursor-pointer ${
+            currentChapterIndex === 0 ? "cursor-not-allowed" : ""
+          }`}
+        />
 
-        <main className="bg-base-100 w-full max-w-4xl p-8 overflow-y-auto leading-relaxed text-lg">
+        <div
+          onClick={handleNext}
+          className={`fixed right-0 top-16 w-1/4 h-[calc(100vh-4rem)] z-0 cursor-pointer ${
+            currentChapterIndex === flattenedToc.length - 1
+              ? "cursor-not-allowed"
+              : ""
+          }`}
+        />
+
+        <button
+          onClick={handlePrev}
+          disabled={currentChapterIndex === 0}
+          className="btn btn-primary fixed left-1/12 top-1/2 transform z-10"
+        >
+          Prev
+        </button>
+        <button
+          onClick={handleNext}
+          disabled={currentChapterIndex === flattenedToc.length - 1}
+          className="btn btn-primary fixed right-1/12 top-1/2 transform z-10"
+        >
+          Next
+        </button>
+
+        <main className="bg-base-100 w-full max-w-4xl p-8 overflow-y-auto leading-relaxed text-lg z-5 relative">
           {chapterContent.split("\n\n").map((paragraph, index) => (
             <p
               key={index}
