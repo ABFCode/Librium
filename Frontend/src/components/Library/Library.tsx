@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import "./Library.css";
 import auth from "../../utility/auth";
+import ThemeToggle from "../ThemeToggle";
 
 interface BookDTO {
   id: string;
@@ -87,51 +87,58 @@ function Library() {
   };
 
   return (
-    <div className="library-page">
-      <header className="library-header">
-        <h1>Library</h1>
-        <div className="user-controls">
+    <div className="p-6 bg-base-200 min-h-screen">
+      <header className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-primary">Library</h1>
+        <div className="flex gap-4 items-center">
+          <ThemeToggle />
           <button
             onClick={() => setShowUploadForm(!showUploadForm)}
-            className="upload-button"
+            className="btn btn-accent"
           >
             {showUploadForm ? "Cancel" : "Add Book"}
           </button>
-          <button onClick={handleLogout} className="logout-button">
+          <button onClick={handleLogout} className="btn btn-error">
             Logout
           </button>
         </div>
       </header>
 
       {showUploadForm && (
-        <div className="upload-form-container">
-          <div className="upload-form">
-            <h3>Upload EPUB</h3>
-            <input type="file" accept=".epub" onChange={handleFileChange} />
-            <button
-              onClick={handleUpload}
-              disabled={!selectedFile || isUploading}
-            >
-              {isUploading ? "Currently Uploading..." : "Upload"}
-            </button>
-          </div>
+        <div className="bg-base-100 p-4 rounded mb-6 shadow-md">
+          <h3 className="text-lg font-bold mb-4 text-secondary">Upload EPUB</h3>
+          <input
+            type="file"
+            accept=".epub"
+            onChange={handleFileChange}
+            className="file-input file-input-bordered w-full mb-4"
+          />
+          <button
+            onClick={handleUpload}
+            disabled={!selectedFile || isUploading}
+            className="btn btn-primary"
+          >
+            {isUploading ? "Currently Uploading..." : "Upload"}
+          </button>
         </div>
       )}
 
-      <div className="library-container">
-        <ul className="cards">
-          {books.map((book) => (
-            <li key={book.id}>
-              <Link to={`/epub/${book.id}`} className="card">
-                <img src={"book.jpg"} style={{ width: "100%" }} />
-                <div className="container">
-                  <h4>{book.title}</h4>
-                  <p>{book.author}</p>
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {books.map((book) => (
+          <Link
+            to={`/epub/${book.id}`}
+            key={book.id}
+            className="block bg-base-100 shadow-md rounded p-4 hover:shadow-lg"
+          >
+            <img
+              src={"book.jpg"}
+              alt={book.title}
+              className="w-full h-48 object-cover rounded mb-4"
+            />
+            <h4 className="text-lg font-bold text-primary">{book.title}</h4>
+            <p className="text-base-content/70">{book.author}</p>
+          </Link>
+        ))}
       </div>
     </div>
   );

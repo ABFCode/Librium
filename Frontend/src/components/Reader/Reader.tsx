@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import "./Reader.css";
 import auth from "../../utility/auth";
+import ThemeToggle from "../ThemeToggle";
 
 interface Chapter {
   title: string;
@@ -147,61 +147,83 @@ function Reader() {
   };
 
   return (
-    <div className="reader-layout">
-      <nav className="top-nav">
-        <div className="nav-left">
-          <Link to="/" className="nav-button">
+    <div className="flex flex-col h-screen overflow-hidden bg-base-200">
+      <div className="navbar bg-base-100 shadow-md fixed top-0 z-10">
+        <div className="navbar-start">
+          <Link to="/" className="btn btn-ghost">
             Library
           </Link>
         </div>
-        <div className="nav-center">
-          <h1>{meta?.title}</h1>
-          <h2>{meta?.author}</h2>
+        <div className="navbar-center">
+          <div className="text-center">
+            <h1 className="text-lg font-medium">{meta?.title}</h1>
+            <h2 className="text-sm">{meta?.author}</h2>
+          </div>
         </div>
-        <div className="nav-right">
+        <div className="navbar-end">
+          <ThemeToggle />
           <button
-            className="nav-button"
+            className="btn btn-ghost"
             onClick={() => setIsTocOpen(!isTocOpen)}
           >
             Contents
           </button>
         </div>
-      </nav>
+      </div>
 
-      <div className="content-wrapper">
-        <div className="prev-next">
-          <button onClick={handlePrev} disabled={currentChapterIndex === 0}>
+      <div className="flex justify-center mt-16 h-[calc(100vh-4rem)]">
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 flex gap-4 z-10">
+          <button
+            onClick={handlePrev}
+            disabled={currentChapterIndex === 0}
+            className="btn btn-primary"
+          >
             Prev
           </button>
           <button
             onClick={handleNext}
             disabled={currentChapterIndex === flattenedToc.length - 1}
+            className="btn btn-primary"
           >
             Next
           </button>
         </div>
-        <main className="main-content">
+
+        <main className="bg-base-100 w-full max-w-4xl p-8 overflow-y-auto leading-relaxed text-lg">
           {chapterContent.split("\n\n").map((paragraph, index) => (
-            <p key={index}>{paragraph}</p>
+            <p
+              key={index}
+              className={
+                index > 0 ? "mt-6 indent-8 text-justify" : "mt-6 text-justify"
+              }
+            >
+              {paragraph}
+            </p>
           ))}
         </main>
 
-        <aside className={`sidebar right ${isTocOpen ? "open" : ""}`}>
-          <div className="toc-content">
-            <h3>Table of Contents</h3>
-            {flattenedToc.map((chapter, idx) => (
-              <button
-                key={chapter.index}
-                onClick={() => handleChapterSelect(idx)}
-                className={`toc-item ${
-                  currentChapterIndex === idx ? "active" : ""
-                }`}
-              >
-                {chapter.title}
-              </button>
-            ))}
+        <div
+          className={`fixed top-16 right-0 bottom-0 w-80 bg-base-100 shadow-lg transition-transform duration-300 overflow-y-auto ${
+            isTocOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <div className="p-5">
+            <h3 className="text-xl font-bold mb-4">Table of Contents</h3>
+            <div className="flex flex-col gap-1">
+              {flattenedToc.map((chapter, idx) => (
+                <button
+                  key={chapter.index}
+                  onClick={() => handleChapterSelect(idx)}
+                  className={`text-left py-2 px-4 rounded-lg hover:bg-base-200 ${
+                    currentChapterIndex === idx ? "bg-base-300 font-medium" : ""
+                  }`}
+                >
+                  {chapter.title}
+                </button>
+              ))}
+            </div>
           </div>
-        </aside>
+        </div>
       </div>
     </div>
   );
