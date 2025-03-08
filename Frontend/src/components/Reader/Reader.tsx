@@ -81,9 +81,9 @@ function Reader() {
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [currentChapterIndex, flattenedToc.length]);
 
