@@ -4,10 +4,13 @@ import com.example.springreader.model.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
+import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -22,11 +25,12 @@ public class JwtService {
 
     private final SecretKey key;
 
-    public JwtService(){
-        //this.key = Keys.hmacShaKeyFor(jwtConfig.getSecret().getBytes());
-        //should make a one-off key and store in env variables or somewhere else
-        //as is, every restart = new token needed as we build a new key
-        this.key = Jwts.SIG.HS256.key().build();
+    public JwtService(@Value("${JWT_SECRET}") String secret){
+        if(secret == null || secret.isEmpty()){
+            throw new IllegalArgumentException("JWT secret cannot be null or empty");
+        }
+        this.key = Keys.hmacShaKeyFor(Base64.getDecoder().decode(secret));
+
     }
 
 
