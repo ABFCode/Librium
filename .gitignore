@@ -44,3 +44,5 @@ uploads/
 *.jpg
 *.DS_Store
 .env
+
+jwt-secret.txt
