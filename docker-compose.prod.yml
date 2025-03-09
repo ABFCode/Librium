@@ -50,6 +50,7 @@ services:
       - uploads:/uploads
     secrets:
       - db-password
+      - jwt-secret
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=Host(`librium.dev`) && PathPrefix(`/api`)"
@@ -84,3 +85,6 @@ volumes:
 secrets:
   db-password:
     file: ./db/password.txt
+  jwt-secret:
+    file: ./jwt-secret.txt
+
