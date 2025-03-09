@@ -6,6 +6,7 @@ import com.example.springreader.model.User;
 import com.example.springreader.model.UserBook;
 import com.example.springreader.service.LibraryService;
 import com.example.springreader.service.UserBookService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
  * Controller class for managing books in a library.
  * allows for uploading and  retrieving a list of books.
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/library")
 public class LibraryController {
@@ -78,6 +80,7 @@ public class LibraryController {
                 .collect(Collectors.toList());
         return ResponseEntity.ok(bookDTOS);
     }
+
 
     /**
      * Retrieves a list of all books stored in the library.

@@ -8,6 +8,7 @@ interface BookDTO {
   title: string;
   author: string;
   lastChapterIndex: number;
+  coverImagePath: string;
 }
 
 function Library() {
@@ -19,17 +20,23 @@ function Library() {
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
   useEffect(() => {
-    if (!auth.isAuthenticated()) {
-      navigate("/signin");
-      return;
-    }
-    loadBooks();
+    const checkAuth = async () => {
+      const isAuthenticated = await auth.isAuthenticated();
+      if (!isAuthenticated) {
+        console.log("Not authenticated");
+        navigate("/signin");
+        return;
+      }
+      console.log("Authenticated");
+      loadBooks();
+    };
+    checkAuth();
   }, [navigate]);
 
   const loadBooks = async (): Promise<void> => {
     try {
       const response = await fetch(`${API_URL}/library`, {
-        headers: auth.getAuthHeaders(),
+        credentials: "include",
       });
 
       if (response.status === 401) {
@@ -66,9 +73,7 @@ function Library() {
       formData.append("file", selectedFile);
       const response = await fetch(`${API_URL}/library/upload`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${auth.getToken()}`,
-        },
+        credentials: "include",
         body: formData,
       });
 
@@ -131,7 +136,9 @@ function Library() {
             className="block bg-base-100 shadow-md rounded p-4 hover:shadow-lg"
           >
             <img
-              src={"book.jpg"}
+              src={`${import.meta.env.VITE_API_URL}/covers/${book.coverImagePath
+                .split("/")
+                .pop()}`}
               alt={book.title}
               className="w-full h-48 object-cover rounded mb-4"
             />

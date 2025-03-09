@@ -3,11 +3,12 @@ package com.example.springreader.controller;
 import com.example.springreader.dto.LoginRequest;
 import com.example.springreader.dto.LoginResponse;
 import com.example.springreader.service.UserService;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.core.env.Environment;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * Controller class for handling user operations like authentication and registration.
@@ -16,9 +17,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/user")
 public class UserController {
     private final UserService userService;
+    private final Environment environment;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, Environment environment) {
         this.userService = userService;
+        this.environment = environment;
     }
 
 
@@ -29,9 +32,30 @@ public class UserController {
      * @return a ResponseEntity containing a LoginResponse object with authentication details and status
      */
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest loginRequest){
-        LoginResponse response = userService.authenticate(loginRequest);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest loginRequest, HttpServletResponse response){
+        LoginResponse loginResponse = userService.authenticate(loginRequest);
+
+        //boolean isProd = Arrays.asList(environment.getActiveProfiles()).contains("prod");
+        boolean isProd =  environment.matchesProfiles("docker | prod");
+
+        if(loginResponse.status().equals("SUCCESS")){
+            ResponseCookie jwtCookie = ResponseCookie.from("jwt", loginResponse.token())
+                            .httpOnly(true)
+                            .secure(isProd)
+                            .path("/")
+                            .maxAge(60 * 60 * 24 * 14)
+                            .sameSite(isProd ? "Strict" : "Lax")
+                            .build();
+
+
+            response.addHeader("Set-Cookie", jwtCookie.toString());
+
+            return ResponseEntity.ok(new LoginResponse(null, "SUCCESS"));
+
+        }
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(LoginResponse.FAILURE);
+
+        //return ResponseEntity.ok(response);
     }
 
     /**
@@ -51,5 +75,27 @@ public class UserController {
         else{
             return ResponseEntity.badRequest().body("This username already exists");
         }
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<String> logout(HttpServletResponse response){
+        ResponseCookie jwtCookie = ResponseCookie.from("jwt", null)
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(0)
+                .sameSite("Strict")
+                .build();
+
+        response.addHeader("Set-Cookie", jwtCookie.toString());
+
+        return ResponseEntity.ok("Logout successful");
+
+    }
+
+
+    @GetMapping("/validate")
+    public ResponseEntity<String> validateToken(){
+        return ResponseEntity.ok("Token is valid");
     }
 }

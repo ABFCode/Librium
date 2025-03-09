@@ -387,7 +387,66 @@ public class EpubParser {
         return response;
 
 
-}
+    }
+
+    public static Optional<Map<String, Object>> extractCoverImage(File epubFile){
+        try(ZipFile zipFile = new ZipFile(epubFile)){
+            Optional<OpfData> opfData = getOpfDocument(zipFile);
+            if(opfData.isEmpty()){
+                log.error("Failed to get OPFData");
+                return Optional.empty();
+            }
+            Document opfDocument = opfData.get().opfDocument();
+            NodeList manifestItems = opfDocument.getElementsByTagName("item");
+
+            for(int i = 0; i < manifestItems.getLength(); i++){
+                Element item = (Element) manifestItems.item(i);
+                String id = item.getAttribute("id");
+                String href = item.getAttribute("href");
+                String mediaType = item.getAttribute("media-type");
+
+                //some books don't seem to have this attribute (hp)
+                String properties = item.getAttribute("properties");
+
+
+                if(mediaType.equals("image/jpeg") || mediaType.equals("image/png")){
+                    String coverImagePath;
+                    if(id.toLowerCase().contains("cover") || properties.toLowerCase().contains("cover-image") || href.toLowerCase().contains("cover")){
+                        if(Path.of(opfData.get().opfFilePath()).getParent() != null){
+                            coverImagePath = Path.of(opfData.get().opfFilePath()).getParent().resolve(href).toString().replace("\\", "/");
+                        }
+                        else{
+                            coverImagePath = href.replace("\\", "/");
+                        }
+
+
+                        log.info("Found cover image path at: {}", coverImagePath);
+
+                        ZipEntry coverImageEntry = zipFile.getEntry(coverImagePath);
+
+                        log.info("Cover image entry: {}", coverImageEntry.getName());
+                        if(coverImageEntry != null) {
+                            Map<String, Object> response = new HashMap<>();
+                            response.put("coverImage", zipFile.getInputStream(coverImageEntry).readAllBytes());
+                            response.put("mediaType", mediaType);
+                            return Optional.of(response);
+                        }
+
+                    }
+                }
+            }
+
+            return Optional.empty();
+
+
+
+
+        }
+        catch (Exception e){
+            log.error("Error extracting cover image", e);
+            return Optional.empty();
+        }
+    }
 
 
 

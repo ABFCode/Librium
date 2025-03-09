@@ -31,9 +31,12 @@ public class Book {
 
     private String filePath;
 
-    public Book(String title, String author, String filePath){
+    private String coverImagePath;
+
+    public Book(String title, String author, String filePath, String coverImagePath){
         this.title = title;
         this.author = author;
         this.filePath = filePath;
+        this.coverImagePath = coverImagePath;
     }
 }

@@ -42,10 +42,10 @@ function Reader() {
       try {
         const [metaResponse, progressResponse] = await Promise.all([
           fetch(`${API_URL}/epub/${bookId}/meta`, {
-            headers: auth.getAuthHeaders(),
+            credentials: "include",
           }),
           fetch(`${API_URL}/progress/get?bookId=${bookId}`, {
-            headers: auth.getAuthHeaders(),
+            credentials: "include",
           }),
         ]);
 
@@ -99,7 +99,7 @@ function Reader() {
     try {
       const response = await fetch(
         `${API_URL}/epub/${bookId}/chapter/${chapterIndex}`,
-        { headers: auth.getAuthHeaders() }
+        { credentials: "include" }
       );
 
       if (response.status === 401 || response.status === 403) {
@@ -121,8 +121,8 @@ function Reader() {
       try {
         await fetch(`${API_URL}/progress/save`, {
           method: "POST",
+          credentials: "include",
           headers: {
-            ...auth.getAuthHeaders(),
             "Content-Type": "application/json",
           },
           body: JSON.stringify({

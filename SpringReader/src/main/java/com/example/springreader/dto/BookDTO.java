@@ -10,6 +10,7 @@ public class BookDTO {
     private String title;
     private String author;
     private int lastChapterIndex;
+    private String coverImagePath;
 
 
     public static BookDTO fromUserBook(UserBook userBook){
@@ -19,6 +20,7 @@ public class BookDTO {
         bookDTO.setTitle(book.getTitle());
         bookDTO.setAuthor(book.getAuthor());
         bookDTO.setLastChapterIndex(userBook.getLastChapterIndex());
+        bookDTO.setCoverImagePath(book.getCoverImagePath());
         return bookDTO;
     }
 }
