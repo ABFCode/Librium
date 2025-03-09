@@ -6,23 +6,27 @@ import com.example.springreader.model.EpubContentFile;
 import com.example.springreader.model.EpubToc;
 import com.example.springreader.repository.BookRepository;
 import com.example.springreader.utility.EpubParser;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
 
 /**
  * Provides methods to interact with our bookRepo thereby interacting with our DB. Right now we can jsut add a book
  * and list all of them.
  */
+@Slf4j
 @Service
 public class LibraryService {
     private final BookRepository bookRepository;
+    private final String uploadDir;
 
-    public LibraryService(BookRepository bookRepository){
+    public LibraryService(BookRepository bookRepository, String uploadDir){
         this.bookRepository = bookRepository;
+        this.uploadDir = uploadDir;
     }
 
 
@@ -36,8 +40,40 @@ public class LibraryService {
         Map<String, Object> meta = EpubParser.parseMeta(epubFile);
         String title = EpubParser.getTitle(meta);
         String author = EpubParser.getAuthor(meta);
+        String coverImagePath = null;
 
-        Book book = new Book(title, author, epubFile.getAbsolutePath());
+        Optional<Map<String, Object>> coverImageData = EpubParser.extractCoverImage(epubFile);
+
+        if(coverImageData.isPresent()){
+            //log.info("Found cover image");
+            byte[] image = (byte[]) coverImageData.get().get("coverImage");
+            String mediaType = (String) coverImageData.get().get("mediaType");
+
+            String fileExtension = mediaType.split("/")[1];
+
+            try{
+                Path coverDir = Path.of(uploadDir, "covers");
+                if(!Files.exists(coverDir)){
+                    Files.createDirectories(coverDir);
+                    log.info("Created covers directory");
+                }
+
+                String filename = UUID.randomUUID().toString() + "." + fileExtension;
+                coverImagePath = "/covers/" + filename;
+
+                Files.write(coverDir.resolve(filename), image);
+                log.info("Cover image path: {}", coverImagePath);
+
+            }
+            catch(Exception e){
+                log.error("Error saving cover image", e);
+            }
+        }
+        else{
+            log.error("No cover data found");
+        }
+
+        Book book = new Book(title, author, epubFile.getAbsolutePath(), coverImagePath);
         return  bookRepository.save(book);
     }
 

@@ -1,14 +1,8 @@
 package com.example.springreader.service;
 
-import com.example.springreader.model.Book;
 import com.example.springreader.repository.BookRepository;
-import com.example.springreader.utility.EpubParser;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
-import java.io.File;
-import java.util.Map;
 
 /**
  * Service responsible for initializing the app with some default books.
@@ -34,43 +28,43 @@ public class BookInitService {
      * EPUB files from the default directory, extract metadata, and saves the book.
      *
      */
-    @PostConstruct //Marks a method that should be executed after the object has been constructed
-    public void init(){
-        if(bookRepository.count() == 0){
-            log.info("Book Init is starting");
-            try{
-
-            File defaultBooksDir = new File(BOOKS_PATH);
-
-            //Need to make a filter, ensure we are looking at epub files
-            if(defaultBooksDir.isDirectory()){
-                File[] epubFiles = defaultBooksDir.listFiles();
-
-                if (epubFiles != null) {
-                    for(File epub: epubFiles) {
-                        Map<String, Object> meta = EpubParser.parseMeta(epub);
-                        String title = EpubParser.getTitle(meta);
-                        String author = EpubParser.getAuthor(meta);
-
-                        Book book = new Book(
-                                title,
-                                author,
-                                epub.getAbsolutePath()
-                        );
-                        bookRepository.save(book);
-                    }
-                }
-            }
-            } catch (Exception e) {
-                log.error("Error getting epubs from default", e);
-
-            }
-
-        }
-        else{
-            log.info("No need to init books as there are already books in the DB");
-        }
-        log.info("Init completed");
-    }
+//    @PostConstruct //Marks a method that should be executed after the object has been constructed
+//    public void init(){
+//        if(bookRepository.count() == 0){
+//            log.info("Book Init is starting");
+//            try{
+//
+//            File defaultBooksDir = new File(BOOKS_PATH);
+//
+//            //Need to make a filter, ensure we are looking at epub files
+//            if(defaultBooksDir.isDirectory()){
+//                File[] epubFiles = defaultBooksDir.listFiles();
+//
+//                if (epubFiles != null) {
+//                    for(File epub: epubFiles) {
+//                        Map<String, Object> meta = EpubParser.parseMeta(epub);
+//                        String title = EpubParser.getTitle(meta);
+//                        String author = EpubParser.getAuthor(meta);
+//
+//                        Book book = new Book(
+//                                title,
+//                                author,
+//                                epub.getAbsolutePath()
+//                        );
+//                        bookRepository.save(book);
+//                    }
+//                }
+//            }
+//            } catch (Exception e) {
+//                log.error("Error getting epubs from default", e);
+//
+//            }
+//
+//        }
+//        else{
+//            log.info("No need to init books as there are already books in the DB");
+//        }
+//        log.info("Init completed");
+//    }
 
 }

@@ -38,6 +38,7 @@ function SignIn() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify(credentials),
       });
 
@@ -50,9 +51,8 @@ function SignIn() {
 
       const data: AuthResponse = await response.json();
       //console.log(data);
-
-      localStorage.setItem("token", data.token);
       if (data.status === "SUCCESS") {
+        console.log("Login successful");
         navigate("/");
       } else {
         setError("Login failed");

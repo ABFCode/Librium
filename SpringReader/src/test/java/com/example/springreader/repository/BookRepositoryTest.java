@@ -22,7 +22,7 @@ class BookRepositoryTest {
      */
     @Test
     void saveAndFindById_savesAndRetrievesBook() {
-        Book book = new Book("Title", "Author", "path/file.epub");
+        Book book = new Book("Title", "Author", "path/file.epub", "path/file.png");
         Book savedBook = bookRepository.save(book);
 
         Optional<Book> retrievedBook = bookRepository.findById(savedBook.getId());
@@ -38,7 +38,7 @@ class BookRepositoryTest {
      */
     @Test
     void deleteById_deletesBook() {
-        Book book = new Book("Test Title", "Test Author", "path/file.epub");
+        Book book = new Book("Test Title", "Test Author", "path/file.epub", "path/file.png");
         Book savedBook = bookRepository.save(book);
 
         bookRepository.deleteById(savedBook.getId());
