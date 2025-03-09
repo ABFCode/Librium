@@ -36,6 +36,8 @@ build/
 secrets.properties
 db
 
+uploads/
+
 .env.production
 
 *.epub
