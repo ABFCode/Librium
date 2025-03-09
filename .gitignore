@@ -37,6 +37,7 @@ secrets.properties
 db
 
 uploads/
+defaults/
 
 .env.production
 
