@@ -55,6 +55,18 @@ public class LibraryController {
     public Book uploadBook(@RequestParam("file") MultipartFile file, @AuthenticationPrincipal User user) throws IOException {
 
         String originalFileName = file.getOriginalFilename();
+        if(originalFileName == null || !originalFileName.toLowerCase().endsWith(".epub")){
+            throw new IllegalArgumentException("Only epub files are supported");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.equals("application/epub+zip")){
+            throw new IllegalArgumentException("Only epub files are supported");
+        }
+
+
+
+
         String filename = UUID.randomUUID().toString() + "-" + (originalFileName);
 
         Path filepath = Path.of(uploadDir, filename);
