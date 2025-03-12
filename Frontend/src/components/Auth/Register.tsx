@@ -76,9 +76,9 @@ function Register() {
     <div className="flex items-center justify-center min-h-screen bg-base-200">
       <form
         onSubmit={handleSubmit}
-        className="bg-base-100 p-6 rounded-lg shadow-md w-full max-w-md"
+        className="bg-base-300 p-6 rounded-lg shadow-md w-full max-w-md"
       >
-        <h1 className="text-2xl font-bold text-center mb-4 text-primary">
+        <h1 className="text-5xl font-bold text-center mb-4 text-primary p-3">
           Register
         </h1>
         {error && (
