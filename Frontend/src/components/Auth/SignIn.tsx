@@ -68,7 +68,7 @@ function SignIn() {
         onSubmit={handleSubmit}
         className="bg-base-300 p-6 rounded-lg shadow-md w-full max-w-md"
       >
-        <h1 className="text-4xl font-bold text-center mb-4 text-primary">
+        <h1 className="text-5xl font-bold text-center mb-4 text-primary p-3">
           Sign In
         </h1>
         {error && (

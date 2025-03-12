@@ -1,8 +1,8 @@
-export interface AuthUtils {
+interface AuthUtils {
   //getToken: () => string | null;
   isAuthenticated: () => Promise<boolean>;
   logout: () => void;
-  getAuthHeaders: () => HeadersInit;
+  //getAuthHeaders: () => HeadersInit;
 }
 
 const auth: AuthUtils = {
@@ -32,10 +32,6 @@ const auth: AuthUtils = {
       return false;
     }
   },
-
-  getAuthHeaders: () => ({
-    "Content-Type": "application/json",
-  }),
 
   // getAuthHeaders: () => ({
   //   Authorization: `Bearer ${localStorage.getItem("token")}`,
