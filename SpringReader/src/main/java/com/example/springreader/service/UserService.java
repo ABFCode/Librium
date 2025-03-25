@@ -2,11 +2,17 @@ package com.example.springreader.service;
 
 import com.example.springreader.dto.LoginRequest;
 import com.example.springreader.dto.LoginResponse;
+import com.example.springreader.model.Book;
 import com.example.springreader.model.User;
+import com.example.springreader.model.UserBook;
+import com.example.springreader.repository.BookRepository;
+import com.example.springreader.repository.UserBookRepository;
 import com.example.springreader.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Service class responsible for user-related operations like authentication
@@ -14,10 +20,15 @@ import org.springframework.stereotype.Service;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+
+    //temp for defaultbook
+    private final BookRepository bookRepository;
+    private final UserBookRepository userBookRepository;
 
 
     /**
@@ -44,6 +55,7 @@ public class UserService {
      * @param loginRequest login request record, contains just a user/pass
      * @return if username is already present false, else true
      */
+    @Transactional
     public boolean register(LoginRequest loginRequest) {
         if (userRepository.findByUsername(loginRequest.username()).isPresent()) {
             return false;
@@ -51,6 +63,24 @@ public class UserService {
 
         User newUser = new User(loginRequest.username(), passwordEncoder.encode(loginRequest.password()));
         userRepository.save(newUser);
+
+
+        //remove later- redo elsewhere
+
+        if(bookRepository.existsById(1L)){
+            Book defaultBook = bookRepository.findById(1L).orElse(null);
+            if(defaultBook != null){
+                UserBook userBook = new UserBook();
+                userBook.setUser(newUser);
+                userBook.setBook(defaultBook);
+                userBookRepository.save(userBook);
+                log.info("Default book added to user");
+            } else{
+                log.error("ID 1 exists, but no book found");
+            }
+        }
+        log.info("Default book doesn't exist, skipping");
+
         return true;
     }
 }
