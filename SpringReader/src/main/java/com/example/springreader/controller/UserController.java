@@ -41,10 +41,10 @@ public class UserController {
         if(loginResponse.status().equals("SUCCESS")){
             ResponseCookie jwtCookie = ResponseCookie.from("jwt", loginResponse.token())
                             .httpOnly(true)
-                            .secure(isProd)
+                            .secure(isProd) //Send only over HTTPS
                             .path("/")
                             .maxAge(60 * 60 * 24 * 14)
-                            .sameSite(isProd ? "Strict" : "Lax")
+                            .sameSite(isProd ? "Strict" : "Lax") //CSRF protection
                             .build();
 
 
@@ -79,12 +79,15 @@ public class UserController {
 
     @PostMapping("/logout")
     public ResponseEntity<String> logout(HttpServletResponse response){
+
+        boolean isProd =  environment.matchesProfiles("docker | prod");
+
         ResponseCookie jwtCookie = ResponseCookie.from("jwt", null)
                 .httpOnly(true)
-                .secure(true)
+                .secure(isProd)
                 .path("/")
                 .maxAge(0)
-                .sameSite("Strict")
+                .sameSite(isProd ? "Strict" : "Lax")
                 .build();
 
         response.addHeader("Set-Cookie", jwtCookie.toString());
@@ -94,6 +97,7 @@ public class UserController {
     }
 
 
+    //Relies on our JWTAuthFilter. If it makes it this far that means the user is authed.
     @GetMapping("/validate")
     public ResponseEntity<String> validateToken(){
         return ResponseEntity.ok("Token is valid");

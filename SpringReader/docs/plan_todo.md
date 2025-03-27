@@ -72,6 +72,10 @@ RESEARCH/PLAN:
 3. Research Kindle formats, see if they're possible. Probably not.
 4. DB Indexing
 
+PROD:
+1. Fail2Ban
+2. Basic load balancing through docker/Traefik
+
 
 # OG PLAN #
 ## Project Description

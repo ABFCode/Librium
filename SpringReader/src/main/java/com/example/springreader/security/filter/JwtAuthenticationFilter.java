@@ -39,6 +39,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         jwt = extractJwtFromCookies(request);
 
+        //no jwt found, user is not authed, continue on
         if(jwt == null) {
             filterChain.doFilter(request, response);
             return;

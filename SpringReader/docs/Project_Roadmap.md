@@ -1,9 +1,19 @@
 # SpringReader Project Roadmap
 
 
+
+
+
+
+
+
+# Current project overview 3/27:
+
+
+
 # Current Features:
 
-## Overview of current project status
+## Overview of current project status 2/28:
 
 My application has made significant progress towards implementing all the functionality I wanted.
 A lot of the core functionality has been put into place, and the project is already capable at least locally, of 
