@@ -1,5 +1,8 @@
 # How EPUB files work
 
+An EPUB is essentially a ZIP Archive containing HTML/XHTML files for the content, css for styling, images, and 
+specific XML files (container,opf,ncx) for defining structure and metadata.
+
 ##
 - **Essentially just an archive like a zip file**
     - Three primary components; `META-INF`, `OEBPS`, and `mimetype`.

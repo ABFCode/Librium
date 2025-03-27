@@ -67,10 +67,13 @@ function Library() {
   const handleUpload = async () => {
     if (!selectedFile) return;
 
+    //check for epub here
+
     setIsUploading(true);
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
+
       const response = await fetch(`${API_URL}/library/upload`, {
         method: "POST",
         credentials: "include",

@@ -3,10 +3,10 @@
 
 ## FIX
 ### BACKEND ###
-FIX PARSING: We re-parse WAY too much, both our meta and OFP/TOC files are re-parsed constantly
+FIX PARSING: We parse WAY too much, both our meta and OFP/TOC files are parsed for each chapter get
 1. Parse meta once.
 2. Parse TOC/Flatten it.
-3. Store parsed metadata in our updated Book entity
+3. Store parsed metadata in our updated Book entity or another separate BookMeta entity. 
 4. Change getEpubMeta to just retrieve from our book entity instead of parsing each time. 
 5. Use getEpubChapter to use our stored TOC
 
@@ -33,10 +33,7 @@ Phone: Remove chapter nav arrows for phone size
 
 1. BOOK DELETION: Let users delete their books.
 2. Storage limit for users
-3. Change image to thumbnail. 
-4. (MAJOR CHANGE) Store only necessary parts of EPUBs 
-   - We are storing the entire EPUB files, but only using the cover image and content text after parsing.
-   - We could store the parsed chapter content and the modified image. It Would probably help space issues a lot.
+3. Change image to thumbnail.
 5. Continue with DTOs for all responses
    - Especially EpubController
 6. Refine class responsibilities.
@@ -67,10 +64,13 @@ RESEARCH/PLAN:
 1. (MAJOR CHANGE) Local/Cache. See what we can do in terms of local storage.
     - Look into indexedDB.
     - Service Workers
-2. TXT Files: Plan for these
+2. (MAJOR CHANGE) Store only necessary parts of EPUBs
+    - We are storing the entire EPUB files, but only using the cover image and content text after parsing.
+    - We could store the parsed chapter content and the modified image. Not sure if this will help.
+3. TXT Files: Plan for these
    - Generic BookParser which our Epub and Txt parser will impl. (Strategy pattern?)
-3. Research Kindle formats, see if they're possible. Probably not.
-4. DB Indexing
+4. Research Kindle formats, see if they're possible. Probably not.
+5. DB Indexing
 
 PROD:
 1. Fail2Ban

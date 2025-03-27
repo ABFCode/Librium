@@ -100,6 +100,7 @@ public class EpubParser {
             }
 
             NodeList navPoints = tocDocument.get().getElementsByTagName("navPoint");
+            //Each navpoint represents a "chapter" or a break in content.
 
             EpubToc toc = new EpubToc();
 
