@@ -55,14 +55,14 @@ public class LibraryService {
                 Path coverDir = Path.of(uploadDir, "covers");
                 if(!Files.exists(coverDir)){
                     Files.createDirectories(coverDir);
-                    log.info("Created covers directory");
+                    //log.info("Created covers directory");
                 }
 
-                String filename = UUID.randomUUID().toString() + "." + fileExtension;
+                String filename = UUID.randomUUID() + "." + fileExtension;
                 coverImagePath = "/covers/" + filename;
 
                 Files.write(coverDir.resolve(filename), image);
-                log.info("Cover image path: {}", coverImagePath);
+                //log.info("Cover image path: {}", coverImagePath);
 
             }
             catch(Exception e){

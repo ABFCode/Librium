@@ -38,6 +38,7 @@ db
 
 uploads/
 defaults/
+EpubTest/
 
 .env.production
 

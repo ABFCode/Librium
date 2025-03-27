@@ -67,8 +67,9 @@ public class LibraryController {
 
 
 
-        String filename = UUID.randomUUID().toString() + "-" + (originalFileName);
+        String filename = UUID.randomUUID() + "-" + (originalFileName);
 
+        //each user should get their own dir or some other sol.
         Path filepath = Path.of(uploadDir, filename);
 
 
