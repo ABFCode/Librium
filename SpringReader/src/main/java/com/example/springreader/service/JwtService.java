@@ -41,7 +41,7 @@ public class JwtService {
      * @param user The user for which we are generating a token
      * @return a JWT token as a string
      */
-    public String generateToken(User user){
+    public String generateToken(User user) {
         return generateToken(new HashMap<>(), user);
     }
 
@@ -104,7 +104,8 @@ public class JwtService {
     }
 
     /**
-     * Extracts all claims from a given JWT token.
+     * Extracts all claims from a given JWT token. Used to verify the token's signature before extracting
+     * as well as parsing it into a trusted Claims object.
      *
      * @param token the JWT token that we are extracting from
      * @return the claims contained in the token
