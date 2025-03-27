@@ -1,17 +1,79 @@
 # Plan for SpringReader Application
 
 
-## Current Plan - 2/4/25
-- **Spring Boot**
-  - Rest endpoint for reading/parsing an epub
-  - Parse epub (just text for now)
-  - Returns parsed epub
-- **React**
-  - Simple component for calling our backend just a button probably
-  - Display parsed content
+## FIX
+### BACKEND ###
+FIX PARSING: We re-parse WAY too much, both our meta and OFP/TOC files are re-parsed constantly
+1. Parse meta once.
+2. Parse TOC/Flatten it.
+3. Store parsed metadata in our updated Book entity
+4. Change getEpubMeta to just retrieve from our book entity instead of parsing each time. 
+5. Use getEpubChapter to use our stored TOC
+
+REMOVE H2 LEGACY STUFF
+1. Remove anything still related to our H2 DB - esp. security related stuff.
+
+ERROR HANDLING
+1. Lots of generic errors. Response errors are generally not specific enough either. 
+
+TESTS
+1. Fix JwtServiceTest - broke cause of secret changes
+
+### FRONT END ###
+Error handling: Very little user feedback for errors is directly shown to the user in the page, 
+especially around user sign-up.
+
+Phone: Remove chapter nav arrows for phone size
 
 
 
+
+
+## DO
+
+1. BOOK DELETION: Let users delete their books.
+2. Storage limit for users
+3. Change image to thumbnail. 
+4. (MAJOR CHANGE) Store only necessary parts of EPUBs 
+   - We are storing the entire EPUB files, but only using the cover image and content text after parsing.
+   - We could store the parsed chapter content and the modified image. It Would probably help space issues a lot.
+5. Continue with DTOs for all responses
+   - Especially EpubController
+6. Refine class responsibilities.
+   - LibraryService for one.
+7. More robust validation for uploads. 
+   - Check for basic structure first maybe? Not sure.
+8. Centralize our API in React. Way too much repeated code. 
+9. Reader Changes: Font size, font, spacing, margin, etc. 
+10. Scroll pos. sync
+11. Reading progress indicator
+12. Search impl.
+    - Could do in frontend or backend, could be a major change. 
+    - Would be much easier on backend, after we do #4 (Store only parsed parts)
+13. Library management/organization/searching. General overhaul probably. 
+14. Cover placeholder image.
+
+
+
+UI CHANGES:
+1. a component for the nav bar.
+2. Make things more consistent throughout.
+3. Change book card sizes
+4. Colors for light theme aren't great
+5. I don't like how we're doing upload. Looks and feels old, at least drag and drop impl. 
+6. Prev/Next buttons on EBOOK reader, not great. Replace it with arrows or nothing? Like Kindle. (see Kindle.png)
+
+RESEARCH/PLAN:
+1. (MAJOR CHANGE) Local/Cache. See what we can do in terms of local storage.
+    - Look into indexedDB.
+    - Service Workers
+2. TXT Files: Plan for these
+   - Generic BookParser which our Epub and Txt parser will impl. (Strategy pattern?)
+3. Research Kindle formats, see if they're possible. Probably not.
+4. DB Indexing
+
+
+# OG PLAN #
 ## Project Description
 
 This application is a web-based e-reader designed to let users upload, store, and read their digital books.
