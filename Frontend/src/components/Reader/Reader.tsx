@@ -238,7 +238,7 @@ function Reader() {
         </main>
 
         <div
-          className={`fixed top-16 right-0 bottom-0 w-80 bg-base-100 shadow-lg transition-transform duration-300 overflow-y-auto ${
+          className={`fixed top-16 right-0 bottom-0 w-80 bg-base-100 shadow-lg transition-transform duration-300 overflow-y-auto z-20 ${
             isTocOpen ? "translate-x-0" : "translate-x-full"
           }`}
         >

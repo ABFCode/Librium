@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import auth from "../../utility/auth";
 import ThemeToggle from "../ThemeToggle";
@@ -19,21 +19,7 @@ function Library() {
   const [isUploading, setIsUploading] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      const isAuthenticated = await auth.isAuthenticated();
-      if (!isAuthenticated) {
-        console.log("Not authenticated");
-        navigate("/signin");
-        return;
-      }
-      //console.log("Authenticated");
-      loadBooks();
-    };
-    checkAuth();
-  }, [navigate]);
-
-  const loadBooks = async (): Promise<void> => {
+  const loadBooks = useCallback(async (): Promise<void> => {
     try {
       const response = await fetch(`${API_URL}/library`, {
         credentials: "include",
@@ -51,7 +37,21 @@ function Library() {
         console.error("Error fetching books", e);
       }
     }
-  };
+  }, [API_URL]);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const isAuthenticated = await auth.isAuthenticated();
+      if (!isAuthenticated) {
+        console.log("Not authenticated");
+        navigate("/signin");
+        return;
+      }
+      //console.log("Authenticated");
+      loadBooks();
+    };
+    checkAuth();
+  }, [navigate, loadBooks]);
 
   const handleLogout = () => {
     auth.logout();
