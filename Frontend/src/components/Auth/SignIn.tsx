@@ -7,8 +7,8 @@ interface LoginCredentials {
 }
 
 interface AuthResponse {
-  token: string;
-  status: string;
+  token: string; //should be all null now - remove
+  status: string; //SUCCESS or FAILURE
 }
 
 function SignIn() {
@@ -43,6 +43,7 @@ function SignIn() {
       });
 
       if (!response.ok) {
+        //check for error message here
         throw new Error("Invalid credentials");
       }
 

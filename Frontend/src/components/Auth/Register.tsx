@@ -56,6 +56,7 @@ function Register() {
       // console.log("Raw response:", rawResponse);
 
       if (!response.ok) {
+        //fix this
         const errorData = await response.json();
         throw new Error(errorData.message || "Registration failed");
       }
