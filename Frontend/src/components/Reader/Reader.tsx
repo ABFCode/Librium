@@ -55,7 +55,7 @@ function Reader() {
 
           setMeta(metaDeta);
           setFlattenedToc(metaDeta.flatToc);
-          console.log(flattenedToc);
+          //console.log(flattenedToc);
           setCurrentChapterIndex(progressData);
         }
       } catch (error) {
@@ -64,41 +64,44 @@ function Reader() {
     };
 
     initializeReader();
-  }, [bookId, navigate, API_URL, flattenedToc]);
+  }, [bookId, navigate, API_URL]);
+
+  const loadChapter = useCallback(
+    async (index: number) => {
+      if (!flattenedToc || index < 0 || index >= flattenedToc.length) return;
+
+      const chapterIndex = parseInt(flattenedToc[index].index);
+      if (isNaN(chapterIndex)) {
+        console.error("Invalid chapter index", chapterIndex);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${API_URL}/epub/${bookId}/chapter/${chapterIndex}`,
+          { credentials: "include" }
+        );
+
+        if (response.status === 401 || response.status === 403) {
+          auth.logout();
+          navigate("/signin");
+          return;
+        }
+
+        const data: ChapterContent = await response.json();
+        setChapterContent(data.chapterContent);
+      } catch (error) {
+        console.error("Error fetching chapter", error);
+      }
+    },
+    [API_URL, bookId, flattenedToc, navigate]
+  );
 
   useEffect(() => {
     if (flattenedToc.length > 0 && currentChapterIndex !== null) {
       loadChapter(currentChapterIndex);
     }
-  }, [currentChapterIndex, flattenedToc]);
-
-  const loadChapter = async (index: number) => {
-    if (!flattenedToc || index < 0 || index >= flattenedToc.length) return;
-
-    const chapterIndex = parseInt(flattenedToc[index].index);
-    if (isNaN(chapterIndex)) {
-      console.error("Invalid chapter index", chapterIndex);
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `${API_URL}/epub/${bookId}/chapter/${chapterIndex}`,
-        { credentials: "include" }
-      );
-
-      if (response.status === 401 || response.status === 403) {
-        auth.logout();
-        navigate("/signin");
-        return;
-      }
-
-      const data: ChapterContent = await response.json();
-      setChapterContent(data.chapterContent);
-    } catch (error) {
-      console.error("Error fetching chapter", error);
-    }
-  };
+  }, [currentChapterIndex, flattenedToc, loadChapter]);
 
   const saveProgress = useCallback(
     async (chapterIndex: number) => {
