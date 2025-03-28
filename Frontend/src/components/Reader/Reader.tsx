@@ -64,28 +64,13 @@ function Reader() {
     };
 
     initializeReader();
-  }, [bookId, navigate, API_URL]);
+  }, [bookId, navigate, API_URL, flattenedToc]);
 
   useEffect(() => {
     if (flattenedToc.length > 0 && currentChapterIndex !== null) {
       loadChapter(currentChapterIndex);
     }
   }, [currentChapterIndex, flattenedToc]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "ArrowLeft") {
-        handlePrev();
-      } else if (event.key === "ArrowRight") {
-        handleNext();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [currentChapterIndex, flattenedToc.length]);
 
   const loadChapter = async (index: number) => {
     if (!flattenedToc || index < 0 || index >= flattenedToc.length) return;
@@ -163,6 +148,21 @@ function Reader() {
       }
     }
   }, [currentChapterIndex, saveProgress]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowLeft") {
+        handlePrev();
+      } else if (event.key === "ArrowRight") {
+        handleNext();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [currentChapterIndex, flattenedToc.length, handleNext, handlePrev]);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-base-200">

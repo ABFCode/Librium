@@ -27,7 +27,7 @@ function Library() {
         navigate("/signin");
         return;
       }
-      console.log("Authenticated");
+      //console.log("Authenticated");
       loadBooks();
     };
     checkAuth();

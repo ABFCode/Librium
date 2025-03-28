@@ -17,7 +17,7 @@ public class UserBook {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne
+    @ManyToOne //doesn't need to be many to one
     @JoinColumn(name = "book_id", nullable = false)
     private Book book;
 

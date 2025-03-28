@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 function ThemeToggle() {
   const [theme, setTheme] = useState<"dark" | "cupcake">("dark");
 
-  // Initialize theme from localStorage or default to dark
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme") as
       | "dark"
