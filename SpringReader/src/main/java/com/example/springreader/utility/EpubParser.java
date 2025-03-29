@@ -15,7 +15,9 @@ import java.io.File;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
@@ -100,13 +102,9 @@ public class EpubParser {
             }
 
             NodeList navPoints = tocDocument.get().getElementsByTagName("navPoint");
-            //Each navpoint represents a "chapter" or a break in content.
 
             EpubToc toc = new EpubToc();
 
-            //Outer map: Key: File path, Value: A list of maps, each map representing a chapter in the file
-            //Inner map: Key: Title, ContentSrc, anchor, index
-            //Map<String, List<Map<String, String>>> tocOuterMap = new LinkedHashMap<>();
 
             for(int i = 0; i < navPoints.getLength(); i++){
                 Element navPoint = (Element) navPoints.item(i);
@@ -116,8 +114,17 @@ public class EpubParser {
 
                 if(contentList.getLength() > 0){
                     String rawSrc = contentList.item(0).getAttributes().getNamedItem("src").getTextContent();
+                    //log.info("Raw src: {}", rawSrc);
                     int hashIndex = rawSrc.indexOf("#");
-                    String filePath = (hashIndex != -1) ? rawSrc.substring(0, hashIndex) : rawSrc;
+                    String rawFilePath = (hashIndex != -1) ? rawSrc.substring(0, hashIndex) : rawSrc;
+                    String filePath = Path.of(opfData.get().opfParent()).resolve(rawFilePath).toString().replace("\\", "/");
+
+
+                    log.info("File path: {}", filePath);
+                    log.info("File path: {}", filePath);
+                    log.info("File path: {}", filePath);
+                    log.info("File path: {}", filePath);
+
                     String anchor = (hashIndex != -1) ? rawSrc.substring(hashIndex + 1) : "";
 
                     //Find the content file in our toc, or create a new one
@@ -139,47 +146,6 @@ public class EpubParser {
                 }
             }
 
-
-
-
-
-
-
-            //A list of maps, each map will have a title, contentPath, and the index of the chapter
-//            List<Map<String,String>> tocList = new ArrayList<>();
-//
-//            for(int i =0; i < navPoints.getLength(); i++){
-//                Element navPoint = (Element) navPoints.item(i);
-//                String chapterTitle = "";
-//
-//                NodeList navLabels = tocDocument.get().getElementsByTagName("navLabel");
-//
-//                chapterTitle = navLabels.item(i).getTextContent();
-//                //log.info("chapterTitle is : {}", chapterTitle);
-//
-//                NodeList contentList = navPoint.getElementsByTagName("content");
-//                String contentSrc = "";
-//
-//                //log.info("ContestList length is: {}", contentList.getLength());
-//
-//
-//                if(contentList.getLength() > 0){
-//                    contentSrc = contentList.item(0).getAttributes().getNamedItem("src").getTextContent();
-//                    //log.info("ContentSrc is : {}", contentSrc);
-//                }
-//
-//                String index = String.valueOf(i);
-//
-//                //log.info("Index is : {}", index);
-//                Map<String, String> tocMap = new HashMap<>();
-//
-//                //Title index and path of the chapter
-//                tocMap.put("title", chapterTitle);
-//                tocMap.put("contentSrc", contentSrc);
-//                tocMap.put("index", index);
-//                tocList.add(tocMap);
-//
-//            }
             response.put("toc", toc);
 
         }
@@ -609,8 +575,11 @@ public class EpubParser {
 
                 ZipEntry opfEntry = zipFile.getEntry(opfFilePath);
                 Optional<Document> opfDocument = parseXML(zipFile.getInputStream(opfEntry));
+
+                String opfParentDir = Path.of(opfFilePath).getParent() != null ? Path.of(opfFilePath).getParent().toString() : "";
+
                 if(opfDocument.isPresent()){
-                    return Optional.of(new OpfData(opfDocument.get(), opfFilePath));
+                    return Optional.of(new OpfData(opfDocument.get(), opfFilePath, opfParentDir));
                 }
                 else{
                     return Optional.empty();

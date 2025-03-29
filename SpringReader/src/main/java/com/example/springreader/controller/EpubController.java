@@ -50,7 +50,6 @@ public class EpubController {
 //            File epubFile = new File(book.getFilePath());
 //            Map<String, Object> chapter = EpubParser.parseContent(epubFile, index);
             ChapterContentDTO chapterContentDTO = libraryService.getChapterContent(bookId, index);
-            log.info(chapterContentDTO.content());
             return ResponseEntity.ok(chapterContentDTO);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);

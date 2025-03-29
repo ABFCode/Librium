@@ -7,4 +7,4 @@ import org.w3c.dom.Document;
  * @param opfDocument - The document itself
  * @param opfFilePath - It's file path
  */
-public record OpfData(Document opfDocument, String opfFilePath){}
+public record OpfData(Document opfDocument, String opfFilePath, String opfParent) {}
