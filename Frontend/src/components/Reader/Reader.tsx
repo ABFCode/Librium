@@ -12,7 +12,7 @@ interface Chapter {
 interface Meta {
   title: string;
   author: string;
-  flatToc: Chapter[];
+  chapters: Chapter[];
 }
 
 interface ChapterContent {
@@ -54,7 +54,7 @@ function Reader() {
           const progressData = await progressResponse.json();
 
           setMeta(metaDeta);
-          setFlattenedToc(metaDeta.flatToc);
+          setFlattenedToc(metaDeta.chapters);
           //console.log(flattenedToc);
           setCurrentChapterIndex(progressData);
         }

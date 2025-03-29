@@ -8,4 +8,4 @@ package com.example.springreader.model;
  * @param index a number representing which chapter this is, though this will probably not match up with actual book
  *              chapter numbers, as all the fluff at beginning of books are often in their own chapters
  */
-public record EpubChapter(String title, String anchor, int index) {}
+public record EpubChapter(String title, String anchor, int index, String filePath) {}
