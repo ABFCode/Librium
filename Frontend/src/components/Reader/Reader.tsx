@@ -16,7 +16,7 @@ interface Meta {
 }
 
 interface ChapterContent {
-  chapterContent: string;
+  content: string;
 }
 
 function Reader() {
@@ -89,7 +89,7 @@ function Reader() {
         }
 
         const data: ChapterContent = await response.json();
-        setChapterContent(data.chapterContent);
+        setChapterContent(data.content);
       } catch (error) {
         console.error("Error fetching chapter", error);
       }

@@ -391,7 +391,122 @@ public class EpubParser {
     }
 
     public static String NewParseContent(Path epubFile, String filePath, String anchor){
-        return "";
+        String chapterContent = "";
+
+        try(ZipFile zipFile = new ZipFile(epubFile.toFile())){
+            ZipEntry chapterZipEntry = zipFile.getEntry(filePath);
+
+            log.info("Filepath is: {}", filePath);
+            if(chapterZipEntry == null){
+                log.error("Chapter zip entry not found");
+                return "";
+            }
+            try(InputStream chapterInputStream = zipFile.getInputStream(chapterZipEntry)){
+                org.jsoup.nodes.Document chapterDocument = Jsoup.parse(chapterInputStream, "UTF-8", filePath);
+                if(!anchor.isEmpty()){
+                    chapterDocument = Jsoup.parse(chapterDocument.html());
+
+                    //Find the element using our anchor as an id
+                    org.jsoup.nodes.Element anchorElement = chapterDocument.getElementById(anchor);
+
+                    if (anchorElement != null) {
+                        log.info("Found anchor element: {}", anchorElement.tagName());
+                        //Create a StringBuilder to collect all content
+                        StringBuilder contentBuilder = new StringBuilder();
+
+                        //If it's a div (container element), process all its children
+                        if (anchorElement.tagName().equals("div")) {
+                            //Look for a heading, if present.
+                            org.jsoup.nodes.Element heading = anchorElement.select("h1, h2, h3, h4, h5, h6").first();
+                            if (heading != null) {
+                                /**
+                                 * ("\n\n") so we can format between paragraphs/headings/etc on front end easily.
+                                 */
+                                contentBuilder.append(heading.text()).append("\n\n");
+                            }
+
+                            //Add all paragraphs
+                            for (org.jsoup.nodes.Element p : anchorElement.select("p")) {
+                                String pText = p.text().trim();
+                                if (!pText.isEmpty()) {
+                                    contentBuilder.append(pText).append("\n\n");
+                                }
+                            }
+                        } else {
+                            //Add the anchor element itself
+                            contentBuilder.append(anchorElement.text()).append("\n\n");
+
+                            //Add all following sibling elements until the next anchor or the end
+                            org.jsoup.nodes.Element currentElement = anchorElement;
+                            while ((currentElement = currentElement.nextElementSibling()) != null) {
+                                //Stop if we hit another anchor element
+                                if (currentElement.hasAttr("id")) {
+                                    break;
+                                }
+
+                                //Check if it's a paragraph element
+                                if (currentElement.tagName().equals("p")) {
+                                    String paragraphText = currentElement.text().trim();
+                                    if (!paragraphText.isEmpty()) {
+                                        contentBuilder.append(paragraphText).append("\n\n");
+                                    }
+                                }
+                                //Headings
+                                else if (currentElement.tagName().matches("h[1-6]")) {
+                                    String headingText = currentElement.text().trim();
+                                    if (!headingText.isEmpty()) {
+                                        contentBuilder.append(headingText).append("\n\n");
+                                    }
+                                }
+                            }
+                        }
+
+                        //Return the text content
+                      return contentBuilder.toString().trim();
+                    } else {
+                        //There was an anchor, but couldn't find it in our documenet
+                        return "Anchor not found: " + anchor;
+                    }
+                } else //No anchor
+                {
+                    log.info("No anchor provided");
+                    chapterDocument.head().remove();
+
+
+
+                    StringBuilder contentBuilder = new StringBuilder();
+
+                    //add any headings
+                    for (org.jsoup.nodes.Element hElement : chapterDocument.select("h1, h2, h3, h4, h5, h6")) {
+                        String hText = hElement.text().trim();
+                        if (!hText.isEmpty()) {
+                            contentBuilder.append(hText).append("\n\n");
+                        }
+                    }
+
+                    //add all paragraphs
+                    for (org.jsoup.nodes.Element pElement : chapterDocument.select("p")) {
+                        String pText = pElement.text().trim();
+                        if (!pText.isEmpty()) {
+                            contentBuilder.append(pText).append("\n\n");
+                            //log.info("Paragraph text: {}", pText);
+                        }
+                    }
+
+                    return contentBuilder.toString().trim();
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+
+    }
+        catch (Exception e){
+            log.error("Error opening epub", e);
+        }
+
+
+
+        return chapterContent;
     }
 
     public static Optional<Map<String, Object>> extractCoverImage(File epubFile){

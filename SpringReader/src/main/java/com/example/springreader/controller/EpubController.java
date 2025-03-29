@@ -4,6 +4,7 @@ import com.example.springreader.dto.BookMetaDTO;
 import com.example.springreader.dto.ChapterContentDTO;
 import com.example.springreader.repository.BookRepository;
 import com.example.springreader.service.LibraryService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/epub")
+@Slf4j
 public class EpubController {
     private final BookRepository bookRepository;
     private final LibraryService libraryService;
@@ -48,6 +50,7 @@ public class EpubController {
 //            File epubFile = new File(book.getFilePath());
 //            Map<String, Object> chapter = EpubParser.parseContent(epubFile, index);
             ChapterContentDTO chapterContentDTO = libraryService.getChapterContent(bookId, index);
+            log.info(chapterContentDTO.content());
             return ResponseEntity.ok(chapterContentDTO);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
