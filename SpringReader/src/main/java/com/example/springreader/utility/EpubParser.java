@@ -390,6 +390,10 @@ public class EpubParser {
 
     }
 
+    public static String NewParseContent(Path epubFile, String filePath, String anchor){
+        return "";
+    }
+
     public static Optional<Map<String, Object>> extractCoverImage(File epubFile){
         try(ZipFile zipFile = new ZipFile(epubFile)){
             Optional<OpfData> opfData = getOpfDocument(zipFile);
