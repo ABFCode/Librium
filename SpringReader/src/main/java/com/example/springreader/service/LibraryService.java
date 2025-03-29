@@ -1,9 +1,11 @@
 package com.example.springreader.service;
 
 import com.example.springreader.dto.BookMetaDTO;
+import com.example.springreader.dto.ChapterContentDTO;
 import com.example.springreader.dto.ChapterDTO;
 import com.example.springreader.model.*;
 import com.example.springreader.repository.BookRepository;
+import com.example.springreader.repository.ChapterRepository;
 import com.example.springreader.utility.EpubParser;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,16 +24,20 @@ import java.util.*;
 @Service
 public class LibraryService {
     private final BookRepository bookRepository;
+    private final ChapterRepository chapterRepository;
     private final String uploadDir;
 
-    public LibraryService(BookRepository bookRepository, String uploadDir){
+    public LibraryService(BookRepository bookRepository, ChapterRepository chapterRepository, String uploadDir){
         this.bookRepository = bookRepository;
+        this.chapterRepository = chapterRepository;
         this.uploadDir = uploadDir;
     }
 
 
     /**
-     * Adds a new book to the repository (which will save it to our DB)
+     * Adds a new book to the repository.
+     * Extracts the cover image and saves it.
+     * Save each chapter for the book separately
      *
      * @param epubFile the EPUB file containing the book's info
      * @return the saved Book object
@@ -69,7 +75,6 @@ public class LibraryService {
     }
 
 
-
     public String extractAndSaveCoverImage(Map<String, Object> coverImageData){
         byte[] image = (byte[]) coverImageData.get("coverImage");
         String mediaType = (String) coverImageData.get("mediaType");
@@ -97,7 +102,7 @@ public class LibraryService {
     }
 
     /**
-     * Flatterns the toc object into a single list of epubchapter objects.
+     * Flattens the toc object into a single list of epubchapter objects.
      * It does this by iterating through each content file, extracting all the chapters, and appending them to a single
      * list.
      * @param toc Our EpubToc object
@@ -118,9 +123,9 @@ public class LibraryService {
 
 
     /**
-     * Retrieves the meta from our parseMeta method, flattens the toc and replaces the one in meta.
-     * @param epubFile File object representing an epub
-     * @return Our adjusted meta object containing the flattened toc
+     * Constructs our metaDataDTO to return to the user. Uses a given ID to retrieve a book and its chapters.
+     * @param BookId File object representing an epub
+     * @return Our constructed BookMetaDTO
      */
     public BookMetaDTO getBookMeta(Long BookId) {
         Book book = bookRepository.findById(BookId).orElseThrow();
@@ -132,26 +137,15 @@ public class LibraryService {
 
         return new BookMetaDTO(book.getTitle(), book.getAuthor(), chapters);
 
+    }
+
+    public ChapterContentDTO getChapterContent(Long bookId, Integer chapterIndex) {
+        Chapter chapter = chapterRepository.findByBookIdAndChapterIndex(bookId, chapterIndex);
+        Book book = bookRepository.findById(bookId).orElseThrow();
+        Path epubPath = Path.of(book.getFilePath());
+
+        return new ChapterContentDTO(EpubParser.NewParseContent(epubPath, chapter.getFilePath(),chapter.getAnchor()));
+
 
     }
-//        Front end expects:
-//        interface Meta {
-//            title: string;
-//            author: string;
-//            flatToc: Chapter[];
-//        }
-//       Map<String, Object> meta = EpubParser.parseMeta(epubFile);
-//        //System.out.println("Meta before flattening: " + meta);
-//
-//       if (meta.containsKey("toc")){
-//           EpubToc toc = (EpubToc) meta.get("toc");
-//           List<EpubChapter> chapters = flattenToc(toc);
-//           meta.put("flatToc", chapters);
-//           meta.remove("toc");
-//           //System.out.println("Flattened toc: " + chapters);
-//       }
-//
-//        //System.out.println("Meta after flattening: " + meta);
-//       return meta;
-//    }
 }

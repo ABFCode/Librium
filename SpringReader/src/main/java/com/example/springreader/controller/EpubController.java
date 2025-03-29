@@ -1,17 +1,15 @@
 package com.example.springreader.controller;
 
 import com.example.springreader.dto.BookMetaDTO;
-import com.example.springreader.model.Book;
+import com.example.springreader.dto.ChapterContentDTO;
 import com.example.springreader.repository.BookRepository;
 import com.example.springreader.service.LibraryService;
-import com.example.springreader.utility.EpubParser;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.io.File;
-import java.util.Collections;
-import java.util.Map;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * This controller provides endpoints for handling EPUB files, allowing the retrieval
@@ -36,22 +34,23 @@ public class EpubController {
     /**
      * gets a specific chapter from an EPUB file from with a given book.
      *
-     * @param id id of the book stored in the db
+     * @param bookId id of the book stored in the db
      * @param index the chapter index to be retrieved from the EPUB file
      * @return a ResponseEntity containing a map of chapter content if successful,
      * or an error message if failure
      */
-    @GetMapping("{id}/chapter/{index}")
-    public ResponseEntity<Map<String, Object>> getEpubChapter(
-            @PathVariable Long id,
+    @GetMapping("{bookId}/chapter/{index}")
+    public ResponseEntity<ChapterContentDTO> getEpubChapter(
+            @PathVariable Long bookId,
             @PathVariable Integer index){
         try {
-            Book book = bookRepository.findById(id).orElseThrow();
-            File epubFile = new File(book.getFilePath());
-            Map<String, Object> chapter = EpubParser.parseContent(epubFile, index);
-            return ResponseEntity.ok(chapter);
+//            Book book = bookRepository.findById(id).orElseThrow();
+//            File epubFile = new File(book.getFilePath());
+//            Map<String, Object> chapter = EpubParser.parseContent(epubFile, index);
+            ChapterContentDTO chapterContentDTO = libraryService.getChapterContent(bookId, index);
+            return ResponseEntity.ok(chapterContentDTO);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.singletonMap("error", e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
 
     }
