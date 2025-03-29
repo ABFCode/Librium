@@ -1,11 +1,11 @@
 package com.example.springreader.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * This class represents an individual Book
@@ -19,6 +19,7 @@ import lombok.NoArgsConstructor;
  */
 @Entity
 @Data
+@Table(name = "books")
 @NoArgsConstructor
 public class Book {
     @Id
@@ -33,10 +34,20 @@ public class Book {
 
     private String coverImagePath;
 
+    @OneToMany(mappedBy = "book", cascade = CascadeType.ALL)
+    @OrderBy("chapterIndex ASC")
+    private List<Chapter> chapters = new ArrayList<>();
+
+
+    public void addChapter(Chapter chapter){
+        chapters.add(chapter);
+    }
+
     public Book(String title, String author, String filePath, String coverImagePath){
         this.title = title;
         this.author = author;
         this.filePath = filePath;
         this.coverImagePath = coverImagePath;
+        chapters = new ArrayList<>();
     }
 }

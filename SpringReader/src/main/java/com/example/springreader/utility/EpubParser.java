@@ -134,8 +134,8 @@ public class EpubParser {
                         toc.addContentFile(contentFile);
                     }
                     //Add the chapter to the content file
-                    contentFile.addChapter(new EpubChapter(chapterTitle, anchor, i));
-                    //log.info("Adding chapter: title={}, anchor={}, index={}", chapterTitle, anchor, i);
+                    contentFile.addChapter(new EpubChapter(chapterTitle, anchor, i, filePath));
+                    //log.info("Chapter added to content file: title={}, anchor={}, index={}", chapterTitle, anchor, i);
                 }
             }
 

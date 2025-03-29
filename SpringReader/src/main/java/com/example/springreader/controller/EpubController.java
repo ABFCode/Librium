@@ -1,5 +1,6 @@
 package com.example.springreader.controller;
 
+import com.example.springreader.dto.BookMetaDTO;
 import com.example.springreader.model.Book;
 import com.example.springreader.repository.BookRepository;
 import com.example.springreader.service.LibraryService;
@@ -59,24 +60,24 @@ public class EpubController {
     /**
      * gets metadata from an EPUB file from a given book
      *
-     * @param id id of book in db to retrieve metadata from
+     * @param bookId id of book in db to retrieve metadata from
      * @return a ResponseEntity containing a map of metadata if successful,
      *         else an error message
      */
-    @GetMapping("/{id}/meta")
-    public ResponseEntity<Map<String, Object>> getEpubMeta(@PathVariable Long id){
+    @GetMapping("/{bookId}/meta")
+    public ResponseEntity<BookMetaDTO> getEpubMeta(@PathVariable Long bookId){
         try{
-            Book book = bookRepository.findById(id).orElseThrow();
+//            Book book = bookRepository.findById(id).orElseThrow();
+//
+//            //File epubFile = new File("src/main/resources/files/book1.epub");
+//            File epubFile = new File(book.getFilePath());
+            BookMetaDTO meta = libraryService.getBookMeta(bookId);
 
-            //File epubFile = new File("src/main/resources/files/book1.epub");
-            File epubFile = new File(book.getFilePath());
-            Map<String, Object> meta = libraryService.getBookMeta(epubFile);
-
-            System.out.println("Flat TOC: " + meta.get("flatToc"));
+            //System.out.println("Flat TOC: " + meta.get("flatToc"));
             return ResponseEntity.ok(meta);
         }
         catch(Exception e){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.singletonMap("error", e.getMessage()));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
 
