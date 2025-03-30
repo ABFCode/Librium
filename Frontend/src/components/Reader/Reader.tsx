@@ -70,7 +70,7 @@ function Reader() {
         bookId,
         chapterIndex
       );
-      console.log(chapterContent);
+      //console.log(chapterContent);
       setChapterContent(chapterContent.content);
 
       // try {

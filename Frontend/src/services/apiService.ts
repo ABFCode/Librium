@@ -162,7 +162,6 @@ export const apiService = {
     bookId: string,
     chapterIndex: number
   ): Promise<ChapterContent> => {
-    console.log("Getting chapter Content");
     const response = await fetch(
       `${API_URL}/epub/${bookId}/chapter/${chapterIndex}`,
       {
@@ -170,7 +169,6 @@ export const apiService = {
       }
     );
     if (!response.ok) {
-      console.log("Error getting chapter Content");
       throw new Error(
         `Error getting chapter Content: Status ${response.status}`
       );
@@ -180,9 +178,7 @@ export const apiService = {
   },
 
   //Progress
-  saveProgress: async (
-    progressData: UserBookProgress
-  ): Promise<UserBookProgress> => {
+  saveProgress: async (progressData: UserBookProgress): Promise<void> => {
     const response = await fetch(`${API_URL}/progress/save`, {
       method: "POST",
       headers: {
@@ -196,7 +192,7 @@ export const apiService = {
       throw new Error(`Error saving progress: Status: ${response.status}`);
     }
 
-    return response.json();
+    return;
   },
 
   getProgress: async (bookId: string): Promise<number> => {
