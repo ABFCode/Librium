@@ -30,3 +30,6 @@
 
 ## Images
 1. https://www.baeldung.com/spring-mvc-static-resources
+
+## DB Stuff
+1. https://www.baeldung.com/jpa-indexes

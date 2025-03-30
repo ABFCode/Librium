@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @NoArgsConstructor
-@Table(name = "chapters")
+@Table(name = "chapters", indexes = {@Index(name = "chapterBookIndex", columnList = "book_id, chapterIndex")})
 @Data
 public class Chapter {
 
