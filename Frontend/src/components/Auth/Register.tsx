@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { apiService, UserCredentials } from "../../services/apiService";
 
 interface RegisterCredentials {
   username: string;
@@ -20,7 +21,6 @@ function Register() {
     confirmPassword: "",
   });
   const [error, setError] = useState<string>("");
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -39,37 +39,23 @@ function Register() {
       return;
     }
 
+    const userCredentials: UserCredentials = {
+      username: credentials.username,
+      password: credentials.password,
+    };
+
     try {
-      const response = await fetch(`${API_URL}/user/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          username: credentials.username,
-          password: credentials.password,
-        }),
-      });
+      const response = await apiService.register(userCredentials);
 
-      // const rawResponse = await response.text();
-      // console.log("Raw response:", rawResponse);
-
-      if (!response.ok) {
-        //fix this
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Registration failed");
+      if (response.status === "FAILURE") {
+        console.log(response);
+        throw new Error("Registration failed");
+      } else {
+        console.log(response);
+        navigate("/signin");
       }
-
-      const data: string = await response.text();
-      console.log(data);
-
-      // localStorage.setItem("token", data.token);
-      // localStorage.setItem("username", data.username);
-
-      navigate("/");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Registration failed");
     }
   };
 

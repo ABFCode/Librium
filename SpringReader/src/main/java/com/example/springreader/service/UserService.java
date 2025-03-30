@@ -1,7 +1,7 @@
 package com.example.springreader.service;
 
+import com.example.springreader.dto.AuthResponse;
 import com.example.springreader.dto.LoginRequest;
-import com.example.springreader.dto.LoginResponse;
 import com.example.springreader.model.Book;
 import com.example.springreader.model.User;
 import com.example.springreader.model.UserBook;
@@ -40,11 +40,11 @@ public class UserService {
      * @return an object containing a success or failure status,
      *         and a generated JWT token if the authentication is successful
      */
-    public LoginResponse authenticate(LoginRequest loginRequest) {
+    public AuthResponse authenticate(LoginRequest loginRequest) {
         return userRepository.findByUsername(loginRequest.username())
                 .filter(user -> passwordEncoder.matches(loginRequest.password(), user.getPassword()))
-                .map(user -> LoginResponse.success(jwtService.generateToken(user)))
-                .orElse(LoginResponse.FAILURE);
+                .map(user -> AuthResponse.success(jwtService.generateToken(user)))
+                .orElse(AuthResponse.FAILURE);
     }
 
 
