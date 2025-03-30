@@ -7,6 +7,7 @@ import com.example.springreader.model.UserBook;
 import com.example.springreader.service.LibraryService;
 import com.example.springreader.service.UserBookService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -52,7 +53,7 @@ public class LibraryController {
      * @throws IOException if an error occurs during file processing
      */
     @PostMapping("/upload")
-    public Book uploadBook(@RequestParam("file") MultipartFile file, @AuthenticationPrincipal User user) throws IOException {
+    public ResponseEntity<Void> uploadBook(@RequestParam("file") MultipartFile file, @AuthenticationPrincipal User user) throws IOException {
 
         String originalFileName = file.getOriginalFilename();
         if(originalFileName == null || !originalFileName.toLowerCase().endsWith(".epub")){
@@ -80,7 +81,7 @@ public class LibraryController {
 
         userBookService.createUserBook(user, book);
 
-        return book;
+        return ResponseEntity.status(HttpStatus.CREATED).build();
 
 
     }
