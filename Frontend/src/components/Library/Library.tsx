@@ -2,42 +2,19 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import auth from "../../utility/auth";
 import ThemeToggle from "../ThemeToggle";
-
-interface BookDTO {
-  id: string;
-  title: string;
-  author: string;
-  lastChapterIndex: number;
-  coverImagePath: string;
-}
+import { apiService, Book } from "../../services/apiService";
 
 function Library() {
   const navigate = useNavigate();
-  const [books, setBooks] = useState<BookDTO[]>([]);
+  const [books, setBooks] = useState<Book[]>([]);
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
   const loadBooks = useCallback(async (): Promise<void> => {
-    try {
-      const response = await fetch(`${API_URL}/library`, {
-        credentials: "include",
-      });
-
-      if (response.status === 401) {
-        auth.logout();
-        return;
-      }
-
-      const data: BookDTO[] = await response.json();
-      setBooks(data);
-    } catch (e: unknown) {
-      if (e instanceof Error) {
-        console.error("Error fetching books", e);
-      }
-    }
-  }, [API_URL]);
+    const books = await apiService.getLibrary();
+    setBooks(books);
+  }, []);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -67,28 +44,27 @@ function Library() {
   const handleUpload = async () => {
     if (!selectedFile) return;
 
-    //check for epub here
+    if (
+      !selectedFile.name.toLowerCase().endsWith(".epub") ||
+      selectedFile.type !== "application/epub+zip"
+    ) {
+      alert("Please select a valid EPUB file.");
+      return;
+    }
 
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-
-      const response = await fetch(`${API_URL}/library/upload`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
-
-      if (response.ok) {
-        loadBooks();
-        setShowUploadForm(false);
-        setSelectedFile(null);
-      } else {
-        console.error("Upload failed");
-      }
+      await apiService.uploadBook(selectedFile);
+      loadBooks();
+      setShowUploadForm(false);
+      setSelectedFile(null);
     } catch (error) {
-      console.error("Error uploading file:", error);
+      console.error("Upload failed:", error);
+      alert(
+        `Upload failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     } finally {
       setIsUploading(false);
     }

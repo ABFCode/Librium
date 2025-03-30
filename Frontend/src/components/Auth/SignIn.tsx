@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiService, UserCredentials } from "../../services/apiService";
-
 function SignIn() {
   const navigate = useNavigate();
   const [credentials, setCredentials] = useState<UserCredentials>({

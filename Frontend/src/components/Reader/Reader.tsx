@@ -2,26 +2,16 @@ import { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import auth from "../../utility/auth";
 import ThemeToggle from "../ThemeToggle";
-
-interface Chapter {
-  title: string;
-  anchor: string;
-  index: string;
-}
-
-interface Meta {
-  title: string;
-  author: string;
-  chapters: Chapter[];
-}
-
-interface ChapterContent {
-  content: string;
-}
+import {
+  apiService,
+  BookMeta,
+  Chapter,
+  UserBookProgress,
+} from "../../services/apiService";
 
 function Reader() {
   const { bookId } = useParams<{ bookId: string }>();
-  const [meta, setMeta] = useState<Meta | null>(null);
+  const [meta, setMeta] = useState<BookMeta | null>(null);
   const [flattenedToc, setFlattenedToc] = useState<Chapter[]>([]);
   const [currentChapterIndex, setCurrentChapterIndex] = useState<number | null>(
     null
@@ -30,7 +20,6 @@ function Reader() {
   const [isTocOpen, setIsTocOpen] = useState(false);
 
   const navigate = useNavigate();
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
   useEffect(() => {
     if (!auth.isAuthenticated()) {
@@ -39,24 +28,20 @@ function Reader() {
     }
 
     const initializeReader = async () => {
+      if (!bookId) {
+        return;
+      }
       try {
         const [metaResponse, progressResponse] = await Promise.all([
-          fetch(`${API_URL}/epub/${bookId}/meta`, {
-            credentials: "include",
-          }),
-          fetch(`${API_URL}/progress/get?bookId=${bookId}`, {
-            credentials: "include",
-          }),
+          apiService.getBookMeta(bookId),
+          apiService.getProgress(bookId),
         ]);
+        console.log("API Responses:", { metaResponse, progressResponse });
 
-        if (metaResponse.ok && progressResponse.ok) {
-          const metaDeta = await metaResponse.json();
-          const progressData = await progressResponse.json();
-
-          setMeta(metaDeta);
-          setFlattenedToc(metaDeta.chapters);
-          //console.log(flattenedToc);
-          setCurrentChapterIndex(progressData);
+        if (metaResponse && typeof progressResponse === "number") {
+          setMeta(metaResponse);
+          setFlattenedToc(metaResponse.chapters);
+          setCurrentChapterIndex(progressResponse);
         }
       } catch (error) {
         console.error("Error during reader init", error);
@@ -64,37 +49,49 @@ function Reader() {
     };
 
     initializeReader();
-  }, [bookId, navigate, API_URL]);
+  }, [bookId, navigate]);
 
   const loadChapter = useCallback(
     async (index: number) => {
       if (!flattenedToc || index < 0 || index >= flattenedToc.length) return;
 
-      const chapterIndex = parseInt(flattenedToc[index].index);
+      const chapterIndex = flattenedToc[index].index;
       if (isNaN(chapterIndex)) {
         console.error("Invalid chapter index", chapterIndex);
         return;
       }
 
-      try {
-        const response = await fetch(
-          `${API_URL}/epub/${bookId}/chapter/${chapterIndex}`,
-          { credentials: "include" }
-        );
-
-        if (response.status === 401 || response.status === 403) {
-          auth.logout();
-          navigate("/signin");
-          return;
-        }
-
-        const data: ChapterContent = await response.json();
-        setChapterContent(data.content);
-      } catch (error) {
-        console.error("Error fetching chapter", error);
+      if (!bookId) {
+        console.error("Book ID is not defined");
+        return;
       }
+
+      const chapterContent = await apiService.getChapterContent(
+        bookId,
+        chapterIndex
+      );
+      console.log(chapterContent);
+      setChapterContent(chapterContent.content);
+
+      // try {
+      //   const response = await fetch(
+      //     `${API_URL}/epub/${bookId}/chapter/${chapterIndex}`,
+      //     { credentials: "include" }
+      //   );
+
+      //   if (response.status === 401 || response.status === 403) {
+      //     auth.logout();
+      //     navigate("/signin");
+      //     return;
+      //   }
+
+      //   const data: ChapterContent = await response.json();
+      //   setChapterContent(data.content);
+      // } catch (error) {
+      //   console.error("Error fetching chapter", error);
+      // }
     },
-    [API_URL, bookId, flattenedToc, navigate]
+    [bookId, flattenedToc]
   );
 
   useEffect(() => {
@@ -106,24 +103,18 @@ function Reader() {
   const saveProgress = useCallback(
     async (chapterIndex: number) => {
       //console.log(`Saving progress at ${chapterIndex}`);
-      try {
-        await fetch(`${API_URL}/progress/save`, {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            bookId: bookId,
-            lastChapterIndex: chapterIndex,
-          }),
-        });
-        console.log(`Progress saved at chapter ${chapterIndex}`);
-      } catch (error) {
-        console.error("Error saving book progress", error);
+      if (!bookId) {
+        console.error("Book ID is not defined");
+        return;
       }
+      const bookIdNumber = parseInt(bookId);
+      const progressData: UserBookProgress = {
+        bookId: bookIdNumber,
+        lastChapterIndex: chapterIndex,
+      };
+      await apiService.saveProgress(progressData);
     },
-    [API_URL, bookId]
+    [bookId]
   );
 
   const handleChapterSelect = (index: number) => {
