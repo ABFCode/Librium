@@ -144,7 +144,7 @@ public class LibraryService {
         Book book = bookRepository.findById(bookId).orElseThrow();
         Path epubPath = Path.of(book.getFilePath());
 
-        return new ChapterContentDTO(EpubParser.NewParseContent(epubPath, chapter.getFilePath(),chapter.getAnchor()));
+        return new ChapterContentDTO(EpubParser.parseContent(epubPath, chapter.getFilePath(),chapter.getAnchor()));
 
 
     }

@@ -181,7 +181,7 @@ public class EpubParser {
      * @return A map containing the parsed chapter content under the key "chapterContent".
      *         In case of errors or weird behavior, returns an empty map.
      */
-    public static Map<String, Object> parseContent(File epubFile, int chapterIndex) {
+    public static Map<String, Object> oldParseContent(File epubFile, int chapterIndex) {
         Map<String, Object> response = new HashMap<>();
         String chapterContent = "";
 
@@ -356,7 +356,7 @@ public class EpubParser {
 
     }
 
-    public static String NewParseContent(Path epubFile, String filePath, String anchor){
+    public static String parseContent(Path epubFile, String filePath, String anchor){
         String chapterContent = "";
 
         try(ZipFile zipFile = new ZipFile(epubFile.toFile())){
