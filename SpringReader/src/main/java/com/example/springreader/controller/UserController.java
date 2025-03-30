@@ -1,7 +1,7 @@
 package com.example.springreader.controller;
 
 import com.example.springreader.dto.LoginRequest;
-import com.example.springreader.dto.LoginResponse;
+import com.example.springreader.dto.AuthResponse;
 import com.example.springreader.service.UserService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.core.env.Environment;
@@ -32,14 +32,14 @@ public class UserController {
      * @return a ResponseEntity containing a LoginResponse object with authentication details and status
      */
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest loginRequest, HttpServletResponse response){
-        LoginResponse loginResponse = userService.authenticate(loginRequest);
+    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest loginRequest, HttpServletResponse response){
+        AuthResponse authResponse = userService.authenticate(loginRequest);
 
         //boolean isProd = Arrays.asList(environment.getActiveProfiles()).contains("prod");
         boolean isProd =  environment.matchesProfiles("docker | prod");
 
-        if(loginResponse.status().equals("SUCCESS")){
-            ResponseCookie jwtCookie = ResponseCookie.from("jwt", loginResponse.token())
+        if(authResponse.status().equals("SUCCESS")){
+            ResponseCookie jwtCookie = ResponseCookie.from("jwt", authResponse.token())
                             .httpOnly(true)
                             .secure(isProd) //Send only over HTTPS
                             .path("/")
@@ -50,10 +50,10 @@ public class UserController {
 
             response.addHeader("Set-Cookie", jwtCookie.toString());
 
-            return ResponseEntity.ok(new LoginResponse(null, "SUCCESS"));
+            return ResponseEntity.ok(new AuthResponse(null, "SUCCESS"));
 
         }
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(LoginResponse.FAILURE);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(AuthResponse.FAILURE);
 
         //return ResponseEntity.ok(response);
     }
@@ -66,14 +66,14 @@ public class UserController {
      *         or an error if the username already exists
      */
     @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody LoginRequest registrationRequest) {
+    public ResponseEntity<AuthResponse> register(@RequestBody LoginRequest registrationRequest) {
         boolean success = userService.register(registrationRequest);
 
         if(success) {
-            return ResponseEntity.ok("Registration was successful");
+            return ResponseEntity.ok(new AuthResponse(null, "SUCCESS"));
         }
         else{
-            return ResponseEntity.badRequest().body("This username already exists");
+            return ResponseEntity.badRequest().body(AuthResponse.FAILURE);
         }
     }
 

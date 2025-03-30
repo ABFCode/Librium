@@ -5,14 +5,14 @@ package com.example.springreader.dto;
  *
  * We use static methods to create successful or failed responses.
  */
-public record LoginResponse(
+public record AuthResponse(
         String token,
         String status
 ) {
 
-    public static final LoginResponse FAILURE = new LoginResponse(null, "FAILURE");
+    public static final AuthResponse FAILURE = new AuthResponse(null, "FAILURE");
 
-    public static LoginResponse success(String token) {
-        return new LoginResponse(token, "SUCCESS");
+    public static AuthResponse success(String token) {
+        return new AuthResponse(token, "SUCCESS");
     }
 }

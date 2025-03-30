@@ -1,24 +1,14 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
-interface LoginCredentials {
-  username: string;
-  password: string;
-}
-
-interface AuthResponse {
-  token: string; //should be all null now - remove
-  status: string; //SUCCESS or FAILURE
-}
+import { apiService, UserCredentials } from "../../services/apiService";
 
 function SignIn() {
   const navigate = useNavigate();
-  const [credentials, setCredentials] = useState<LoginCredentials>({
+  const [credentials, setCredentials] = useState<UserCredentials>({
     username: "",
     password: "",
   });
   const [error, setError] = useState<string>("");
-  const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -33,33 +23,15 @@ function SignIn() {
     setError("");
 
     try {
-      const response = await fetch(`${API_URL}/user/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify(credentials),
-      });
+      const response = await apiService.login(credentials);
 
-      if (!response.ok) {
-        //check for error message here
-        throw new Error("Invalid credentials");
-      }
-
-      // const rawResponse = await response.text();
-      // console.log(rawResponse);
-
-      const data: AuthResponse = await response.json();
-      //console.log(data);
-      if (data.status === "SUCCESS") {
-        console.log("Login successful");
+      if (response.status === "SUCCESS") {
         navigate("/");
       } else {
         setError("Login failed");
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Login failed");
     }
   };
 

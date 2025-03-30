@@ -43,7 +43,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
 export const apiService = {
   login: async (credentials: UserCredentials): Promise<AuthResponse> => {
-    const response = await fetch(`${API_URL}/auth/login`, {
+    const response = await fetch(`${API_URL}/user/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -60,7 +60,7 @@ export const apiService = {
   },
 
   register: async (credentials: UserCredentials): Promise<AuthResponse> => {
-    const response = await fetch(`${API_URL}/auth/register`, {
+    const response = await fetch(`${API_URL}/user/register`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -68,12 +68,16 @@ export const apiService = {
       credentials: "include",
       body: JSON.stringify(credentials),
     });
+    const responseData: AuthResponse = await response.json();
+    console.log(responseData);
 
     if (!response.ok) {
-      throw new Error("Registration failed");
+      console.log("Registration failed");
+      return responseData;
     }
 
-    return response.json();
+    console.log("Registration successful");
+    return responseData;
   },
 
   logout: async (): Promise<void> => {
@@ -91,7 +95,7 @@ export const apiService = {
 
   validateSession: async (): Promise<boolean> => {
     try {
-      const response = await fetch(`{API_URL}/user/validate`, {
+      const response = await fetch(`${API_URL}/user/validate`, {
         method: "GET",
         credentials: "include",
       });
@@ -199,4 +203,14 @@ export const apiService = {
 
     return response.json();
   },
+};
+
+export type {
+  UserCredentials,
+  AuthResponse,
+  BookDTO,
+  ChapterDTO,
+  BookMetaDTO,
+  ChapterContentDTO,
+  UserBookProgressDTO,
 };
