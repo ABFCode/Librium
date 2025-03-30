@@ -33,3 +33,7 @@
 
 ## DB Stuff
 1. https://www.baeldung.com/jpa-indexes
+
+## Exception Handling
+1. https://www.youtube.com/watch?v=IdHHwZg3v58
+2. https://www.rfc-editor.org/rfc/rfc9457.html

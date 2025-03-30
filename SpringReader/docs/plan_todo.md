@@ -3,12 +3,12 @@
 
 ## FIX
 ### BACKEND ###
-FIX PARSING: We parse WAY too much, both our meta and OFP/TOC files are parsed for each chapter get
-1. Parse meta once.
-2. Parse TOC/Flatten it.
-3. Store parsed metadata in our updated Book entity or another separate BookMeta entity. 
-4. Change getEpubMeta to just retrieve from our book entity instead of parsing each time. 
-5. Use getEpubChapter to use our stored TOC
+~~FIX PARSING: We parse WAY too much, both our meta and OFP/TOC files are parsed for each chapter get~~
+~~1. Parse meta once.~~
+~~2. Parse TOC/Flatten it.~~
+~~3. Store parsed metadata in our updated Book entity or another separate BookMeta entity.~~
+~~4. Change getEpubMeta to just retrieve from our book entity instead of parsing each time.~~
+~~5. Use getEpubChapter to use our stored TOC~~
 
 REMOVE H2 LEGACY STUFF
 1. Remove anything still related to our H2 DB - esp. security related stuff.
@@ -70,7 +70,8 @@ RESEARCH/PLAN:
 3. TXT Files: Plan for these
    - Generic BookParser which our Epub and Txt parser will impl. (Strategy pattern?)
 4. Research Kindle formats, see if they're possible. Probably not.
-5. DB Indexing
+5. Spring Reactive
+   - https://filia-aleks.medium.com/microservice-performance-battle-spring-mvc-vs-webflux-80d39fd81bf0
 
 PROD:
 1. Fail2Ban
