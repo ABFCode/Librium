@@ -8,7 +8,7 @@ interface AuthResponse {
   status: "SUCCESS" | "FAILURE";
 }
 
-interface BookDTO {
+interface Book {
   id: string;
   title: string;
   author: string;
@@ -16,23 +16,23 @@ interface BookDTO {
   coverImagePath: string;
 }
 
-interface ChapterDTO {
+interface Chapter {
   title: string;
   anchor: string;
   index: number;
 }
 
-interface BookMetaDTO {
+interface BookMeta {
   title: string;
   author: string;
-  chapters: ChapterDTO[];
+  chapters: Chapter[];
 }
 
-interface ChapterContentDTO {
+interface ChapterContent {
   content: string;
 }
 
-interface UserBookProgressDTO {
+interface UserBookProgress {
   bookId: number;
   lastChapterIndex: number;
 }
@@ -80,17 +80,19 @@ export const apiService = {
     return responseData;
   },
 
-  logout: async (): Promise<void> => {
+  logout: async (): Promise<string> => {
     const response = await fetch(`${API_URL}/user/logout`, {
       method: "POST",
       credentials: "include",
     });
 
+    const responseText: string = await response.text();
+
     if (!response.ok) {
-      throw new Error("Logout failed");
+      throw new Error(responseText);
     }
 
-    return response.json();
+    return responseText;
   },
 
   validateSession: async (): Promise<boolean> => {
@@ -108,7 +110,7 @@ export const apiService = {
   },
 
   //Library
-  getLibrary: async (): Promise<BookDTO[]> => {
+  getLibrary: async (): Promise<Book[]> => {
     const response = await fetch(`${API_URL}/library`, {
       method: "GET",
       credentials: "include",
@@ -123,7 +125,9 @@ export const apiService = {
     return response.json();
   },
 
-  uploadBook: async (formData: FormData): Promise<void> => {
+  uploadBook: async (file: File): Promise<void> => {
+    const formData = new FormData();
+    formData.append("file", file);
     const response = await fetch(`${API_URL}/library/upload`, {
       method: "POST",
       credentials: "include",
@@ -133,7 +137,7 @@ export const apiService = {
     if (!response.ok) {
       throw new Error(`Failed to upload book: Status ${response.status}`);
     }
-    return response.json();
+    return;
   },
 
   getCoverImage: (filename: string): string => {
@@ -142,7 +146,7 @@ export const apiService = {
   },
 
   //Reading
-  getBookMeta: async (bookId: number): Promise<BookMetaDTO> => {
+  getBookMeta: async (bookId: string): Promise<BookMeta> => {
     const response = await fetch(`${API_URL}/epub/${bookId}/meta`, {
       credentials: "include",
     });
@@ -155,9 +159,10 @@ export const apiService = {
   },
 
   getChapterContent: async (
-    bookId: number,
+    bookId: string,
     chapterIndex: number
-  ): Promise<ChapterContentDTO> => {
+  ): Promise<ChapterContent> => {
+    console.log("Getting chapter Content");
     const response = await fetch(
       `${API_URL}/epub/${bookId}/chapter/${chapterIndex}`,
       {
@@ -165,6 +170,7 @@ export const apiService = {
       }
     );
     if (!response.ok) {
+      console.log("Error getting chapter Content");
       throw new Error(
         `Error getting chapter Content: Status ${response.status}`
       );
@@ -175,8 +181,8 @@ export const apiService = {
 
   //Progress
   saveProgress: async (
-    progressData: UserBookProgressDTO
-  ): Promise<UserBookProgressDTO> => {
+    progressData: UserBookProgress
+  ): Promise<UserBookProgress> => {
     const response = await fetch(`${API_URL}/progress/save`, {
       method: "POST",
       headers: {
@@ -193,7 +199,7 @@ export const apiService = {
     return response.json();
   },
 
-  getProgress: async (bookId: number): Promise<number> => {
+  getProgress: async (bookId: string): Promise<number> => {
     const response = await fetch(`${API_URL}/progress/get?bookId=${bookId}`, {
       credentials: "include",
     });
@@ -208,9 +214,9 @@ export const apiService = {
 export type {
   UserCredentials,
   AuthResponse,
-  BookDTO,
-  ChapterDTO,
-  BookMetaDTO,
-  ChapterContentDTO,
-  UserBookProgressDTO,
+  Book,
+  Chapter,
+  BookMeta,
+  ChapterContent,
+  UserBookProgress,
 };
