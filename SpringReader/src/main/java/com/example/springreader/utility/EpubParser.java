@@ -120,11 +120,6 @@ public class EpubParser {
                     String filePath = Path.of(opfData.get().opfParent()).resolve(rawFilePath).toString().replace("\\", "/");
 
 
-                    log.info("File path: {}", filePath);
-                    log.info("File path: {}", filePath);
-                    log.info("File path: {}", filePath);
-                    log.info("File path: {}", filePath);
-
                     String anchor = (hashIndex != -1) ? rawSrc.substring(hashIndex + 1) : "";
 
                     //Find the content file in our toc, or create a new one
@@ -506,11 +501,11 @@ public class EpubParser {
                         }
 
 
-                        log.info("Found cover image path at: {}", coverImagePath);
+                        //log.info("Found cover image path at: {}", coverImagePath);
 
                         ZipEntry coverImageEntry = zipFile.getEntry(coverImagePath);
 
-                        log.info("Cover image entry: {}", coverImageEntry.getName());
+                        //log.info("Cover image entry: {}", coverImageEntry.getName());
                         if(coverImageEntry != null) {
                             Map<String, Object> response = new HashMap<>();
                             response.put("coverImage", zipFile.getInputStream(coverImageEntry).readAllBytes());
@@ -638,7 +633,7 @@ public class EpubParser {
             else{
                 tocPath = tocHref;
             }
-            log.info("tocPath is: " + tocPath);
+            //log.info("tocPath is: " + tocPath);
 
             //Dont need to do this if I change to Path instead of File -> future stuff
             tocPath = tocPath.replace("\\", "/");
