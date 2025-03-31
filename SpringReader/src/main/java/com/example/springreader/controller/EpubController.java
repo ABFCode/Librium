@@ -2,10 +2,8 @@ package com.example.springreader.controller;
 
 import com.example.springreader.dto.BookMetaDTO;
 import com.example.springreader.dto.ChapterContentDTO;
-import com.example.springreader.repository.BookRepository;
 import com.example.springreader.service.LibraryService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,15 +18,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/epub")
 @Slf4j
 public class EpubController {
-    private final BookRepository bookRepository;
     private final LibraryService libraryService;
 
     /**
      * Constructor
-     * @param bookRepository repository used to manage book entities, handles direct connection with DB
+     * @param libraryService repository used to manage book entities, handles direct connection with DB
      */
-    public EpubController(BookRepository bookRepository, LibraryService libraryService) {
-        this.bookRepository = bookRepository;
+    public EpubController(LibraryService libraryService) {
         this.libraryService = libraryService;
     }
     //File epubFile = new File("src/main/resources/files/pg11.epub");
@@ -45,15 +41,9 @@ public class EpubController {
     public ResponseEntity<ChapterContentDTO> getEpubChapter(
             @PathVariable Long bookId,
             @PathVariable Integer index){
-        try {
-//            Book book = bookRepository.findById(id).orElseThrow();
-//            File epubFile = new File(book.getFilePath());
-//            Map<String, Object> chapter = EpubParser.parseContent(epubFile, index);
-            ChapterContentDTO chapterContentDTO = libraryService.getChapterContent(bookId, index);
-            return ResponseEntity.ok(chapterContentDTO);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-        }
+
+        ChapterContentDTO chapterContentDTO = libraryService.getChapterContent(bookId, index);
+        return ResponseEntity.ok(chapterContentDTO);
 
     }
 
@@ -67,19 +57,8 @@ public class EpubController {
      */
     @GetMapping("/{bookId}/meta")
     public ResponseEntity<BookMetaDTO> getEpubMeta(@PathVariable Long bookId){
-        try{
-//            Book book = bookRepository.findById(id).orElseThrow();
-//
-//            //File epubFile = new File("src/main/resources/files/book1.epub");
-//            File epubFile = new File(book.getFilePath());
-            BookMetaDTO meta = libraryService.getBookMeta(bookId);
-
-            //System.out.println("Flat TOC: " + meta.get("flatToc"));
-            return ResponseEntity.ok(meta);
-        }
-        catch(Exception e){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-        }
+        BookMetaDTO bookMetaDTO = libraryService.getBookMeta(bookId);
+        return ResponseEntity.ok(bookMetaDTO);
     }
 
 

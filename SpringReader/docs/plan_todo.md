@@ -19,6 +19,9 @@ ERROR HANDLING
 TESTS
 1. Fix JwtServiceTest - broke cause of secret changes
 
+OTHER
+~~1. Image controller is sending JPEG filetype as default, could be PNG.~~
+
 ### FRONT END ###
 Error handling: Very little user feedback for errors is directly shown to the user in the page, 
 especially around user sign-up.
