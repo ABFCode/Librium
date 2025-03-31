@@ -75,6 +75,7 @@ RESEARCH/PLAN:
 4. Research Kindle formats, see if they're possible. Probably not.
 5. Spring Reactive
    - https://filia-aleks.medium.com/microservice-performance-battle-spring-mvc-vs-webflux-80d39fd81bf0
+6. XXE XML PARSING
 
 PROD:
 1. Fail2Ban
