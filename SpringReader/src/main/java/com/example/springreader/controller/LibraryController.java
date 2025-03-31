@@ -57,18 +57,19 @@ public class LibraryController {
 
         String originalFileName = file.getOriginalFilename();
         if(originalFileName == null || !originalFileName.toLowerCase().endsWith(".epub")){
-            throw new IllegalArgumentException("Only epub files are supported");
+            throw new IllegalArgumentException("Invalid filename. Only epub files are supported");
         }
 
         String contentType = file.getContentType();
         if (contentType == null || !contentType.equals("application/epub+zip")){
-            throw new IllegalArgumentException("Only epub files are supported");
+            log.warn("Content type {} for file {}, this is not supposed to happen. Fix this!", contentType, originalFileName);
+            throw new IllegalArgumentException("Invalid file content type. Only epub files are supported");
         }
 
 
 
 
-        String filename = UUID.randomUUID() + "-" + (originalFileName);
+        String filename = UUID.randomUUID() + "-" + originalFileName;
 
         //each user should get their own dir or some other sol.
         Path filepath = Path.of(uploadDir, filename);

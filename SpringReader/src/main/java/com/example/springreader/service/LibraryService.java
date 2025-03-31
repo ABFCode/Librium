@@ -10,8 +10,10 @@ import com.example.springreader.utility.EpubParser;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -123,6 +125,18 @@ public class LibraryService {
         return flattenedToc;
     }
 
+
+    public File saveUploadedFile(MultipartFile file) throws IOException {
+        if(file == null || file.isEmpty()){
+            throw new IllegalArgumentException("File cannot be null or empty");
+        }
+
+        String originalFileName = file.getOriginalFilename();
+        if(originalFileName == null || !originalFileName.toLowerCase().endsWith(".epub")){
+            throw new IllegalArgumentException("Invalid filename. Only epub files are supported");
+        }
+
+    }
 
     /**
      * Constructs our metaDataDTO to return to the user. Uses a given ID to retrieve a book and its chapters.
