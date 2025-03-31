@@ -37,3 +37,4 @@
 ## Exception Handling
 1. https://www.youtube.com/watch?v=IdHHwZg3v58
 2. https://www.rfc-editor.org/rfc/rfc9457.html
+3. https://medium.com/@RoussiAbdelghani/error-handling-in-spring-web-using-rfc-9457-specification-f2cc8398e285
