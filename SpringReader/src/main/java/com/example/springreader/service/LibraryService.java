@@ -45,7 +45,7 @@ public class LibraryService {
      * @return the saved Book object
      */
     @Transactional
-    public Book addBook(File epubFile){
+    public Book addBook(File epubFile) throws IOException{
         Map<String, Object> meta = EpubParser.parseMeta(epubFile);
         String title = EpubParser.getTitle(meta);
         String author = EpubParser.getAuthor(meta);
@@ -77,31 +77,32 @@ public class LibraryService {
     }
 
 
-    public String extractAndSaveCoverImage(Map<String, Object> coverImageData){
+    public String extractAndSaveCoverImage(Map<String, Object> coverImageData) throws IOException{
         byte[] image = (byte[]) coverImageData.get("coverImage");
         String mediaType = (String) coverImageData.get("mediaType");
         String coverImagePath = null;
-        String fileExtension = mediaType.split("/")[1];
 
-        try{
-            Path coverDir = Path.of(uploadDir, "covers");
-            log.info("Cover dir: {}", coverDir);
-            if(!Files.exists(coverDir)){
-                log.info("Cover directory does not exist");
-                Files.createDirectories(coverDir);
-                log.info("Created covers directory");
-            }
-
-            String filename = UUID.randomUUID() + "." + fileExtension;
-            coverImagePath = "/covers/" + filename;
-
-            Files.write(coverDir.resolve(filename), image);
-            //log.info("Cover image path: {}", coverImagePath);
-            return coverImagePath;
+        String fileExtension = "";
+        if(mediaType != null && mediaType.contains("/")){
+            fileExtension = mediaType.substring(mediaType.indexOf("/") + 1);
         }
-        catch(Exception e){
-            log.error("Error saving cover image", e);
+        else{
+            log.warn("Invalid or missing MediaType: {}", mediaType);
         }
+
+        Path coverDir = Path.of(uploadDir, "covers");
+        log.info("Cover dir: {}", coverDir);
+        if(!Files.exists(coverDir)){
+            log.info("Cover directory does not exist");
+            Files.createDirectories(coverDir);
+            log.info("Created covers directory");
+        }
+
+        String filename = UUID.randomUUID() + "." + fileExtension;
+        coverImagePath = "covers/" + filename;
+
+        Files.write(coverDir.resolve(filename), image);
+        //log.info("Cover image path: {}", coverImagePath);
         return coverImagePath;
     }
 
