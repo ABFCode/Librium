@@ -1,7 +1,7 @@
 package com.example.springreader.service;
 
-import com.example.springreader.dto.AuthResponse;
 import com.example.springreader.dto.LoginRequest;
+import com.example.springreader.exception.UsernameAlreadyExistsException;
 import com.example.springreader.model.Book;
 import com.example.springreader.model.User;
 import com.example.springreader.model.UserBook;
@@ -10,6 +10,7 @@ import com.example.springreader.repository.UserBookRepository;
 import com.example.springreader.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,11 +41,11 @@ public class UserService {
      * @return an object containing a success or failure status,
      *         and a generated JWT token if the authentication is successful
      */
-    public AuthResponse authenticate(LoginRequest loginRequest) {
+    public String authenticate(LoginRequest loginRequest) {
         return userRepository.findByUsername(loginRequest.username())
                 .filter(user -> passwordEncoder.matches(loginRequest.password(), user.getPassword()))
-                .map(user -> AuthResponse.success(jwtService.generateToken(user)))
-                .orElse(AuthResponse.FAILURE);
+                .map(user -> jwtService.generateToken(user))
+                .orElseThrow(() -> new BadCredentialsException("Invalid username or password"));
     }
 
 
@@ -58,7 +59,7 @@ public class UserService {
     @Transactional
     public boolean register(LoginRequest loginRequest) {
         if (userRepository.findByUsername(loginRequest.username()).isPresent()) {
-            return false;
+            throw new UsernameAlreadyExistsException(loginRequest.username());
         }
 
         User newUser = new User(loginRequest.username(), passwordEncoder.encode(loginRequest.password()));

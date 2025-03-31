@@ -1,7 +1,6 @@
 package com.example.springreader.controller;
 
 import com.example.springreader.dto.LoginRequest;
-import com.example.springreader.dto.AuthResponse;
 import com.example.springreader.service.UserService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.core.env.Environment;
@@ -32,28 +31,24 @@ public class UserController {
      * @return a ResponseEntity containing a LoginResponse object with authentication details and status
      */
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest loginRequest, HttpServletResponse response){
-        AuthResponse authResponse = userService.authenticate(loginRequest);
+    public ResponseEntity<Void> login(@RequestBody LoginRequest loginRequest, HttpServletResponse response){
+        String token = userService.authenticate(loginRequest);
 
         //boolean isProd = Arrays.asList(environment.getActiveProfiles()).contains("prod");
         boolean isProd =  environment.matchesProfiles("docker | prod");
-
-        if(authResponse.status().equals("SUCCESS")){
-            ResponseCookie jwtCookie = ResponseCookie.from("jwt", authResponse.token())
-                            .httpOnly(true)
-                            .secure(isProd) //Send only over HTTPS
-                            .path("/")
-                            .maxAge(60 * 60 * 24 * 14)
-                            .sameSite(isProd ? "Strict" : "Lax") //CSRF protection
-                            .build();
+        ResponseCookie jwtCookie = ResponseCookie.from("jwt", token)
+                        .httpOnly(true)
+                        .secure(isProd) //Send only over HTTPS
+                        .path("/")
+                        .maxAge(60 * 60 * 24 * 14)
+                        .sameSite(isProd ? "Strict" : "Lax") //CSRF protection
+                        .build();
 
 
-            response.addHeader("Set-Cookie", jwtCookie.toString());
+        response.addHeader("Set-Cookie", jwtCookie.toString());
 
-            return ResponseEntity.ok(new AuthResponse(null, "SUCCESS"));
+        return ResponseEntity.ok().build();
 
-        }
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(AuthResponse.FAILURE);
 
         //return ResponseEntity.ok(response);
     }
@@ -66,15 +61,10 @@ public class UserController {
      *         or an error if the username already exists
      */
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@RequestBody LoginRequest registrationRequest) {
-        boolean success = userService.register(registrationRequest);
+    public ResponseEntity<Void> register(@RequestBody LoginRequest registrationRequest) {
+        userService.register(registrationRequest);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
 
-        if(success) {
-            return ResponseEntity.ok(new AuthResponse(null, "SUCCESS"));
-        }
-        else{
-            return ResponseEntity.badRequest().body(AuthResponse.FAILURE);
-        }
     }
 
     @PostMapping("/logout")
@@ -99,7 +89,7 @@ public class UserController {
 
     //Relies on our JWTAuthFilter. If it makes it this far that means the user is authed.
     @GetMapping("/validate")
-    public ResponseEntity<String> validateToken(){
-        return ResponseEntity.ok("Token is valid");
+    public ResponseEntity<Void> validateToken(){
+        return ResponseEntity.ok().build();
     }
 }

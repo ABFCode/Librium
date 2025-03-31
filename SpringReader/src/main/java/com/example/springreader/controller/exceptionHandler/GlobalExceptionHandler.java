@@ -2,9 +2,11 @@ package com.example.springreader.controller.exceptionHandler;
 
 import com.example.springreader.exception.EpubProcessingException;
 import com.example.springreader.exception.ResourceNotFoundException;
+import com.example.springreader.exception.UsernameAlreadyExistsException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -92,4 +94,27 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
+
+    @ExceptionHandler(UsernameAlreadyExistsException.class)
+    public ProblemDetail handleUsernameAlreadyExistsException(UsernameAlreadyExistsException e){
+        log.warn("Username already exists: {}", e.getMessage());
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, e.getMessage()
+        );
+        problemDetail.setTitle("Username Already Exists");
+        problemDetail.setProperty("timestamp", Instant.now());
+        return problemDetail;
+    }
+
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ProblemDetail handleBadCredentialsException(BadCredentialsException e){
+        log.warn("Bad credentials: {}", e.getMessage());
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNAUTHORIZED, e.getMessage()
+        );
+        problemDetail.setTitle("Bad Credentials");
+        problemDetail.setProperty("timestamp", Instant.now());
+        return problemDetail;
+    }
 }

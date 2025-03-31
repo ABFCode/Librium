@@ -136,6 +136,7 @@ public class LibraryService {
             throw new IllegalArgumentException("Invalid filename. Only epub files are supported");
         }
 
+        return null;
     }
 
     /**
