@@ -107,22 +107,20 @@ function Library() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-6">
         {books.map((book) => (
           <Link
             to={`/epub/${book.id}`}
             key={book.id}
-            className="block bg-base-100 shadow-md rounded p-4 hover:shadow-lg"
+            className="block bg-base-200 shadow-md rounded p-4 hover:shadow-lg"
           >
             <img
               src={`${import.meta.env.VITE_API_URL}/covers/${book.coverImagePath
                 .split("/")
                 .pop()}`}
               alt={book.title}
-              className="w-full h-48 object-cover rounded mb-4"
+              className="w-full h-48 object-contain rounded mb-4"
             />
-            <h4 className="text-lg font-bold text-primary">{book.title}</h4>
-            <p className="text-base-content/70">{book.author}</p>
           </Link>
         ))}
       </div>

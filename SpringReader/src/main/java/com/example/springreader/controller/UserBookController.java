@@ -19,14 +19,9 @@ public class UserBookController {
 
     @PostMapping("/save")
     public ResponseEntity<Void> saveBookProgress(@RequestBody UserBookProgressDTO progressDTO, @AuthenticationPrincipal User user) {
-        try{
-            userBookService.saveBookProgress(progressDTO, user);
-            return ResponseEntity.ok().build();
-        }
-        catch (Exception e){
-            log.error("Error saving book progress", e);
-            return  ResponseEntity.status(500).build();
-        }
+        userBookService.saveBookProgress(progressDTO, user);
+        return ResponseEntity.ok().build();
+
     }
 
     @GetMapping("/get")
