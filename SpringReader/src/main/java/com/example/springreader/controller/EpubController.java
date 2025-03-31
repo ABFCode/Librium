@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
+
 /**
  * This controller provides endpoints for handling EPUB files, allowing the retrieval
  * of chapters and metadata associated with a given book in the DB.
@@ -40,7 +42,7 @@ public class EpubController {
     @GetMapping("{bookId}/chapter/{index}")
     public ResponseEntity<ChapterContentDTO> getEpubChapter(
             @PathVariable Long bookId,
-            @PathVariable Integer index){
+            @PathVariable Integer index) throws IOException {
 
         ChapterContentDTO chapterContentDTO = libraryService.getChapterContent(bookId, index);
         return ResponseEntity.ok(chapterContentDTO);

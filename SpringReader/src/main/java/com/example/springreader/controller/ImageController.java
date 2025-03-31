@@ -60,9 +60,6 @@ public class ImageController {
         if(filename.toLowerCase().endsWith(".png")){
             contentType = MediaType.IMAGE_PNG;
         }
-        else if(filename.toLowerCase().endsWith(".gif")){
-            contentType = MediaType.IMAGE_GIF;
-        }
 
         return ResponseEntity.ok()
                 .contentType(contentType)

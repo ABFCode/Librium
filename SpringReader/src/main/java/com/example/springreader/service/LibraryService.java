@@ -3,6 +3,8 @@ package com.example.springreader.service;
 import com.example.springreader.dto.BookMetaDTO;
 import com.example.springreader.dto.ChapterContentDTO;
 import com.example.springreader.dto.ChapterDTO;
+import com.example.springreader.exception.EpubProcessingException;
+import com.example.springreader.exception.ResourceNotFoundException;
 import com.example.springreader.model.*;
 import com.example.springreader.repository.BookRepository;
 import com.example.springreader.repository.ChapterRepository;
@@ -157,10 +159,18 @@ public class LibraryService {
 
     }
 
-    public ChapterContentDTO getChapterContent(Long bookId, Integer chapterIndex) {
+    public ChapterContentDTO getChapterContent(Long bookId, Integer chapterIndex) throws IOException, EpubProcessingException, ResourceNotFoundException {
+        Book book = bookRepository.findById(bookId).orElseThrow(() -> new ResourceNotFoundException("Book", bookId.toString()));
         Chapter chapter = chapterRepository.findByBookIdAndChapterIndex(bookId, chapterIndex);
-        Book book = bookRepository.findById(bookId).orElseThrow();
+        if(chapter == null){
+            throw new ResourceNotFoundException("Chapter", "BookId: " + bookId + ", ChapterIndex: " + chapterIndex);
+        }
+
         Path epubPath = Path.of(book.getFilePath());
+        if(!Files.exists(epubPath)){
+            log.error("Epub file does not exist at path: {}", epubPath);
+            throw new IOException("Epub file does not exist at path: " + epubPath);
+        }
 
         return new ChapterContentDTO(EpubParser.parseContent(epubPath, chapter.getFilePath(),chapter.getAnchor()));
 

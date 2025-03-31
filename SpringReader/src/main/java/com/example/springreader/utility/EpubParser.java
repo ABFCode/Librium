@@ -1,5 +1,6 @@
 package com.example.springreader.utility;
 
+import com.example.springreader.exception.EpubProcessingException;
 import com.example.springreader.model.EpubChapter;
 import com.example.springreader.model.EpubContentFile;
 import com.example.springreader.model.EpubToc;
@@ -12,8 +13,8 @@ import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
@@ -71,74 +72,100 @@ public class EpubParser {
      * @return a hashmap structure as shown above
      *
      */
-    public static Map<String, Object> parseMeta(File epubFile){
-        Map<String, Object> response = new HashMap<>();
-
+    public static Map<String, Object> parseMeta(File epubFile) throws EpubProcessingException, IOException{
         if (epubFile == null) {
-            log.error("epubFile does not exist");
-            return response;
+            throw new IllegalArgumentException("epubFile cannot be null");
         }
 
+        Map<String, Object> response = new HashMap<>();
+
+
+
         try(ZipFile zipFile = new ZipFile(epubFile)){
-            Optional<OpfData> opfData = getOpfDocument(zipFile);
+            OpfData opfData = getOpfDocument(zipFile);
+            Document opfDocument = opfData.opfDocument();
+            String opfFilePath = opfData.opfFilePath();
 
-            if(opfData.isEmpty()){
-                log.error("Failed to get OPFData");
-                return response;
+
+            String title = "Unknown Title";
+            NodeList titleNode = opfDocument.getElementsByTagName("dc:title");
+            if(titleNode.getLength() == 0 || titleNode.item(0).getTextContent().isBlank()){
+                log.warn("Title not found in OPF document");
+                response.put("title", title);
             }
-            Document opfDocument = opfData.get().opfDocument();
-            String opfFilePath = opfData.get().opfFilePath();
+            else{
+                title = titleNode.item(0).getTextContent();
+                response.put("title", title);
+            }
 
-
-            String title = opfDocument.getElementsByTagName("dc:title").item(0).getTextContent();
-            String author = opfDocument.getElementsByTagName("dc:creator").item(0).getTextContent();
+            String author = "Unknown Author";
+            NodeList authorNode = opfDocument.getElementsByTagName("dc:creator");
+            if(authorNode.getLength() == 0 || authorNode.item(0).getTextContent().isBlank()){
+                log.warn("Author not found in OPF document");
+                response.put("author", author);
+            }
+            else{
+                author = authorNode.item(0).getTextContent();
+            }
             response.put("title", title);
             response.put("author", author);
 
-            Optional<Document> tocDocument = getToc(zipFile, opfDocument, opfFilePath);
-            if(tocDocument.isEmpty()){
-                log.error("Could not receive TocDocument");
-                return response;
-            }
+            Document tocDocument = getToc(zipFile, opfDocument, opfFilePath);
 
-            NodeList navPoints = tocDocument.get().getElementsByTagName("navPoint");
+            NodeList navPoints = tocDocument.getElementsByTagName("navPoint");
+            if(navPoints.getLength() == 0){
+                log.error("No navPoints found in toc.ncx for epub: {}", epubFile.getName());
+                throw new EpubProcessingException("No navPoints found in toc.ncx");
+            }
 
             EpubToc toc = new EpubToc();
 
 
             for(int i = 0; i < navPoints.getLength(); i++){
                 Element navPoint = (Element) navPoints.item(i);
-                String chapterTitle = navPoint.getElementsByTagName("navLabel").item(0).getTextContent();
+                NodeList chapterTitleNode = navPoint.getElementsByTagName("navLabel");
+                String chapterTitle = "Unknown Chapter Title";
+                if(chapterTitleNode.getLength() == 0 || chapterTitleNode.item(0).getTextContent().isBlank()){
+                    log.warn("Chapter title not found in navPoint: {}", navPoint.getAttribute("id"));
+                }
+                else{
+                    chapterTitle = chapterTitleNode.item(0).getTextContent().trim();
+                }
 
                 NodeList contentList = navPoint.getElementsByTagName("content");
-
-                if(contentList.getLength() > 0){
-                    String rawSrc = contentList.item(0).getAttributes().getNamedItem("src").getTextContent();
-                    //log.info("Raw src: {}", rawSrc);
-                    int hashIndex = rawSrc.indexOf("#");
-                    String rawFilePath = (hashIndex != -1) ? rawSrc.substring(0, hashIndex) : rawSrc;
-                    String filePath = Path.of(opfData.get().opfParent()).resolve(rawFilePath).toString().replace("\\", "/");
-
-
-                    String anchor = (hashIndex != -1) ? rawSrc.substring(hashIndex + 1) : "";
-
-                    //Find the content file in our toc, or create a new one
-                    EpubContentFile contentFile = null;
-                    for (EpubContentFile cf : toc.getContentFiles()) {
-                        if (cf.getFilePath().equals(filePath)) {
-                            contentFile = cf;
-                            break;
-                        }
-                    }
-
-                    if (contentFile == null) {
-                        contentFile = new EpubContentFile(filePath);
-                        toc.addContentFile(contentFile);
-                    }
-                    //Add the chapter to the content file
-                    contentFile.addChapter(new EpubChapter(chapterTitle, anchor, i, filePath));
-                    //log.info("Chapter added to content file: title={}, anchor={}, index={}", chapterTitle, anchor, i);
+                if(contentList.getLength() == 0 || contentList.item(0).getAttributes().getNamedItem("src") == null){
+                    log.error("Content src not found in navPoint: {}", navPoint.getAttribute("id"));
+                    throw new EpubProcessingException("Content src not found in navPoint: " + navPoint.getAttribute("id"));
                 }
+
+                String rawSrc = contentList.item(0).getAttributes().getNamedItem("src").getTextContent();
+                if(rawSrc.isBlank()){
+                    log.error("Content src is blank in navPoint: {}", navPoint.getAttribute("id"));
+                    throw new EpubProcessingException("Content src is blank in navPoint: " + navPoint.getAttribute("id"));
+                }
+
+
+                int hashIndex = rawSrc.indexOf("#");
+                String rawFilePath = (hashIndex != -1) ? rawSrc.substring(0, hashIndex) : rawSrc;
+                String filePath = Path.of(opfData.opfParent()).resolve(rawFilePath).toString().replace("\\", "/");
+
+                String anchor = (hashIndex != -1) ? rawSrc.substring(hashIndex + 1) : "";
+
+                EpubContentFile contentFile = null;
+                for (EpubContentFile cf : toc.getContentFiles()) {
+                    if (cf.getFilePath().equals(filePath)) {
+                        contentFile = cf;
+                        break;
+                    }
+                }
+
+                if (contentFile == null) {
+                    contentFile = new EpubContentFile(filePath);
+                    toc.addContentFile(contentFile);
+                }
+
+                contentFile.addChapter(new EpubChapter(chapterTitle, anchor, i, filePath));
+
             }
 
             response.put("toc", toc);
@@ -146,14 +173,8 @@ public class EpubParser {
         }
         catch (ZipException e){
             log.error("Invalid Zip/Epub file: {}", epubFile, e);
+            throw new EpubProcessingException("Invalid Zip/Epub file: " + epubFile.getName() + "\n" + e);
         }
-        catch (Exception e){
-            log.error("Error opening epub", e);
-            return response;
-        }
-
-
-
         return response;
     }
 
@@ -172,198 +193,31 @@ public class EpubParser {
      *
      *
      * @param epubFile     The epub file to parse.
-     * @param chapterIndex The index of the chapter to retrieve
+     * @param filePath file path of the html where our chapter is inside the epub archive
+     * @param anchor anchor of our chapter content in the file
      * @return A map containing the parsed chapter content under the key "chapterContent".
-     *         In case of errors or weird behavior, returns an empty map.
+     *         In case of errors or unique behavior, return an empty map.
      */
-    public static Map<String, Object> oldParseContent(File epubFile, int chapterIndex) {
-        Map<String, Object> response = new HashMap<>();
-        String chapterContent = "";
-
-        if(epubFile == null) {
-            log.error("Epub file does not exist");
-            return response;
+    public static String parseContent(Path epubFile, String filePath, String anchor) throws EpubProcessingException, IOException{
+        if(epubFile == null){
+            throw new IllegalArgumentException("epubFile cannot be null");
         }
-
-
-        try(ZipFile zipFile = new ZipFile(epubFile)) {
-            System.out.println("Epub file opened");
-
-
-            Optional<OpfData> opfData = getOpfDocument(zipFile);
-            if(opfData.isEmpty()){
-                log.error("Failed to get OPFData");
-                return response;
-            }
-            Document opfDocument = opfData.get().opfDocument();
-            String opfFilePath = opfData.get().opfFilePath();
-
-            Optional<Document> tocDocument = getToc(zipFile, opfDocument, opfFilePath);
-            if(tocDocument.isEmpty()){
-                log.error("Could not receive TocDocument");
-                return response;
-            }
-
-
-            NodeList contentList = tocDocument.get().getElementsByTagName("content");
-            //log.info("contentList length is: " + String.valueOf(contentList.getLength()));
-            //log.info("Check chapter: " + contentList.item(chapterIndex).getAttributes().getNamedItem("src").getTextContent());
-
-            if(chapterIndex < 0 || chapterIndex >= contentList.getLength()) {
-                log.error("Invalid index {}", chapterIndex);
-                return response;
-            }
-
-
-            String rawChapterSrc = contentList.item(chapterIndex).getAttributes().getNamedItem("src").getTextContent();
-            log.info(rawChapterSrc);
-
-            int hashIndex = rawChapterSrc.indexOf('#');
-            String anchor = "";
-            if (hashIndex != -1) {
-                anchor = rawChapterSrc.substring(hashIndex + 1);
-                rawChapterSrc = rawChapterSrc.substring(0, hashIndex);
-            }
-            log.info(rawChapterSrc);
-
-            String chapterPath;
-            if (Path.of(opfFilePath).getParent() != null) {
-                chapterPath = Path.of(opfFilePath).getParent()
-                        .resolve(rawChapterSrc)
-                        .toString();
-            } else {
-                // If the OPF is at the root of the zip, just use rawSrc
-                chapterPath = rawChapterSrc;
-            }
-
-
-            chapterPath = chapterPath.replace("\\", "/");
-
-            ZipEntry chapterZipEntry = zipFile.getEntry(chapterPath);
-
-
-            log.info(chapterZipEntry.toString());
-
-            String chapter1ContentHTML = new String(zipFile.getInputStream(chapterZipEntry).readAllBytes(), StandardCharsets.UTF_8);
-            //chapterContent = Jsoup.parse(chapter1ContentHTML).text();
-
-
-
-
-            org.jsoup.nodes.Document chapterDocument = Jsoup.parse(chapter1ContentHTML);
-
-            if(!anchor.isEmpty()){
-                chapterDocument = Jsoup.parse(chapterDocument.html());
-
-                //Find the element using our anchor as an id
-                org.jsoup.nodes.Element anchorElement = chapterDocument.getElementById(anchor);
-
-                if (anchorElement != null) {
-                    //Create a StringBuilder to collect all content
-                    StringBuilder contentBuilder = new StringBuilder();
-
-                    //If it's a div (container element), process all its children
-                    if (anchorElement.tagName().equals("div")) {
-                        //Look for a heading, if present.
-                        org.jsoup.nodes.Element heading = anchorElement.select("h1, h2, h3, h4, h5, h6").first();
-                        if (heading != null) {
-                            /**
-                             * ("\n\n") so we can format between paragraphs/headings/etc on front end easily.
-                             */
-                            contentBuilder.append(heading.text()).append("\n\n");
-                        }
-
-                        //Add all paragraphs
-                        for (org.jsoup.nodes.Element p : anchorElement.select("p")) {
-                            String pText = p.text().trim();
-                            if (!pText.isEmpty()) {
-                                contentBuilder.append(pText).append("\n\n");
-                            }
-                        }
-                    } else {
-                        //Add the anchor element itself
-                        contentBuilder.append(anchorElement.text()).append("\n\n");
-
-                        //Add all following sibling elements until the next anchor or the end
-                        org.jsoup.nodes.Element currentElement = anchorElement;
-                        while ((currentElement = currentElement.nextElementSibling()) != null) {
-                            //Stop if we hit another anchor element
-                            if (currentElement.hasAttr("id")) {
-                                break;
-                            }
-
-                            //Check if it's a paragraph element
-                            if (currentElement.tagName().equals("p")) {
-                                String paragraphText = currentElement.text().trim();
-                                if (!paragraphText.isEmpty()) {
-                                    contentBuilder.append(paragraphText).append("\n\n");
-                                }
-                            }
-                            //Headings
-                            else if (currentElement.tagName().matches("h[1-6]")) {
-                                String headingText = currentElement.text().trim();
-                                if (!headingText.isEmpty()) {
-                                    contentBuilder.append(headingText).append("\n\n");
-                                }
-                            }
-                        }
-                    }
-
-                    //Return the text content
-                    response.put("chapterContent", contentBuilder.toString().trim());
-                } else {
-                    //There was an anchor, but couldn't find it in our documenet
-                    response.put("chapterContent", "Anchor not found: " + anchor);
-                }
-            } else //No anchor
-            {
-                chapterDocument.head().remove();
-
-                StringBuilder contentBuilder = new StringBuilder();
-
-                //add any headings
-                for (org.jsoup.nodes.Element hElement : chapterDocument.select("h1, h2, h3, h4, h5, h6")) {
-                    String hText = hElement.text().trim();
-                    if (!hText.isEmpty()) {
-                        contentBuilder.append(hText).append("\n\n");
-                    }
-                }
-
-                //add all paragraphs
-                for (org.jsoup.nodes.Element pElement : chapterDocument.select("p")) {
-                    String pText = pElement.text().trim();
-                    if (!pText.isEmpty()) {
-                        contentBuilder.append(pText).append("\n\n");
-                    }
-                }
-
-                response.put("chapterContent", contentBuilder.toString().trim());
-            }
-
-
-
-
-        } catch (Exception e) {
-            System.out.println("Error opening the epub," + e);
+        if(filePath == null || filePath.isBlank()){
+            throw new IllegalArgumentException("filePath cannot be null or blank");
         }
-        return response;
-
-
-    }
-
-    public static String parseContent(Path epubFile, String filePath, String anchor){
         String chapterContent = "";
-
         try(ZipFile zipFile = new ZipFile(epubFile.toFile())){
             ZipEntry chapterZipEntry = zipFile.getEntry(filePath);
 
-            log.info("Filepath is: {}", filePath);
             if(chapterZipEntry == null){
-                log.error("Chapter zip entry not found");
-                return "";
+                log.error("Chapter zip entry not found for path: {}", filePath);
+                throw new EpubProcessingException("Chapter zip entry not found for path: " + filePath);
             }
+
+
             try(InputStream chapterInputStream = zipFile.getInputStream(chapterZipEntry)){
                 org.jsoup.nodes.Document chapterDocument = Jsoup.parse(chapterInputStream, "UTF-8", filePath);
+
                 if(!anchor.isEmpty()){
                     chapterDocument = Jsoup.parse(chapterDocument.html());
 
@@ -456,28 +310,22 @@ public class EpubParser {
 
                     return contentBuilder.toString().trim();
                 }
-            } catch (Exception e) {
-                throw new RuntimeException(e);
             }
-
+    } catch (ZipException e){
+            log.error("Invalid Zip/Epub file: {}", epubFile.getFileName(), e);
+            throw new EpubProcessingException("Invalid Zip/Epub file: " + epubFile.getFileName() + "\n" + e);
+        }
     }
-        catch (Exception e){
-            log.error("Error opening epub", e);
+
+    public static Optional<Map<String, Object>> extractCoverImage(File epubFile) throws EpubProcessingException, IOException{
+        if(epubFile == null){
+            throw new IllegalArgumentException("epubFile cannot be null");
         }
 
-
-
-        return chapterContent;
-    }
-
-    public static Optional<Map<String, Object>> extractCoverImage(File epubFile){
         try(ZipFile zipFile = new ZipFile(epubFile)){
-            Optional<OpfData> opfData = getOpfDocument(zipFile);
-            if(opfData.isEmpty()){
-                log.error("Failed to get OPFData");
-                return Optional.empty();
-            }
-            Document opfDocument = opfData.get().opfDocument();
+            OpfData opfData = getOpfDocument(zipFile);
+
+            Document opfDocument = opfData.opfDocument();
             NodeList manifestItems = opfDocument.getElementsByTagName("item");
 
             for(int i = 0; i < manifestItems.getLength(); i++){
@@ -493,8 +341,8 @@ public class EpubParser {
                 if(mediaType.equals("image/jpeg") || mediaType.equals("image/png")){
                     String coverImagePath;
                     if(id.toLowerCase().contains("cover") || properties.toLowerCase().contains("cover-image") || href.toLowerCase().contains("cover")){
-                        if(Path.of(opfData.get().opfFilePath()).getParent() != null){
-                            coverImagePath = Path.of(opfData.get().opfFilePath()).getParent().resolve(href).toString().replace("\\", "/");
+                        if(Path.of(opfData.opfFilePath()).getParent() != null){
+                            coverImagePath = Path.of(opfData.opfFilePath()).getParent().resolve(href).toString().replace("\\", "/");
                         }
                         else{
                             coverImagePath = href.replace("\\", "/");
@@ -508,24 +356,33 @@ public class EpubParser {
                         //log.info("Cover image entry: {}", coverImageEntry.getName());
                         if(coverImageEntry != null) {
                             Map<String, Object> response = new HashMap<>();
-                            response.put("coverImage", zipFile.getInputStream(coverImageEntry).readAllBytes());
-                            response.put("mediaType", mediaType);
-                            return Optional.of(response);
+                            try(InputStream coverImageStream = zipFile.getInputStream(coverImageEntry)){
+                                response.put("coverImage", coverImageStream.readAllBytes());
+                                response.put("mediaType", mediaType);
+                                return Optional.of(response);
+                            }
+                            catch (IOException e){
+                                log.error("Error reading cover image stream for path: {}", coverImagePath, e);
+                                throw new EpubProcessingException("Error reading cover image: " + coverImagePath + e);
+                            }
+                        }
+                        else{
+                            log.warn("Cover image entry not found for path: {} despite being listed in OPF document", coverImagePath);
+                            throw new EpubProcessingException("Cover image not found for path: " + coverImagePath);
                         }
 
                     }
                 }
             }
 
+            log.warn("No cover image found in epub: {}", epubFile.getName());
+
             return Optional.empty();
-
-
-
 
         }
-        catch (Exception e){
-            log.error("Error extracting cover image", e);
-            return Optional.empty();
+        catch (ZipException e){
+            log.error("Invalid Zip/Epub file: {}", epubFile.getName(), e);
+            throw new EpubProcessingException("Invalid Zip/Epub file: " + epubFile.getName() + "\n" + e);
         }
     }
 
@@ -537,13 +394,13 @@ public class EpubParser {
      * @param input the InputStream representing the XML to be parsed
      * @return an Optional containing the parsed Document, or an empty Optional if parsing fails
      */
-    private static Optional<Document> parseXML(InputStream input) {
+    private static Document parseXML(InputStream input) throws EpubProcessingException {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         try {
-            return Optional.of(factory.newDocumentBuilder().parse(input));
+            return factory.newDocumentBuilder().parse(input);
         } catch (Exception e) {
-            System.out.println("Error parsing the XML file," + e);
-            return Optional.empty();
+            log.error("Error parsing XML", e);
+            throw new EpubProcessingException("Failed to parse XML: " + e);
         }
     }
 
@@ -557,41 +414,31 @@ public class EpubParser {
      * @return an Optional containing the extracted OPF data, or an empty Optional if
      * the OPF document is not found or cannot be parsed
      */
-    private static Optional<OpfData> getOpfDocument(ZipFile zipFile){
-        try{
+    private static OpfData getOpfDocument(ZipFile zipFile) throws EpubProcessingException, IOException {
             ZipEntry containerEntry = zipFile.getEntry("META-INF/container.xml");
-
-            Optional<Document> containerDocument = parseXML(zipFile.getInputStream(containerEntry));
-            if(containerDocument.isPresent()){
-
-                NodeList containerRootFiles = containerDocument.get().getElementsByTagName("rootfile");
-
-                String opfFilePath = containerRootFiles.item(0).getAttributes().getNamedItem("full-path").getTextContent();
-
-                ZipEntry opfEntry = zipFile.getEntry(opfFilePath);
-                Optional<Document> opfDocument = parseXML(zipFile.getInputStream(opfEntry));
-
-                String opfParentDir = Path.of(opfFilePath).getParent() != null ? Path.of(opfFilePath).getParent().toString() : "";
-
-                if(opfDocument.isPresent()){
-                    return Optional.of(new OpfData(opfDocument.get(), opfFilePath, opfParentDir));
-                }
-                else{
-                    return Optional.empty();
-                }
-
-            }
-            else{
-                return Optional.empty();
+            if (containerEntry == null) {
+                throw new EpubProcessingException("Container.xml not found at: META-INF/container.xml");
             }
 
+            Document containerDocument = parseXML(zipFile.getInputStream(containerEntry));
+
+            NodeList containerRootFiles = containerDocument.getElementsByTagName("rootfile");
+            if(containerRootFiles.getLength() == 0 || containerRootFiles.item(0).getAttributes().getNamedItem("full-path") == null){
+                throw new EpubProcessingException("Invalid container.xml: No rootfile found or full-path attribute not found");
+            }
+
+            String opfFilePath = containerRootFiles.item(0).getAttributes().getNamedItem("full-path").getTextContent();
 
 
-        }
-        catch (Exception e){
-            log.error("Error getting OPFDocument", e);
-            return Optional.empty();
-        }
+            ZipEntry opfEntry = zipFile.getEntry(opfFilePath);
+            if(opfEntry == null){
+                throw new EpubProcessingException("OPF file not found at: " + opfFilePath);
+            }
+            Document opfDocument = parseXML(zipFile.getInputStream(opfEntry));
+
+            String opfParentDir = Path.of(opfFilePath).getParent() != null ? Path.of(opfFilePath).getParent().toString() : "";
+
+            return new OpfData(opfDocument, opfFilePath, opfParentDir);
 
     }
 
@@ -606,7 +453,7 @@ public class EpubParser {
      * @return an Optional containing the TOC document if found,
      *         or an empty Optional if not found or an error occurs
      */
-    private static Optional<Document> getToc(ZipFile zipFile, Document opfDocument, String opfFilePath){
+    private static Document getToc(ZipFile zipFile, Document opfDocument, String opfFilePath) throws EpubProcessingException, IOException{
 
         NodeList manifestItems = opfDocument.getElementsByTagName("item");
         String tocHref = "";
@@ -620,40 +467,31 @@ public class EpubParser {
 
 
 
-        if(tocHref.isEmpty()){
-            log.error("Could not find toc.ncx");
-            return Optional.empty();
+        if(tocHref.isBlank()){
+            throw new EpubProcessingException("TOC entry reference not found in OPF document.");
+        }
+        String tocPath;
+        Path opfPath =  Path.of(opfFilePath);
+        if(Path.of(opfFilePath).getParent() != null){
+            tocPath = opfPath.getParent().resolve(tocHref).toString();
         }
         else{
-            //Compute full path
-            String tocPath = "";
-            if(Path.of(opfFilePath).getParent() != null){
-                tocPath = Path.of(opfFilePath).getParent().resolve(tocHref).toString();
-            }
-            else{
-                tocPath = tocHref;
-            }
-            //log.info("tocPath is: " + tocPath);
-
-            //Dont need to do this if I change to Path instead of File -> future stuff
-            tocPath = tocPath.replace("\\", "/");
-            ZipEntry tocEntry = zipFile.getEntry(tocPath);
-            if(tocEntry == null){
-                log.error("TOC not found at: {}", tocPath);
-                return Optional.empty();
-            }
-            else {
-                try{
-                    Optional<Document> tocDocument = parseXML(zipFile.getInputStream(tocEntry));
-                    return tocDocument;
-                }
-                catch (Exception e){
-                    log.error("Error parsing our TocDocument", e);
-                    return Optional.empty();
-                }
-
-            }
+            tocPath = tocHref;
         }
+
+
+        tocPath = tocPath.replace("\\", "/");
+
+
+        ZipEntry tocEntry = zipFile.getEntry(tocPath);
+
+        if(tocEntry == null){
+            log.error("TOC not found at: {}", tocPath);
+            throw new EpubProcessingException("TOC not found at: " + tocPath);
+        }
+
+        return parseXML(zipFile.getInputStream(tocEntry));
+
     }
 
     /**

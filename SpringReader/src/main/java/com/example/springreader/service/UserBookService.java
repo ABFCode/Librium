@@ -2,6 +2,7 @@ package com.example.springreader.service;
 
 
 import com.example.springreader.dto.UserBookProgressDTO;
+import com.example.springreader.exception.ResourceNotFoundException;
 import com.example.springreader.model.Book;
 import com.example.springreader.model.User;
 import com.example.springreader.model.UserBook;
@@ -21,26 +22,18 @@ public class UserBookService {
     private final BookRepository bookRepository;
 
 
-    public UserBook createUserBook(User user, Book book) {
+    public void createUserBook(User user, Book book) {
         UserBook userBook = new UserBook();
         userBook.setUser(user);
         userBook.setBook(book);
-        return userBookRepository.save(userBook);
+        userBookRepository.save(userBook);
     }
 
-    public UserBook saveBookProgress(UserBookProgressDTO progressDTO, User user) {
-        Book book = bookRepository.findById(progressDTO.bookId())
-                .orElseThrow(() -> new RuntimeException("book not found"));
-
+    public void saveBookProgress(UserBookProgressDTO progressDTO, User user) {
         UserBook userBook = userBookRepository.findByUserIdAndBookId(user.getId(), progressDTO.bookId())
-                .orElse(new UserBook());
-
-        userBook.setUser(user);
-        userBook.setBook(book);
+                .orElseThrow(() -> new ResourceNotFoundException("UserBook not found for user: " + user.getId() + " and book: " + progressDTO.bookId()));
         userBook.setLastChapterIndex(progressDTO.lastChapterIndex());
-
-        return userBookRepository.save(userBook);
-
+        userBookRepository.save(userBook);
     }
 
 

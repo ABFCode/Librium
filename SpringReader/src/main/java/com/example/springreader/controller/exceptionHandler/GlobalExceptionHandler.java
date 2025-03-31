@@ -10,9 +10,9 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.io.IOException;
 import java.nio.file.AccessDeniedException;
 import java.time.Instant;
-import java.util.NoSuchElementException;
 
 @RestControllerAdvice
 @Slf4j
@@ -32,26 +32,12 @@ public class GlobalExceptionHandler {
         return problemDetail;
     }
 
-
-    @ExceptionHandler(NoSuchElementException.class)
-    public ProblemDetail handleNoSuchElementException(NoSuchElementException e){
-        log.warn("Resource not found: {}", e.getMessage());
-
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.NOT_FOUND, e.getMessage()
-        );
-        problemDetail.setTitle("Resource Not Found");
-        problemDetail.setProperty("timestamp", Instant.now());
-
-        return problemDetail;
-    }
-
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     public ProblemDetail handleAccessDeniedException(AccessDeniedException e){
         log.warn("Access denied: {}", e.getMessage());
 
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.FORBIDDEN, e.getMessage()
+                HttpStatus.FORBIDDEN, "Access to the resource is forbidden."
         );
         problemDetail.setTitle("Access Denied");
         problemDetail.setProperty("timestamp", Instant.now());
@@ -63,7 +49,7 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleIllegalArgumentException(IllegalArgumentException e){
         log.warn("Illegal argument: {}", e.getMessage());
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.BAD_REQUEST, e.getMessage()
+                HttpStatus.BAD_REQUEST, "The request was invalid."
         );
         problemDetail.setTitle("Illegal Argument");
         problemDetail.setProperty("timestamp", Instant.now());
@@ -76,7 +62,7 @@ public class GlobalExceptionHandler {
         log.warn("Resource not found: {}", e.getMessage());
 
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.NOT_FOUND, e.getMessage()
+                HttpStatus.NOT_FOUND, "The resource could not be found."
         );
         problemDetail.setTitle("Resource Not Found");
         problemDetail.setProperty("timestamp", Instant.now());
@@ -87,7 +73,7 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleEpubProcessingException(EpubProcessingException e){
         log.warn("Epub processing error: {}", e.getMessage());
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage()
+                HttpStatus.INTERNAL_SERVER_ERROR, "An error occurred while processing the file."
         );
         problemDetail.setTitle("Epub Processing Error");
         problemDetail.setProperty("timestamp", Instant.now());
@@ -99,7 +85,7 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleUsernameAlreadyExistsException(UsernameAlreadyExistsException e){
         log.warn("Username already exists: {}", e.getMessage());
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.CONFLICT, e.getMessage()
+                HttpStatus.CONFLICT, "The username is already taken."
         );
         problemDetail.setTitle("Username Already Exists");
         problemDetail.setProperty("timestamp", Instant.now());
@@ -111,11 +97,22 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleBadCredentialsException(BadCredentialsException e){
         log.warn("Bad credentials: {}", e.getMessage());
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.UNAUTHORIZED, e.getMessage()
+                HttpStatus.UNAUTHORIZED, "Invalid username or password."
         );
         problemDetail.setTitle("Bad Credentials");
         problemDetail.setProperty("timestamp", Instant.now());
         return problemDetail;
     }
 
+
+    @ExceptionHandler(IOException.class)
+    public ProblemDetail handleIOException(IOException e){
+        log.warn("IO error: {}", e.getMessage());
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR, "An error occurred while processing the file."
+        );
+        problemDetail.setTitle("IO Error");
+        problemDetail.setProperty("timestamp", Instant.now());
+        return problemDetail;
+    }
 }
