@@ -83,9 +83,11 @@ public class LibraryService {
 
         try{
             Path coverDir = Path.of(uploadDir, "covers");
+            log.info("Cover dir: {}", coverDir);
             if(!Files.exists(coverDir)){
+                log.info("Cover directory does not exist");
                 Files.createDirectories(coverDir);
-                //log.info("Created covers directory");
+                log.info("Created covers directory");
             }
 
             String filename = UUID.randomUUID() + "." + fileExtension;
