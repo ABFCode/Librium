@@ -3,11 +3,6 @@ interface UserCredentials {
   password: string;
 }
 
-interface AuthResponse {
-  token: string | null;
-  status: "SUCCESS" | "FAILURE";
-}
-
 interface Book {
   id: string;
   title: string;
@@ -37,12 +32,30 @@ interface UserBookProgress {
   lastChapterIndex: number;
 }
 
+interface ApiErrorDetail {
+  type: string;
+  title: string;
+  status: number;
+  detail: string;
+  timestamp: string;
+}
+
+class ApiError extends Error {
+  details: ApiErrorDetail;
+
+  constructor(details: ApiErrorDetail) {
+    super(details.detail || details.title || "API Error");
+    this.name = "ApiError";
+    this.details = details;
+  }
+}
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
 //Auth
 
 export const apiService = {
-  login: async (credentials: UserCredentials): Promise<AuthResponse> => {
+  login: async (credentials: UserCredentials): Promise<void> => {
     const response = await fetch(`${API_URL}/user/login`, {
       method: "POST",
       headers: {
@@ -53,13 +66,13 @@ export const apiService = {
     });
 
     if (!response.ok) {
-      throw new Error("Login failed");
+      await handleApiError(response);
     }
 
-    return response.json();
+    return;
   },
 
-  register: async (credentials: UserCredentials): Promise<AuthResponse> => {
+  register: async (credentials: UserCredentials): Promise<void> => {
     const response = await fetch(`${API_URL}/user/register`, {
       method: "POST",
       headers: {
@@ -68,31 +81,25 @@ export const apiService = {
       credentials: "include",
       body: JSON.stringify(credentials),
     });
-    const responseData: AuthResponse = await response.json();
-    console.log(responseData);
-
     if (!response.ok) {
-      console.log("Registration failed");
-      return responseData;
+      await handleApiError(response);
     }
 
-    console.log("Registration successful");
-    return responseData;
+    //console.log("Registration successful");
+    return;
   },
 
-  logout: async (): Promise<string> => {
+  logout: async (): Promise<void> => {
     const response = await fetch(`${API_URL}/user/logout`, {
       method: "POST",
       credentials: "include",
     });
 
-    const responseText: string = await response.text();
-
     if (!response.ok) {
-      throw new Error(responseText);
+      await handleApiError(response);
     }
 
-    return responseText;
+    return;
   },
 
   validateSession: async (): Promise<boolean> => {
@@ -117,10 +124,7 @@ export const apiService = {
     });
 
     if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error("unauthorized");
-      }
-      throw new Error(`Failed to fetch library: Status ${response.status}`);
+      await handleApiError(response);
     }
     return response.json();
   },
@@ -135,7 +139,7 @@ export const apiService = {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to upload book: Status ${response.status}`);
+      await handleApiError(response);
     }
     return;
   },
@@ -152,7 +156,7 @@ export const apiService = {
     });
 
     if (!response.ok) {
-      throw new Error(`Error retrieving bookMeta: Status ${response.status}`);
+      await handleApiError(response);
     }
 
     return response.json();
@@ -169,9 +173,7 @@ export const apiService = {
       }
     );
     if (!response.ok) {
-      throw new Error(
-        `Error getting chapter Content: Status ${response.status}`
-      );
+      await handleApiError(response);
     }
 
     return response.json();
@@ -189,7 +191,7 @@ export const apiService = {
     });
 
     if (!response.ok) {
-      throw new Error(`Error saving progress: Status: ${response.status}`);
+      await handleApiError(response);
     }
 
     return;
@@ -200,19 +202,39 @@ export const apiService = {
       credentials: "include",
     });
     if (!response.ok) {
-      throw new Error(`Error getting book progress: Status ${response.status}`);
+      await handleApiError(response);
     }
 
     return response.json();
   },
 };
 
+const handleApiError = async (response: Response): Promise<never> => {
+  let errorDetails: ApiErrorDetail | null = null;
+  try {
+    const errorData = await response.json();
+    if (errorData && errorData.status && errorData.title && errorData.detail) {
+      errorDetails = errorData as ApiErrorDetail;
+    }
+  } catch (error) {
+    console.error("Failed to parse error response", error);
+  }
+
+  if (errorDetails) {
+    throw new ApiError(errorDetails);
+  } else {
+    throw new Error(`Unknown API Error: ${response.statusText}`);
+  }
+};
+
 export type {
   UserCredentials,
-  AuthResponse,
   Book,
   Chapter,
   BookMeta,
   ChapterContent,
   UserBookProgress,
+  ApiErrorDetail,
 };
+
+export { ApiError };

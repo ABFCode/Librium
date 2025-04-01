@@ -1,20 +1,41 @@
-import { apiService } from "../services/apiService";
-
+import { ApiError, apiService } from "../services/apiService";
+import { NavigateFunction } from "react-router-dom";
 interface AuthUtils {
   //getToken: () => string | null;
   isAuthenticated: () => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  handleUnauthorized: (navigate: NavigateFunction) => void;
   //getAuthHeaders: () => HeadersInit;
 }
 
 const auth: AuthUtils = {
   logout: async () => {
-    await apiService.logout();
+    try {
+      await apiService.logout();
+      console.log("Logged out");
+    } catch (error) {
+      console.error("Error logging out", error);
+    }
   },
 
   isAuthenticated: async () => {
-    const response = await apiService.validateSession();
-    return response;
+    try {
+      await apiService.validateSession();
+      return true;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        console.error(error.details.detail);
+      }
+      console.error("Error validating session", error);
+      return false;
+    }
+  },
+
+  handleUnauthorized: (navigate) => {
+    console.warn("Unauthorized access");
+    auth.logout().finally(() => {
+      navigate("/signin");
+    });
   },
 
   // getAuthHeaders: () => ({

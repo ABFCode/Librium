@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import auth from "../../utility/auth";
 import ThemeToggle from "../ThemeToggle";
 import {
+  ApiError,
   apiService,
   BookMeta,
   Chapter,
@@ -18,80 +19,102 @@ function Reader() {
   );
   const [chapterContent, setChapterContent] = useState<string>("");
   const [isTocOpen, setIsTocOpen] = useState(false);
+  const [error, setError] = useState<string>("");
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!auth.isAuthenticated()) {
-      navigate("/signin");
+  const initializeReader = useCallback(async () => {
+    if (!bookId) {
+      setError("BookId is missing");
       return;
     }
+    setError("");
+    try {
+      const [metaResponse, progressResponse] = await Promise.all([
+        apiService.getBookMeta(bookId),
+        apiService.getProgress(bookId),
+      ]);
+      //console.log("API Responses: ", {metaResponse, progressResponse});
+      if (metaResponse && typeof progressResponse === "number") {
+        setMeta(metaResponse);
+        setFlattenedToc(metaResponse.chapters);
+        setCurrentChapterIndex(progressResponse);
+      } else {
+        setError("Failed to initialize reader: Data is invalid");
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.details.status === 401 || error.details.status === 403) {
+          auth.handleUnauthorized(navigate);
+        } else {
+          setError(
+            `Failed to load book data: ${
+              error.details.detail || error.details.title || "Server Error"
+            }`
+          );
+        }
+      } else if (error instanceof Error) {
+        setError(`Failed to load book data: ${error.message}`);
+      } else {
+        setError(`A very unexpected error has occured.`);
+      }
+    }
+  }, [bookId, navigate]);
 
-    const initializeReader = async () => {
-      if (!bookId) {
+  useEffect(() => {
+    const checkAuth = async () => {
+      const isAuthenticated = await auth.isAuthenticated();
+      if (!isAuthenticated) {
+        console.log("Not authenticated on initial check");
+        auth.handleUnauthorized(navigate);
         return;
       }
-      try {
-        const [metaResponse, progressResponse] = await Promise.all([
-          apiService.getBookMeta(bookId),
-          apiService.getProgress(bookId),
-        ]);
-        console.log("API Responses:", { metaResponse, progressResponse });
-
-        if (metaResponse && typeof progressResponse === "number") {
-          setMeta(metaResponse);
-          setFlattenedToc(metaResponse.chapters);
-          setCurrentChapterIndex(progressResponse);
-        }
-      } catch (error) {
-        console.error("Error during reader init", error);
-      }
+      initializeReader();
     };
-
-    initializeReader();
-  }, [bookId, navigate]);
+    checkAuth();
+  }, [navigate, initializeReader]);
 
   const loadChapter = useCallback(
     async (index: number) => {
-      if (!flattenedToc || index < 0 || index >= flattenedToc.length) return;
+      if (!flattenedToc || !bookId || index < 0 || index >= flattenedToc.length)
+        return;
 
-      const chapterIndex = flattenedToc[index].index;
-      if (isNaN(chapterIndex)) {
-        console.error("Invalid chapter index", chapterIndex);
+      const chapter = flattenedToc[index];
+      if (isNaN(chapter.index)) {
+        console.error("Invalid chapter index in TOC", chapter);
+        setError("Invalid chapter data");
         return;
       }
 
-      if (!bookId) {
-        console.error("Book ID is not defined");
-        return;
+      setError("");
+
+      try {
+        const chapterData = await apiService.getChapterContent(
+          bookId,
+          chapter.index
+        );
+        setChapterContent(chapterData.content);
+      } catch (error) {
+        console.error("Error fetching  chapter content: ", error);
+        if (error instanceof ApiError) {
+          if (error.details.status === 401 || error.details.status === 403) {
+            console.error("Unauthorized, redirectign to sign-in");
+            auth.handleUnauthorized(navigate);
+          } else {
+            setError(
+              `Failed to load chapter: ${
+                error.details.detail || error.details.title || "Server Error"
+              }`
+            );
+          }
+        } else if (error instanceof Error) {
+          setError(`Failed to load chapter: ${error.message}`);
+        } else {
+          setError(`A very unexpected Error has occurred`);
+        }
       }
-
-      const chapterContent = await apiService.getChapterContent(
-        bookId,
-        chapterIndex
-      );
-      //console.log(chapterContent);
-      setChapterContent(chapterContent.content);
-
-      // try {
-      //   const response = await fetch(
-      //     `${API_URL}/epub/${bookId}/chapter/${chapterIndex}`,
-      //     { credentials: "include" }
-      //   );
-
-      //   if (response.status === 401 || response.status === 403) {
-      //     auth.logout();
-      //     navigate("/signin");
-      //     return;
-      //   }
-
-      //   const data: ChapterContent = await response.json();
-      //   setChapterContent(data.content);
-      // } catch (error) {
-      //   console.error("Error fetching chapter", error);
-      // }
     },
-    [bookId, flattenedToc]
+    [bookId, flattenedToc, navigate]
   );
 
   useEffect(() => {
