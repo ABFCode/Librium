@@ -1,16 +1,16 @@
-# Ignore node_modules (already in your file)
+#node_modules
 node_modules
 
-# Ignore build output
+#build output
 dist
 dist-ssr
 
-# Ignore local environment files
+#local environment files
 *.local
 .env
 .env.* # e.g., .env.development, .env.production
 
-# Ignore editor/IDE settings
+#editor/IDE settings
 .vscode/
 .idea/
 *.suo
@@ -18,27 +18,26 @@ dist-ssr
 *.njsproj
 *.sln
 
-# Ignore OS-specific files
+#OS-specific files
 .DS_Store
 Thumbs.db
 
-# Ignore logs
+#logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Ignore Git-related files
+#Git
 .git
 .gitignore
 
-# Ignore temporary files
+#temporary files
 *.tmp
 *.swp
 *.bak
 *.old
 
 README.md
-public/
 *.tsbuildinfo
