@@ -28,9 +28,9 @@ function Library() {
         setError(
           `An unexpected error has occured while loading the library: ${error.message}`
         );
+      } else {
+        setError(`Something very unexpected has happened.`);
       }
-      setError(`Something very unexpected has happened.`);
-      console.error("Error loading books", error);
     }
   }, [navigate]);
 
