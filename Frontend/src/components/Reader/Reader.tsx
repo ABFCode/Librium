@@ -124,45 +124,82 @@ function Reader() {
   }, [currentChapterIndex, flattenedToc, loadChapter]);
 
   const saveProgress = useCallback(
-    async (chapterIndex: number) => {
+    async (chapterIndexToSave: number) => {
       //console.log(`Saving progress at ${chapterIndex}`);
       if (!bookId) {
         console.error("Book ID is not defined");
         return;
       }
+
+      if (chapterIndexToSave < 0 || chapterIndexToSave >= flattenedToc.length) {
+        console.error(
+          "Cannot save progress: Invalid chapter index.",
+          chapterIndexToSave
+        );
+        return;
+      }
+
       const bookIdNumber = parseInt(bookId);
+      if (isNaN(bookIdNumber)) {
+        console.error("Cannot save progress: Invalid BookID.", bookId);
+        return;
+      }
+
       const progressData: UserBookProgress = {
         bookId: bookIdNumber,
-        lastChapterIndex: chapterIndex,
+        lastChapterIndex: chapterIndexToSave,
       };
-      await apiService.saveProgress(progressData);
+
+      setError("");
+      try {
+        await apiService.saveProgress(progressData);
+      } catch (error) {
+        console.error("Error saving progress", error);
+        if (error instanceof ApiError) {
+          if (error.details.status === 401 || error.details.status === 403) {
+            console.error("Unauthorized, returning to sign-in");
+            auth.handleUnauthorized(navigate);
+          } else {
+            setError(
+              `Failed to save progress: ${
+                error.details.detail || error.details.title || "Server error"
+              }`
+            );
+          }
+        } else if (error instanceof Error) {
+          setError(`Failed to save progress: ${error.message}`);
+        } else {
+          setError(`A very unexpected error has occured while saving progress`);
+        }
+      }
     },
-    [bookId]
+    [bookId, navigate, flattenedToc]
   );
 
   const handleChapterSelect = (index: number) => {
-    setCurrentChapterIndex(index);
-    saveProgress(index);
+    if (index !== currentChapterIndex) {
+      setCurrentChapterIndex(index);
+      saveProgress(index);
+    }
     setIsTocOpen(false);
   };
 
   const handleNext = useCallback(() => {
-    if (currentChapterIndex != null) {
-      if (currentChapterIndex < flattenedToc.length - 1) {
-        const nextIndex = currentChapterIndex + 1;
-        setCurrentChapterIndex(nextIndex);
-        saveProgress(nextIndex);
-      }
+    if (
+      currentChapterIndex != null &&
+      currentChapterIndex < flattenedToc.length - 1
+    ) {
+      const nextIndex = currentChapterIndex + 1;
+      setCurrentChapterIndex(nextIndex);
+      saveProgress(nextIndex);
     }
   }, [currentChapterIndex, flattenedToc.length, saveProgress]);
 
   const handlePrev = useCallback(() => {
-    if (currentChapterIndex != null) {
-      if (currentChapterIndex > 0) {
-        const prevIndex = currentChapterIndex - 1;
-        setCurrentChapterIndex(prevIndex);
-        saveProgress(prevIndex);
-      }
+    if (currentChapterIndex != null && currentChapterIndex > 0) {
+      const prevIndex = currentChapterIndex - 1;
+      setCurrentChapterIndex(prevIndex);
+      saveProgress(prevIndex);
     }
   }, [currentChapterIndex, saveProgress]);
 
@@ -205,6 +242,8 @@ function Reader() {
           </button>
         </div>
       </div>
+
+      {error && <span className="alert alert-error">Error: {error}</span>}
 
       <div className="flex justify-center mt-16 h-[calc(100vh-4rem)] relative">
         <div
