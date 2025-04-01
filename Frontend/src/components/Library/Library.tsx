@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import auth from "../../utility/auth";
 import ThemeToggle from "../ThemeToggle";
-import { apiService, Book } from "../../services/apiService";
+import { ApiError, apiService, Book } from "../../services/apiService";
 
 function Library() {
   const navigate = useNavigate();
@@ -10,18 +10,36 @@ function Library() {
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState<string>("");
 
   const loadBooks = useCallback(async (): Promise<void> => {
-    const books = await apiService.getLibrary();
-    setBooks(books);
-  }, []);
+    try {
+      const books = await apiService.getLibrary();
+      setBooks(books);
+    } catch (error) {
+      console.error("Failed to load Library: ", error);
+      if (error instanceof ApiError) {
+        if (error.details.status === 401 || error.details.status === 403) {
+          auth.handleUnauthorized(navigate);
+        } else {
+          setError(error.details.detail || "Failed to load library");
+        }
+      } else if (error instanceof Error) {
+        setError(
+          `An unexpected error has occured while loading the library: ${error.message}`
+        );
+      }
+      setError(`Something very unexpected has happened.`);
+      console.error("Error loading books", error);
+    }
+  }, [navigate]);
 
   useEffect(() => {
     const checkAuth = async () => {
       const isAuthenticated = await auth.isAuthenticated();
       if (!isAuthenticated) {
         console.log("Not authenticated");
-        navigate("/signin");
+        auth.handleUnauthorized(navigate);
         return;
       }
       //console.log("Authenticated");
@@ -38,6 +56,7 @@ function Library() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setSelectedFile(e.target.files[0]);
+      setError("");
     }
   };
 
@@ -48,11 +67,12 @@ function Library() {
       !selectedFile.name.toLowerCase().endsWith(".epub") ||
       selectedFile.type !== "application/epub+zip"
     ) {
-      alert("Please select a valid EPUB file.");
+      setError("Please select a valid EPUB file.");
       return;
     }
 
     setIsUploading(true);
+    setError("");
     try {
       await apiService.uploadBook(selectedFile);
       loadBooks();
@@ -60,11 +80,24 @@ function Library() {
       setSelectedFile(null);
     } catch (error) {
       console.error("Upload failed:", error);
-      alert(
-        `Upload failed: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
+      if (error instanceof ApiError) {
+        if (error.details.status === 401 || error.details.status === 403) {
+          console.log("Unauthorized, redirecting to sign-in");
+          auth.handleUnauthorized(navigate);
+        } else {
+          setError(
+            `Upload Failed: ${
+              error.details.detail ||
+              error.details.title ||
+              "Unknown server error"
+            }`
+          );
+        }
+      } else if (error instanceof Error) {
+        setError(`Upload Failed: ${error.message}`);
+      } else {
+        setError(`Unexpected Error occured`);
+      }
     } finally {
       setIsUploading(false);
     }
@@ -77,7 +110,10 @@ function Library() {
         <div className="flex gap-4 items-center">
           <ThemeToggle />
           <button
-            onClick={() => setShowUploadForm(!showUploadForm)}
+            onClick={() => {
+              setShowUploadForm(!showUploadForm);
+              setError("");
+            }}
             className="btn btn-accent"
           >
             {showUploadForm ? "Cancel" : "Add Book"}
@@ -87,6 +123,12 @@ function Library() {
           </button>
         </div>
       </header>
+
+      {error && (
+        <div>
+          <span className="alert alert-error">Error: {error}</span>{" "}
+        </div>
+      )}
 
       {showUploadForm && (
         <div className="bg-base-100 p-4 rounded mb-6 shadow-md">

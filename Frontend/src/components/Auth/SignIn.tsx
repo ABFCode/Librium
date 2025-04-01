@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { apiService, UserCredentials } from "../../services/apiService";
+import {
+  ApiError,
+  apiService,
+  UserCredentials,
+} from "../../services/apiService";
 function SignIn() {
   const navigate = useNavigate();
   const [credentials, setCredentials] = useState<UserCredentials>({
@@ -20,20 +24,18 @@ function SignIn() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-
     try {
-      const response = await apiService.login(credentials);
+      await apiService.login(credentials);
 
-      if (response.status === "SUCCESS") {
-        navigate("/");
+      navigate("/");
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setError(error.details.detail || error.details.title || "Login failed");
       } else {
         setError("Login failed");
       }
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Login failed");
     }
   };
-
   return (
     <div className="flex items-center justify-center min-h-screen bg-base-200">
       <form

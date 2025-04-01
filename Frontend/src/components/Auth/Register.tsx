@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { apiService, UserCredentials } from "../../services/apiService";
+import {
+  ApiError,
+  apiService,
+  UserCredentials,
+} from "../../services/apiService";
 
 interface RegisterCredentials {
   username: string;
@@ -45,17 +49,16 @@ function Register() {
     };
 
     try {
-      const response = await apiService.register(userCredentials);
-
-      if (response.status === "FAILURE") {
-        console.log(response);
-        throw new Error("Registration failed");
-      } else {
-        console.log(response);
-        navigate("/signin");
-      }
+      await apiService.register(userCredentials);
+      navigate("/signin");
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Registration failed");
+      if (error instanceof ApiError) {
+        setError(
+          error.details.detail || error.details.title || "Registration failed"
+        );
+      } else {
+        setError("Registration failed");
+      }
     }
   };
 

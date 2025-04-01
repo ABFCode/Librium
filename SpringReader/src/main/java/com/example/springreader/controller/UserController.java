@@ -68,7 +68,7 @@ public class UserController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<String> logout(HttpServletResponse response){
+    public ResponseEntity<Void> logout(HttpServletResponse response){
 
         boolean isProd =  environment.matchesProfiles("docker | prod");
 
@@ -82,7 +82,7 @@ public class UserController {
 
         response.addHeader("Set-Cookie", jwtCookie.toString());
 
-        return ResponseEntity.ok("Logout successful");
+        return ResponseEntity.ok().build();
 
     }
 
