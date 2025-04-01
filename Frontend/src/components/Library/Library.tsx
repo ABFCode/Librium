@@ -164,7 +164,9 @@ function Library() {
               className="w-full h-full object-fit"
             />
 
-            <div className="card-body p-2 pt-1 flex-grow-0">{book.title}</div>
+            <div className="card-body p-2 pt-1 flex-grow-0 min-w-0">
+              <h2 className="card-title text-sm line-clamp-1">{book.title}</h2>
+            </div>
           </Link>
         ))}
       </div>
