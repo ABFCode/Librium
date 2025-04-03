@@ -3,18 +3,11 @@
 
 ## FIX
 ### BACKEND ###
-~~FIX PARSING: We parse WAY too much, both our meta and OFP/TOC files are parsed for each chapter get~~
-~~1. Parse meta once.~~
-~~2. Parse TOC/Flatten it.~~
-~~3. Store parsed metadata in our updated Book entity or another separate BookMeta entity.~~
-~~4. Change getEpubMeta to just retrieve from our book entity instead of parsing each time.~~
-~~5. Use getEpubChapter to use our stored TOC~~
 
 REMOVE H2 LEGACY STUFF
 1. Remove anything still related to our H2 DB - esp. security related stuff.
 
-ERROR HANDLING
-1. Lots of generic errors. Response errors are generally not specific enough either. 
+
 
 TESTS
 1. Fix JwtServiceTest - broke cause of secret changes
@@ -37,13 +30,8 @@ Phone: Remove chapter nav arrows for phone size
 1. BOOK DELETION: Let users delete their books.
 2. Storage limit for users
 3. Change image to thumbnail.
-5. Continue with DTOs for all responses
-   - Especially EpubController
-6. Refine class responsibilities.
-   - LibraryService for one.
 7. More robust validation for uploads. 
    - Check for basic structure first maybe? Not sure.
-8. Centralize our API in React. Way too much repeated code. 
 9. Reader Changes: Font size, font, spacing, margin, etc. 
 10. Scroll pos. sync
 11. Reading progress indicator
@@ -51,7 +39,8 @@ Phone: Remove chapter nav arrows for phone size
     - Could do in frontend or backend, could be a major change. 
     - Would be much easier on backend, after we do #4 (Store only parsed parts)
 13. Library management/organization/searching. General overhaul probably. 
-14. Cover placeholder image.
+14. Cover placeholder image
+    - Generate a blank image with the title of the book maybe?
 
 
 

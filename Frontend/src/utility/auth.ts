@@ -11,7 +11,7 @@ interface AuthUtils {
 const auth: AuthUtils = {
   logout: async () => {
     try {
-      await apiService.logout();
+      apiService.logout();
       console.log("Logged out");
     } catch (error) {
       console.error("Error logging out", error);
@@ -20,8 +20,8 @@ const auth: AuthUtils = {
 
   isAuthenticated: async () => {
     try {
-      await apiService.validateSession();
-      return true;
+      const isValid = apiService.validateSession();
+      return isValid;
     } catch (error) {
       if (error instanceof ApiError) {
         console.error(error.details.detail);
