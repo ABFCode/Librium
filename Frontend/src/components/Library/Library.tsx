@@ -154,18 +154,44 @@ function Library() {
           <Link
             to={`/epub/${book.id}`}
             key={book.id}
-            className="card bg-base-100 shadow-md hover:shadow-lg rounded p-4"
+            className="flex flex-col bg-base-100 rounded shadow hover:shadow-md transition-shadow duration-200"
           >
-            <img
-              src={`${import.meta.env.VITE_API_URL}/covers/${book.coverImagePath
-                .split("/")
-                .pop()}`}
-              alt={book.title}
-              className="w-full h-full object-fit"
-            />
+            <div className="w-full aspect-[2/3] overflow-hidden">
+              <img
+                src={
+                  book.coverImagePath
+                    ? `${
+                        import.meta.env.VITE_API_URL
+                      }/covers/${book.coverImagePath.split("/").pop()}`
+                    : "book-opened.svg"
+                }
+                alt={book.title}
+                className="w-full h-full object-fit"
+              />
+            </div>
 
-            <div className="card-body p-2 pt-1 flex-grow-0 min-w-0">
-              <h2 className="card-title text-sm line-clamp-1">{book.title}</h2>
+            <div className="p-2 flex">
+              <div className="flex-grow min-w-0">
+                <h2 className="text-sm font-semibold text-base-content truncate">
+                  {book.title}
+                </h2>
+                <h2 className="text-xs text-base-content/70 truncate">
+                  {book.author}
+                </h2>
+              </div>
+
+              <button className="btn btn-ghost btn-xs p-0 h-6 w-6 flex-shrink-0">
+                <svg
+                  width="800px"
+                  height="800px"
+                  viewBox="0 0 16 16"
+                  xmlns="http://www.w3.org/2000/svg"
+                  stroke="currentcolor"
+                  fill="#000000"
+                >
+                  <path d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z" />
+                </svg>
+              </button>
             </div>
           </Link>
         ))}

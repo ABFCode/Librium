@@ -8,7 +8,7 @@ interface Book {
   title: string;
   author: string;
   lastChapterIndex: number;
-  coverImagePath: string;
+  coverImagePath: string | null;
 }
 
 interface Chapter {
