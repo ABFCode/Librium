@@ -3,6 +3,8 @@ package com.example.springreader.repository;
 import com.example.springreader.model.Book;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Optional;
+
 
 /**
  * Repository interface for performing CRUD operations on our Book entity
@@ -17,5 +19,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface BookRepository extends JpaRepository<Book, Long> {
 
+    Optional<Book> findByisDefaultTrue();
 
 }
