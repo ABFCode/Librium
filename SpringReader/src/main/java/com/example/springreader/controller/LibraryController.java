@@ -97,6 +97,12 @@ public class LibraryController {
     }
 
 
+    @DeleteMapping("/delete/{bookId}")
+    public ResponseEntity<Void> deleteBook(@PathVariable Long bookId, @AuthenticationPrincipal User user){
+        return ResponseEntity.ok().build();
+    }
+
+
     /**
      * Retrieves a list of all books stored in the library.
      *

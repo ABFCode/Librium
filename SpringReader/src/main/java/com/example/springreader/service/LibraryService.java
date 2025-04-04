@@ -8,6 +8,7 @@ import com.example.springreader.exception.ResourceNotFoundException;
 import com.example.springreader.model.*;
 import com.example.springreader.repository.BookRepository;
 import com.example.springreader.repository.ChapterRepository;
+import com.example.springreader.repository.UserBookRepository;
 import com.example.springreader.utility.EpubParser;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,11 +30,13 @@ import java.util.*;
 public class LibraryService {
     private final BookRepository bookRepository;
     private final ChapterRepository chapterRepository;
+    private final UserBookRepository userBookRepository;
     private final String uploadDir;
 
-    public LibraryService(BookRepository bookRepository, ChapterRepository chapterRepository, String uploadDir){
+    public LibraryService(BookRepository bookRepository, ChapterRepository chapterRepository, String uploadDir, UserBookRepository userBookRepository){
         this.bookRepository = bookRepository;
         this.chapterRepository = chapterRepository;
+        this.userBookRepository = userBookRepository;
         this.uploadDir = uploadDir;
     }
 
@@ -127,6 +130,44 @@ public class LibraryService {
         }
         return flattenedToc;
     }
+
+
+    @Transactional
+    public void deleteBook(Long bookId, Long userId){
+        log.info("Deleting book with id: {}", bookId);
+        UserBook userBook = userBookRepository.findByUserIdAndBookId(userId, bookId).orElseThrow(() -> new ResourceNotFoundException("UserBook not found with bookId: " + bookId));
+        Book book = userBook.getBook();
+
+        String epubFilePath = book.getFilePath();
+        String coverImagePath = book.getCoverImagePath();
+
+        bookRepository.delete(book);
+
+        deleteFile(epubFilePath, "epub");
+        if(coverImagePath != null && !coverImagePath.isBlank()){
+            deleteFile(coverImagePath, "cover image");
+        }
+        log.info("Book record deleted with id: {}", bookId);
+
+
+    }
+
+    public void deleteFile(String filePathStr, String type){
+        if(filePathStr == null || filePathStr.isBlank()){
+            log.error("Cannot delete file, file path cannot be null or blank");
+            return;
+        }
+
+        Path path = Path.of(uploadDir).resolve(filePathStr);
+        try{
+            Files.delete(path);
+        }
+        catch(IOException e){
+            log.error("Error deleting file: {}, of type {}", e.getMessage(), type);
+        }
+
+    }
+
 
 
     public File saveUploadedFile(MultipartFile file) throws IOException {
