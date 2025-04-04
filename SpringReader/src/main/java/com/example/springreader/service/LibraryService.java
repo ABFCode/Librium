@@ -70,8 +70,11 @@ public class LibraryService {
             log.error("No cover data found");
         }
 
+//        log.info("Epub Absolute Path: {}", epubFile.getAbsolutePath());
+//        log.info("Epub Relative Path: {}", epubFile.getPath());
+//        log.info("Test Path: {}", Path.of(uploadDir, epubFile.getName()));
 
-        Book book = new Book(title, author, epubFile.getAbsolutePath(), coverImagePath);
+        Book book = new Book(title, author, epubFile.getName(), coverImagePath);
 
         for(EpubChapter EpubChapter: flattenedToc){
             //log.info("Chapter: {}", EpubChapter.filePath());
@@ -141,6 +144,8 @@ public class LibraryService {
         String epubFilePath = book.getFilePath();
         String coverImagePath = book.getCoverImagePath();
 
+
+        userBookRepository.delete(userBook);
         bookRepository.delete(book);
 
         deleteFile(epubFilePath, "epub");
@@ -148,7 +153,6 @@ public class LibraryService {
             deleteFile(coverImagePath, "cover image");
         }
         log.info("Book record deleted with id: {}", bookId);
-
 
     }
 
@@ -160,10 +164,10 @@ public class LibraryService {
 
         Path path = Path.of(uploadDir).resolve(filePathStr);
         try{
-            Files.delete(path);
+            Files.deleteIfExists(path);
         }
         catch(IOException e){
-            log.error("Error deleting file: {}, of type {}", e.getMessage(), type);
+            log.error("Error deleting file: {}, of type {}", filePathStr, type, e);
         }
 
     }
@@ -207,7 +211,7 @@ public class LibraryService {
             throw new ResourceNotFoundException("Chapter", "BookId: " + bookId + ", ChapterIndex: " + chapterIndex);
         }
 
-        Path epubPath = Path.of(book.getFilePath());
+        Path epubPath = Path.of(uploadDir).resolve(book.getFilePath());
         if(!Files.exists(epubPath)){
             log.error("Epub file does not exist at path: {}", epubPath);
             throw new IOException("Epub file does not exist at path: " + epubPath);

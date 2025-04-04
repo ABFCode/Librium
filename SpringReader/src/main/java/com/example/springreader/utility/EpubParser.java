@@ -205,7 +205,6 @@ public class EpubParser {
         if(filePath == null || filePath.isBlank()){
             throw new IllegalArgumentException("filePath cannot be null or blank");
         }
-        String chapterContent = "";
         try(ZipFile zipFile = new ZipFile(epubFile.toFile())){
             ZipEntry chapterZipEntry = zipFile.getEntry(filePath);
 
