@@ -34,6 +34,8 @@ public class Book {
 
     private String coverImagePath;
 
+    private boolean isDefault = false;
+
     @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("chapterIndex ASC")
     private List<Chapter> chapters = new ArrayList<>();

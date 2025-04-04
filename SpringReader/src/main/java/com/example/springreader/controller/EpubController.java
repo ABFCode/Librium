@@ -29,7 +29,7 @@ public class EpubController {
     public EpubController(LibraryService libraryService) {
         this.libraryService = libraryService;
     }
-    //File epubFile = new File("src/main/resources/files/pg11.epub");
+    //File epubFile = new File("src/main/resources/files/alice.epub");
 
     /**
      * gets a specific chapter from an EPUB file from with a given book.
