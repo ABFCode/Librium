@@ -10,6 +10,7 @@ import com.example.springreader.repository.BookRepository;
 import com.example.springreader.repository.ChapterRepository;
 import com.example.springreader.repository.UserBookRepository;
 import com.example.springreader.utility.EpubParser;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,18 +28,13 @@ import java.util.*;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class LibraryService {
     private final BookRepository bookRepository;
     private final ChapterRepository chapterRepository;
     private final UserBookRepository userBookRepository;
     private final String uploadDir;
 
-    public LibraryService(BookRepository bookRepository, ChapterRepository chapterRepository, String uploadDir, UserBookRepository userBookRepository){
-        this.bookRepository = bookRepository;
-        this.chapterRepository = chapterRepository;
-        this.userBookRepository = userBookRepository;
-        this.uploadDir = uploadDir;
-    }
 
 
     /**
@@ -88,7 +84,7 @@ public class LibraryService {
     public String extractAndSaveCoverImage(Map<String, Object> coverImageData) throws IOException{
         byte[] image = (byte[]) coverImageData.get("coverImage");
         String mediaType = (String) coverImageData.get("mediaType");
-        String coverImagePath = null;
+        String coverImagePath;
 
         String fileExtension = "";
         if(mediaType != null && mediaType.contains("/")){
@@ -146,12 +142,23 @@ public class LibraryService {
 
 
         userBookRepository.delete(userBook);
-        bookRepository.delete(book);
 
-        deleteFile(epubFilePath, "epub");
-        if(coverImagePath != null && !coverImagePath.isBlank()){
-            deleteFile(coverImagePath, "cover image");
+
+        if(book.isDefault()){
+            log.info("Skipping deletion of default book for user: {}", userId);
         }
+        else{
+            bookRepository.delete(book);
+            deleteFile(epubFilePath, "epub");
+            log.info("Epub file deleted with path: {}", epubFilePath);
+            if(coverImagePath != null && !coverImagePath.isBlank()){
+                deleteFile(coverImagePath, "cover image");
+                log.info("Cover image deleted with path: {}", coverImagePath);
+            }
+            log.info("Book record deleted with id: {}", bookId);
+        }
+
+
         log.info("Book record deleted with id: {}", bookId);
 
     }

@@ -15,6 +15,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
 /**
  * Service class responsible for user-related operations like authentication
  * and registration
@@ -66,21 +68,21 @@ public class UserService {
         userRepository.save(newUser);
 
 
-        //remove later- redo elsewhere
+        Optional<Book> defaultBookOpt = bookRepository.findByisDefaultTrue();
 
-        if(bookRepository.existsById(1L)){
-            Book defaultBook = bookRepository.findById(1L).orElse(null);
-            if(defaultBook != null){
-                UserBook userBook = new UserBook();
-                userBook.setUser(newUser);
-                userBook.setBook(defaultBook);
-                userBookRepository.save(userBook);
-                log.info("Default book added to user");
-            } else{
-                log.error("ID 1 exists, but no book found");
-            }
+        if(defaultBookOpt.isPresent()){
+            Book defaultBook = defaultBookOpt.get();
+            UserBook userBook = new UserBook();
+            userBook.setUser(newUser);
+            userBook.setBook(defaultBook);
+            userBookRepository.save(userBook);
+            log.info("Default book added to user: {}", newUser.getUsername());
         }
-        log.info("Default book doesn't exist, skipping");
+        else{
+            //should never happen
+            log.error("Default book not found in DB");
+        }
+
 
         return true;
     }
