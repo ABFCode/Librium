@@ -19,7 +19,7 @@ import java.util.List;
  */
 @Entity
 @Data
-@Table(name = "books")
+@Table(name = "books", indexes = {@Index(name="isDefaultIndex", columnList = "isDefault")})
 @NoArgsConstructor
 public class Book {
     @Id
@@ -34,6 +34,7 @@ public class Book {
 
     private String coverImagePath;
 
+    @Column(nullable = false)
     private boolean isDefault = false;
 
     @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, orphanRemoval = true)

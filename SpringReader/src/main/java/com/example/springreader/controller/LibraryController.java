@@ -99,6 +99,7 @@ public class LibraryController {
 
     @DeleteMapping("/delete/{bookId}")
     public ResponseEntity<Void> deleteBook(@PathVariable Long bookId, @AuthenticationPrincipal User user){
+        libraryService.deleteBook(bookId, user.getId());
         return ResponseEntity.ok().build();
     }
 
