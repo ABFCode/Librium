@@ -129,6 +129,17 @@ export const apiService = {
     return response.json();
   },
 
+  deleteBook: async (bookId: string): Promise<void> => {
+    const response = await fetch(`${API_URL}/library/delete/${bookId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return;
+  },
+
   uploadBook: async (file: File): Promise<void> => {
     const formData = new FormData();
     formData.append("file", file);
