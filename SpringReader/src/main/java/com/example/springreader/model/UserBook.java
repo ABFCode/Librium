@@ -5,7 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "userBooks")
+@Table(name = "user_books")
 @Data
 @NoArgsConstructor
 public class UserBook {
@@ -17,7 +17,7 @@ public class UserBook {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY) //doesn't need to be many to one
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "book_id", nullable = false)
     private Book book;
 
