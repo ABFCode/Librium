@@ -7,17 +7,13 @@
 REMOVE H2 LEGACY STUFF
 1. Remove anything still related to our H2 DB - esp. security related stuff.
 
-
-
 TESTS
-1. Fix JwtServiceTest - broke cause of secret changes
+Fix broken tests. 
 
 OTHER
 ~~1. Image controller is sending JPEG filetype as default, could be PNG.~~
 
 ### FRONT END ###
-Error handling: Very little user feedback for errors is directly shown to the user in the page, 
-especially around user sign-up.
 
 Phone: Remove chapter nav arrows for phone size
 
@@ -27,18 +23,16 @@ Phone: Remove chapter nav arrows for phone size
 
 ## DO
 
-1. BOOK DELETION: Let users delete their books.
 2. Storage limit for users
 3. Change image to thumbnail.
-7. More robust validation for uploads. 
-   - Check for basic structure first maybe? Not sure.
+7. More robust validation for uploads.
 9. Reader Changes: Font size, font, spacing, margin, etc. 
 10. Scroll pos. sync
 11. Reading progress indicator
 12. Search impl.
     - Could do in frontend or backend, could be a major change. 
     - Would be much easier on backend, after we do #4 (Store only parsed parts)
-13. Library management/organization/searching. General overhaul probably. 
+13. Library management/organization/searching. 
 14. Cover placeholder image
     - Generate a blank image with the title of the book maybe?
 
