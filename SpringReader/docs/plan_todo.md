@@ -47,20 +47,23 @@ UI CHANGES:
 6. Prev/Next buttons on EBOOK reader, not great. Replace it with arrows or nothing? Like Kindle. (see Kindle.png)
 
 RESEARCH/PLAN:
-1. (MAJOR CHANGE) Local/Cache. See what we can do in terms of local storage.
+1. (MAJOR CHANGE) Local/Caching. See what we can do in terms of local storage.
     - Look into indexedDB.
     - Service Workers
+    - Caching on backend too
 2. (MAJOR CHANGE) Store only necessary parts of EPUBs
     - We are storing the entire EPUB files, but only using the cover image and content text after parsing.
     - We could store the parsed chapter content and the modified image. Not sure if this will help.
 3. TXT Files: Plan for these
-   - Generic BookParser which our Epub and Txt parser will impl. (Strategy pattern?)
-4. Research Kindle formats, see if they're possible. Probably not.
+   - Generic BookParser, which our Epub and Txt parser will impl. (Strategy pattern)
+4. Research Kindle formats, see if they're possible.
 5. Spring Reactive
    - https://filia-aleks.medium.com/microservice-performance-battle-spring-mvc-vs-webflux-80d39fd81bf0
-6. XXE XML PARSING
+6. Protect against XXE XML PARSING
+7. Connect Gutenberg/Other copyright-free book sites. 
+8. Page-based instead of chapter-based.
 
-PROD:
+VPS:
 1. Fail2Ban
 2. Basic load balancing through docker/Traefik
 
