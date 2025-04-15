@@ -22,6 +22,7 @@ target/
 /nbproject/private/
 /nbbuild/
 /dist/
+repomix-output.txt
 /nbdist/
 /.nb-gradle/
 build/
@@ -31,4 +32,19 @@ build/
 ### VS Code ###
 .vscode/
 .idea/
-.frontendold/
+
+secrets.properties
+db
+
+uploads/
+defaults/
+EpubTest/
+
+.env.production
+
+*.epub
+*.jpg
+*.DS_Store
+.env
+
+jwt-secret.txt

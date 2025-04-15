@@ -17,6 +17,7 @@ function Library() {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string>("");
   const [bookToDelete, setBookToDelete] = useState<BookToDelete | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const loadBooks = useCallback(async (): Promise<void> => {
     try {
@@ -110,21 +111,35 @@ function Library() {
     }
   };
 
-  const requestDeleteConfirmation = (
+  const openDeleteConfirmation = (
     e: React.MouseEvent,
     bookId: string,
     bookTitle: string
   ) => {
     e.stopPropagation();
     e.preventDefault();
+    setError("");
     setBookToDelete({ id: bookId, title: bookTitle });
+    setIsDeleteModalOpen(true);
+
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
+
+  const closeDeleteModal = () => {
+    setIsDeleteModalOpen(false);
+    setTimeout(() => {
+      setBookToDelete(null);
+    }, 300);
   };
 
   const handleConfirmDelete = async () => {
     if (!bookToDelete) return;
 
     const bookIdToDelete = bookToDelete.id;
-    setBookToDelete(null);
+
+    closeDeleteModal();
 
     try {
       setError("");
@@ -152,7 +167,16 @@ function Library() {
   };
 
   const handleCancelDelete = () => {
-    setBookToDelete(null);
+    closeDeleteModal();
+  };
+
+  const handleDownload = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    console.log("Download button clicked");
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
   };
 
   return (
@@ -176,7 +200,7 @@ function Library() {
         </div>
       </header>
 
-      {error && !bookToDelete && (
+      {error && (
         <div>
           <span className="alert alert-error">Error: {error}</span>{" "}
         </div>
@@ -212,9 +236,7 @@ function Library() {
                 <img
                   src={
                     book.coverImagePath
-                      ? `${
-                          import.meta.env.VITE_API_URL
-                        }/covers/${book.coverImagePath.split("/").pop()}`
+                      ? apiService.getCoverImage(book.coverImagePath)
                       : "book-opened.svg"
                   }
                   alt={book.title}
@@ -223,7 +245,7 @@ function Library() {
               </div>
             </Link>
 
-            <div className="p-2 flex">
+            <div className="p-2 flex items-center">
               <div className="flex-grow min-w-0">
                 <h2 className="text-sm font-semibold text-base-content truncate">
                   {book.title}
@@ -232,60 +254,61 @@ function Library() {
                   {book.author}
                 </h2>
               </div>
-              <button
-                onClick={(e) =>
-                  requestDeleteConfirmation(e, book.id, book.title)
-                }
-                className="btn btn-ghost btn-xs p-0 h-6 w-6 flex-shrink-0"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="1.5"
-                  stroke="currentColor"
+              <div className="dropdown dropdown-end">
+                <button
+                  tabIndex={0}
+                  role="button"
+                  className="btn btn-ghost btn-xs"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
-                  />
-                </svg>
-              </button>
+                  svg
+                </button>
+                <ul
+                  tabIndex={0}
+                  className="dropdown-content menu bg-base-300 rounded-box z-[1] w-32 p=2 shadow"
+                >
+                  <li>
+                    <button onClick={handleDownload}>Download</button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={(e) =>
+                        openDeleteConfirmation(e, book.id, book.title)
+                      }
+                    >
+                      Delete
+                    </button>
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
         ))}
       </div>
-
-      {bookToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
-          <div className="bg-base-100 p-6 rounded-lg shadow-xl max-w-sm w-full">
-            <h3 className="text-lg font-bold mb-4 text-base-content">
-              Confirm Deletion
-            </h3>
+      <dialog
+        id="delete_modal"
+        className={`modal ${isDeleteModalOpen ? "modal-open" : ""}`}
+      >
+        <div className="modal-box">
+          <h3 className="font-bold text-lg">Confirm Deletion</h3>
+          {bookToDelete && (
             <p>
               Are you sure you want to permanently delete{" "}
-              <strong>"{bookToDelete.title}"</strong> This action cannot be
-              undone.
+              <strong>{bookToDelete.title}</strong>?
             </p>
-            {error && (
-              <div>
-                <span className="alert alert-error text-sm p-2">
-                  Error: {error}
-                </span>
-              </div>
-            )}
-            <div>
-              <button onClick={handleCancelDelete} className="btn btn-ghost">
-                Cancel
-              </button>
-              <button onClick={handleConfirmDelete} className="btn btn-ghost">
-                Delete
-              </button>
-            </div>
+          )}
+          <div className="modal-action">
+            <button className="btn btn-ghost" onClick={handleCancelDelete}>
+              Cancel
+            </button>
+            <button className="btn btn-ghost" onClick={handleConfirmDelete}>
+              Delete
+            </button>
           </div>
         </div>
-      )}
+        <form method="dialog" className="modal-backdrop">
+          <button onClick={handleCancelDelete}>Close</button>
+        </form>
+      </dialog>
     </div>
   );
 }
