@@ -12,6 +12,8 @@ import com.example.springreader.repository.UserBookRepository;
 import com.example.springreader.utility.EpubParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -19,11 +21,12 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.*;
 
 /**
- * Provides methods to interact with our bookRepo thereby interacting with our DB. Right now we can jsut add a book
+ * Provides methods to interact with our bookRepo thereby interacting with our DB. Right now we can just add a book
  * and list all of them.
  */
 @Slf4j
@@ -111,7 +114,7 @@ public class LibraryService {
     }
 
     /**
-     * Flattens the toc object into a single list of epubchapter objects.
+     * Flattens the toc object into a single list of EpubChapter objects.
      * It does this by iterating through each content file, extracting all the chapters, and appending them to a single
      * list.
      * @param toc Our EpubToc object
@@ -209,6 +212,30 @@ public class LibraryService {
 
         return new BookMetaDTO(book.getTitle(), book.getAuthor(), chapters);
 
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getBookResources(Long BookId, Long userId) throws ResourceNotFoundException, IOException {
+        UserBook userBook = userBookRepository.findByUserIdAndBookId(userId, BookId).orElseThrow(() ->
+        new ResourceNotFoundException("UserBook not found with bookId: " + BookId + " and User Id: " + userId));
+
+        Book book = userBook.getBook();
+        String relativeFilePath = book.getFilePath();
+        if(relativeFilePath == null || relativeFilePath.isBlank()){
+            throw new ResourceNotFoundException("Book file path is missing for bookId: " + BookId);
+        }
+        Path absoluteFilePath = Path.of(uploadDir).resolve(relativeFilePath);
+        Resource bookData = new FileSystemResource(absoluteFilePath);
+
+        if(!bookData.exists() || !bookData.isReadable()){
+            throw new NoSuchFileException("EPUB not found or readable at path: " + absoluteFilePath);
+        }
+
+        Map<String, Object> bookInfo = new HashMap<>();
+        bookInfo.put("fileName", relativeFilePath);
+        bookInfo.put("bookData", bookData);
+
+        return bookInfo;
     }
 
     public ChapterContentDTO getChapterContent(Long bookId, Integer chapterIndex) throws IOException, EpubProcessingException, ResourceNotFoundException {
