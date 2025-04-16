@@ -48,3 +48,4 @@ EpubTest/
 .env
 
 jwt-secret.txt
+qodana.yaml
