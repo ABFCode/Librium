@@ -44,12 +44,17 @@ Method: GET
 Auth Required: Yes
 Request Body: None
 
-
 **Upload Book (EPUB):**
 Endpoint: `/library/upload`
 Method: POST
 Auth Required: Yes
 Request Body: FormData with `file` field containing the EPUB file
+
+**Download Book (EPUB):**
+Endpoint: `/library/download/{bookId}`
+Method: GET
+Auth Required: Yes
+Request Body: None
 
 
 ---
