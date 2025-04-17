@@ -265,14 +265,14 @@ function Reader() {
         <button
           onClick={handlePrev}
           disabled={currentChapterIndex === 0}
-          className="btn btn-primary fixed left-1/12 top-1/2 transform z-10"
+          className="btn btn-primary hidden md:block fixed left-1/12 top-1/2 transform z-10"
         >
           Prev
         </button>
         <button
           onClick={handleNext}
           disabled={currentChapterIndex === flattenedToc.length - 1}
-          className="btn btn-primary fixed right-1/12 top-1/2 transform z-10"
+          className="btn btn-primary hidden md:block fixed right-1/12 top-1/2 transform z-10"
         >
           Next
         </button>
@@ -288,6 +288,22 @@ function Reader() {
               {paragraph}
             </p>
           ))}
+          <div className="flex justify-between p-4 mt-6 md:hidden">
+            <button
+              className="btn btn-primary"
+              onClick={handlePrev}
+              disabled={currentChapterIndex === 0}
+            >
+              Prev
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={handleNext}
+              disabled={currentChapterIndex === flattenedToc.length - 1}
+            >
+              Next
+            </button>
+          </div>
         </main>
 
         <div
