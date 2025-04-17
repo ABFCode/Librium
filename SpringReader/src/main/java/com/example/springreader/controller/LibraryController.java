@@ -7,7 +7,10 @@ import com.example.springreader.model.UserBook;
 import com.example.springreader.service.LibraryService;
 import com.example.springreader.service.UserBookService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -18,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -87,15 +91,17 @@ public class LibraryController {
 
     }
 
-//    @GetMapping()
-//    public ResponseEntity<Resource> downloadBook(@PathVariable Long bookId, @AuthenticationPrincipal User user) throws IOException {
-//
-//        Map<String, Object> bookInfo = libraryService.getBookResources(bookId, user.getId());
-//        String filename = (String) bookInfo.get("filename");
-//        Resource bookData = (Resource) bookInfo.get("bookData");
-//
-//        return null;
-//    }
+    @GetMapping("/download/{bookId}")
+    public ResponseEntity<Resource> downloadBook(@PathVariable Long bookId, @AuthenticationPrincipal User user) throws IOException {
+
+        Map<String, Object> bookInfo = libraryService.getBookResources(bookId, user.getId());
+        String filename = (String) bookInfo.get("filename");
+        Resource bookData = (Resource) bookInfo.get("bookData");
+
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType("application/epub+zip"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(bookData);
+    }
 
     @GetMapping()
     public ResponseEntity<List<BookDTO>> getUserBooks(@AuthenticationPrincipal User user){
