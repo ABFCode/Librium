@@ -30,7 +30,7 @@ import java.util.Optional;
 @Slf4j
 public class ImageController {
 
-    @Value("${upload.dir}")
+    @Value("${books.upload.dir}")
     private final String uploadDir;
     private final UserBookService userBookService;
 
