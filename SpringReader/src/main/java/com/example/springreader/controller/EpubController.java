@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * REST controller for accessing EPUB book content.
@@ -65,15 +66,10 @@ public class EpubController {
 
     @GetMapping("/{bookId}/cover")
     public ResponseEntity<Resource> getCoverImage(@PathVariable Long bookId, @AuthenticationPrincipal User user) {
-        Resource resource = libraryService.getCoverImage(bookId, user.getId());
-        String filename = resource.getFilename();
-        MediaType contentType = MediaType.IMAGE_JPEG;
-        if(filename == null){
-             //Default to JPEG
-            if(filename.endsWith(".png")){
-                contentType = MediaType.IMAGE_PNG;
-            }
-        }
+        Map<String, Object> coverImageInfo = libraryService.getCoverImage(bookId, user.getId());
+        Resource resource = (Resource) coverImageInfo.get("coverImage");
+        MediaType contentType = (MediaType) coverImageInfo.get("contentType");
+
         return ResponseEntity.ok().contentType(contentType).body(resource);
     }
 }

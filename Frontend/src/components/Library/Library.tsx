@@ -236,7 +236,7 @@ function Library() {
                 <img
                   src={
                     book.coverImagePath
-                      ? apiService.getCoverImage(book.coverImagePath)
+                      ? apiService.getCoverImage(book.id)
                       : "book-opened.svg"
                   }
                   alt={book.title}
