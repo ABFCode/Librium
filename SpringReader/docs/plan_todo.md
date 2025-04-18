@@ -23,6 +23,7 @@ Phone: Remove chapter nav arrows for phone size
 
 ## DO
 
+1. Endpoint naming overhaul
 2. Storage limit for users
 3. Change image to thumbnail.
 7. More robust validation for uploads.
@@ -35,6 +36,10 @@ Phone: Remove chapter nav arrows for phone size
 13. Library management/organization/searching. 
 14. Cover placeholder image
     - Generate a blank image with the title of the book maybe?
+15. CoverImage endpoint
+    - move logic to a service class or method
+    - No reason to use coverimage path or stream all userBooks
+    - Just send bookID and combine with userID
 
 
 
