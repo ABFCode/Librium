@@ -155,9 +155,8 @@ export const apiService = {
     return;
   },
 
-  getCoverImage: (filename: string): string => {
-    const cleanFilename = filename.split("/").pop();
-    return `${API_URL}/covers/${cleanFilename}`;
+  getCoverImage: (bookId: string): string => {
+    return `${API_URL}/epub/${bookId}/cover`;
   },
 
   //Reading

@@ -257,7 +257,7 @@ public class LibraryService {
 
     }
 
-    public Resource getCoverImage(Long bookId, Long userId) throws ResourceNotFoundException {
+    public Map<String, Object> getCoverImage(Long bookId, Long userId) throws ResourceNotFoundException {
         Optional<UserBook> userBook = userBookRepository.findByUserIdAndBookId(userId, bookId);
 
 
@@ -287,7 +287,11 @@ public class LibraryService {
             contentType = MediaType.IMAGE_PNG;
         }
 
-        return resource;
+        Map<String, Object> response = new HashMap<>();
+        response.put("coverImage", resource);
+        response.put("contentType", contentType);
+
+        return response;
 
     }
 }
