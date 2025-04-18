@@ -3,6 +3,7 @@ package com.example.springreader.controller;
 import com.example.springreader.dto.BookMetaDTO;
 import com.example.springreader.dto.ChapterContentDTO;
 import com.example.springreader.service.LibraryService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,57 +14,45 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.IOException;
 
 /**
- * This controller provides endpoints for handling EPUB files, allowing the retrieval
- * of chapters and metadata associated with a given book in the DB.
+ * REST controller for accessing EPUB book content.
+ * Provides endpoints to retrieve specific chapters and metadata for books stored in the system.
  */
 @RestController
 @RequestMapping("/api/epub")
 @Slf4j
+@RequiredArgsConstructor
 public class EpubController {
+
     private final LibraryService libraryService;
 
-    /**
-     * Constructor
-     * @param libraryService repository used to manage book entities, handles direct connection with DB
-     */
-    public EpubController(LibraryService libraryService) {
-        this.libraryService = libraryService;
-    }
-    //File epubFile = new File("src/main/resources/files/alice.epub");
 
     /**
-     * gets a specific chapter from an EPUB file from with a given book.
+     * Retrieves the content of a specific chapter from a book identified by its ID.
      *
-     * @param bookId id of the book stored in the db
-     * @param index the chapter index to be retrieved from the EPUB file
-     * @return a ResponseEntity containing a map of chapter content if successful,
-     * or an error message if failure
+     * @param bookId The unique ID of the book.
+     * @param index  The zero-based index of the chapter to retrieve.
+     * @return A ResponseEntity containing the chapter content DTO upon success.
+     * @throws IOException if an error occurs during file processing by the service layer.
      */
-    @GetMapping("{bookId}/chapter/{index}")
+    @GetMapping("/{bookId}/chapter/{index}")
     public ResponseEntity<ChapterContentDTO> getEpubChapter(
             @PathVariable Long bookId,
             @PathVariable Integer index) throws IOException {
 
         ChapterContentDTO chapterContentDTO = libraryService.getChapterContent(bookId, index);
         return ResponseEntity.ok(chapterContentDTO);
-
     }
 
 
     /**
-     * gets metadata from an EPUB file from a given book
+     * Retrieves the metadata (like title, author, etc.) for a book identified by its ID.
      *
-     * @param bookId id of book in db to retrieve metadata from
-     * @return a ResponseEntity containing a map of metadata if successful,
-     *         else an error message
+     * @param bookId The unique ID of the book.
+     * @return A ResponseEntity containing the book metadata DTO upon success.
      */
     @GetMapping("/{bookId}/meta")
-    public ResponseEntity<BookMetaDTO> getEpubMeta(@PathVariable Long bookId){
+    public ResponseEntity<BookMetaDTO> getEpubMeta(@PathVariable Long bookId) {
         BookMetaDTO bookMetaDTO = libraryService.getBookMeta(bookId);
         return ResponseEntity.ok(bookMetaDTO);
     }
-
-
-
-
 }
