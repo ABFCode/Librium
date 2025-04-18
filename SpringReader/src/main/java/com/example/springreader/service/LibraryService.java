@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -253,6 +254,40 @@ public class LibraryService {
 
         return new ChapterContentDTO(EpubParser.parseContent(epubPath, chapter.getFilePath(),chapter.getAnchor()));
 
+
+    }
+
+    public Resource getCoverImage(Long bookId, Long userId) throws ResourceNotFoundException {
+        Optional<UserBook> userBook = userBookRepository.findByUserIdAndBookId(userId, bookId);
+
+
+        //If no matching UserBook is found for this user and filename, deny access
+        if (userBook.isEmpty()) {
+            log.warn("UserBook not found for bookId: {} and userId: {}", bookId, userId);
+            throw new ResourceNotFoundException("UserBook not found for bookId: " + bookId + " and userId: " + userId);
+        }
+
+        Book book = userBook.get().getBook();
+        String coverImagePath = book.getCoverImagePath();
+        if(coverImagePath == null || coverImagePath.isBlank()){
+            log.warn("Book cover image path is missing for bookId: {}", bookId);
+            throw new ResourceNotFoundException("Book cover image path is missing for bookId: " + bookId);
+        }
+
+        Path absoluteCoverImagePath = Path.of(uploadDir).resolve(coverImagePath);
+        Resource resource = new FileSystemResource(absoluteCoverImagePath);
+
+        if(!resource.exists()){
+            log.error("Cover image file missing at path {} for user {}, despite DB record.", absoluteCoverImagePath, userId);
+            throw new ResourceNotFoundException("Cover Image File", "Path: " + absoluteCoverImagePath);
+        }
+
+        MediaType contentType = MediaType.IMAGE_JPEG; //Default to JPEG
+        if(coverImagePath.endsWith(".png")){
+            contentType = MediaType.IMAGE_PNG;
+        }
+
+        return resource;
 
     }
 }

@@ -2,10 +2,15 @@ package com.example.springreader.controller;
 
 import com.example.springreader.dto.BookMetaDTO;
 import com.example.springreader.dto.ChapterContentDTO;
+import com.example.springreader.model.User;
+import com.example.springreader.repository.UserBookRepository;
 import com.example.springreader.service.LibraryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,6 +29,7 @@ import java.io.IOException;
 public class EpubController {
 
     private final LibraryService libraryService;
+    private final UserBookRepository userBookRepository;
 
 
     /**
@@ -54,5 +60,20 @@ public class EpubController {
     public ResponseEntity<BookMetaDTO> getEpubMeta(@PathVariable Long bookId) {
         BookMetaDTO bookMetaDTO = libraryService.getBookMeta(bookId);
         return ResponseEntity.ok(bookMetaDTO);
+    }
+
+
+    @GetMapping("/{bookId}/cover")
+    public ResponseEntity<Resource> getCoverImage(@PathVariable Long bookId, @AuthenticationPrincipal User user) {
+        Resource resource = libraryService.getCoverImage(bookId, user.getId());
+        String filename = resource.getFilename();
+        MediaType contentType = MediaType.IMAGE_JPEG;
+        if(filename == null){
+             //Default to JPEG
+            if(filename.endsWith(".png")){
+                contentType = MediaType.IMAGE_PNG;
+            }
+        }
+        return ResponseEntity.ok().contentType(contentType).body(resource);
     }
 }

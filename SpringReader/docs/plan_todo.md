@@ -55,7 +55,7 @@ RESEARCH/PLAN:
 1. (MAJOR CHANGE) Local/Caching. See what we can do in terms of local storage.
     - Look into indexedDB.
     - Service Workers
-    - Caching on backend too
+    - Caching on backend too (Redis?)
 2. (MAJOR CHANGE) Store only necessary parts of EPUBs
     - We are storing the entire EPUB files, but only using the cover image and content text after parsing.
     - We could store the parsed chapter content and the modified image. Not sure if this will help.
