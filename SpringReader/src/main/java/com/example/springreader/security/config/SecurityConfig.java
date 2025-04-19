@@ -22,7 +22,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 
 /**
- * Security configuration class, defines our application security settings for spring security.
+ * Security configuration class defines our application security settings for spring security.
  */
 @Configuration
 @EnableWebSecurity //Spring security use this instead of defaults
@@ -35,10 +35,10 @@ public class SecurityConfig {
     /**
      * Configures the security filter chain for the app. Each request goes through this chain first before hitting
      * our endpoints. My particular setup includes disabling CSRF (not needed when using JWT auth),
-     * basic CORS setup, allowing unauthenticated access to specific endpoints(login/register/consoleDB - to be removed),
-     * all other endpoints will be need to be hit by an authenticated user.
+     * basic CORS setup, allowing unauthenticated access to specific endpoints (login/register/consoleDB - to be removed);
+     * all other endpoints will need to be hit by an authenticated user.
      * Sets stateless session management as we're using JWTs, as well as adds our custom JWT filter.
-     *The headers frameOption disable is for our console DB to work. Will be removed once we move past h2
+     *The headers frameOption disable are for our console DB to work. It will be removed once we move past h2
      *
      * @param http the HttpSecurity object used to configure security for HTTP requests
      * @return our configured SecurityFilterChain

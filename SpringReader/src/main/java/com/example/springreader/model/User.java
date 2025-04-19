@@ -12,24 +12,20 @@ import java.util.List;
 
 
 /**
- * This class represents a User entity in our DB
- *
- * The User class implements the UserDetails interface, which is necessary for
- * Spring Security. It has
- * basic user details such as a unique username and password, along with other default implementations
- * for userdetails
- *
+ * Represents a user account within the application, mapped to the "users" table.
+ * Implements Spring Security's UserDetails interface for authentication.
  */
 @Entity
 @Table(name = "users")
 @Data
 @NoArgsConstructor
 public class User implements UserDetails {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true)
+    @Column(unique = true) // Ensures usernames are unique in the database
     private String username;
 
     private String password;
@@ -40,10 +36,10 @@ public class User implements UserDetails {
     }
 
     /**
-     * Returns the authorities granted to the user. In practice this method means every user is being assigned a default
-     * "USER" role. I'm not using roles anywhere in my app at the moment.
+     * Returns the authorities granted to the user. Currently, all users are granted the "USER" role.
+     * Role-based access control is not implemented beyond this default.
      *
-     * @return a collection of GrantedAuthority objects representing the roles or privileges assigned to the user
+     * @return A collection containing a single "USER" authority.
      */
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -52,23 +48,36 @@ public class User implements UserDetails {
 
 
     /**
-     * Not implemented yet
+     * Indicates whether the user's account has expired.
+     * @return true, as accounts currently do not expire.
      */
     @Override
     public boolean isAccountNonExpired() {
         return true;
     }
 
+    /**
+     * Indicates whether the user is locked.
+     * @return true, as accounts are currently never locked.
+     */
     @Override
     public boolean isAccountNonLocked() {
         return true;
     }
 
+    /**
+     * Indicates whether the user's credentials (password) has expired.
+     * @return true, as credentials currently do not expire.
+     */
     @Override
     public boolean isCredentialsNonExpired() {
         return true;
     }
 
+    /**
+     * Indicates whether the user is enabled.
+     * @return true, as users are currently always enabled.
+     */
     @Override
     public boolean isEnabled() {
         return true;
