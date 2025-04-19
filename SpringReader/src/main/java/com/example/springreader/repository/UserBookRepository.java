@@ -6,6 +6,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Spring Data JPA repository for UserBook entities.
+ */
 public interface UserBookRepository extends JpaRepository<UserBook, Long> {
     List<UserBook> findByUserId(Long userId);
     Optional<UserBook> findByUserIdAndBookId(Long userId, Long bookId);

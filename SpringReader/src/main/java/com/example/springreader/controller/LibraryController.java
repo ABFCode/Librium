@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 
 /**
  * Controller class for managing books in a library.
- * allows for uploading and  retrieving a list of books.
+ * Handles uploading, downloading, listing, and deleting books for authenticated users.
  */
 @Slf4j
 @RestController
@@ -37,6 +37,12 @@ public class LibraryController {
     private final String uploadDir;
     private final UserBookService userBookService;
 
+    /**
+     * Constructor for injecting dependencies.
+     * @param libraryService The service for library operations.
+     * @param uploadDir The directory for uploads.
+     * @param userBookService The service for userBook operations
+     */
     public LibraryController(LibraryService libraryService, String uploadDir, UserBookService userBookService){
         this.libraryService = libraryService;
         this.uploadDir = uploadDir;
@@ -44,68 +50,83 @@ public class LibraryController {
     }
 
     /**
-     * Handles the upload of a book file and adds it to the library.
+     * Handles the upload of an epub file and associates it with the logged-in user.
      *
-     * Creates a random filename for the book we're uploading. This is to prepare for multiple users.
-     * Copies the file we uploaded to the filepath we just made, replacing any books with the same name, though no books should
+     * Validates the file (must be .epub).
+     * Creates a unique filename to avoid conflicts.
+     * Saves the file to the upload directory.
+     * Adds the book metadata to the database via LibraryService.
+     * Creates an association between the user and the new book via UserBookService.
      *
-     * Sends book to our library service which will add it to our DB, need to change newer Path to old File since I haven't
-     * finished refactoring rest of project to use Path.
-     *
-     * @param file the MultipartFile containing the book to be uploaded
-     * @return the Book object created and stored in the library
-     * @throws IOException if an error occurs during file processing
+     * @param file The epub file uploaded by the user.
+     * @param user The currently authenticated user.
+     * @return ResponseEntity indicating success (201 CREATED) or failure.
+     * @throws IOException If there's an error saving the file.
+     * @throws IllegalArgumentException If the file is not a valid epub.
      */
     @PostMapping("/upload")
     public ResponseEntity<Void> uploadBook(@RequestParam("file") MultipartFile file, @AuthenticationPrincipal User user) throws IOException {
 
         String originalFileName = file.getOriginalFilename();
+        //Basic validation: check extension
         if(originalFileName == null || !originalFileName.toLowerCase().endsWith(".epub")){
             throw new IllegalArgumentException("Invalid filename. Only epub files are supported");
         }
 
         String contentType = file.getContentType();
+        //Basic validation: check content type
         if (contentType == null || !contentType.equals("application/epub+zip")){
-            log.warn("Content type {} for file {}, this is not supposed to happen. Fix this!", contentType, originalFileName);
+            log.warn("Content type {} for file {}, expected application/epub+zip.", contentType, originalFileName);
             throw new IllegalArgumentException("Invalid file content type. Only epub files are supported");
         }
 
-
-
-
         String filename = UUID.randomUUID() + "-" + originalFileName;
 
-        //each user should get their own dir or some other sol.
         Path filepath = Path.of(uploadDir, filename);
-
 
         Files.copy(file.getInputStream(), filepath, StandardCopyOption.REPLACE_EXISTING);
 
-        //Maybe change libraryService to use Path
+
         Book book = libraryService.addBook(filepath.toFile());
+
 
         userBookService.createUserBook(user, book);
 
         return ResponseEntity.status(HttpStatus.CREATED).build();
-
-
     }
 
+    /**
+     * Allows a logged-in user to download a book file they have access to.
+     *
+     * @param bookId The ID of the book to download.
+     * @param user The currently authenticated user.
+     * @return ResponseEntity containing the book file as a Resource or an error status.
+     * @throws IOException If there's an error reading the book file.
+     */
     @GetMapping("/download/{bookId}")
     public ResponseEntity<Resource> downloadBook(@PathVariable Long bookId, @AuthenticationPrincipal User user) throws IOException {
-
+        //Fetch book data and filename, ensuring user has access
         Map<String, Object> bookInfo = libraryService.getBookResources(bookId, user.getId());
         String filename = (String) bookInfo.get("filename");
         Resource bookData = (Resource) bookInfo.get("bookData");
 
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType("application/epub+zip"))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+        //Build the response with correct headers for file download
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/epub+zip")) //Standard epub MIME type
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"") //Tell browser to download
                 .body(bookData);
     }
 
+    /**
+     * Retrieves the list of books associated with the currently logged-in user.
+     *
+     * @param user The currently authenticated user.
+     * @return ResponseEntity containing a list of BookDTOs for the user's library.
+     */
     @GetMapping()
     public ResponseEntity<List<BookDTO>> getUserBooks(@AuthenticationPrincipal User user){
         List<UserBook> userBooks = userBookService.getUserBooks(user.getId());
+        //Convert UserBook entities to BookDTOs for the response
         List<BookDTO> bookDTOS = userBooks.stream()
                 .map(userBook -> BookDTO.fromUserBook(userBook))
                 .collect(Collectors.toList());
@@ -113,20 +134,18 @@ public class LibraryController {
     }
 
 
+    /**
+     * Deletes a book association for the logged-in user and potentially the book file itself.
+     * The LibraryService handles the logic of whether to delete the file or not.
+     *
+     * @param bookId The ID of the book to delete.
+     * @param user The currently authenticated user.
+     * @return ResponseEntity indicating success (200 OK) or failure.
+     */
     @DeleteMapping("/delete/{bookId}")
     public ResponseEntity<Void> deleteBook(@PathVariable Long bookId, @AuthenticationPrincipal User user){
         libraryService.deleteBook(bookId, user.getId());
         return ResponseEntity.ok().build();
     }
 
-
-    /**
-     * Retrieves a list of all books stored in the library.
-     *
-     * @return a list of Book objects representing all books in the db
-     */
-//    @GetMapping
-//    public List<Book> listBooks(){
-//        return libraryService.ListAll();
-//    }
 }

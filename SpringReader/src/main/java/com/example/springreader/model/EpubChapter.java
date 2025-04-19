@@ -1,11 +1,12 @@
 package com.example.springreader.model;
 
 /**
- * This represents a single chapter in our epub. There will be one or multiple of these per content File.
- * @param title The title of chapter.
- * @param anchor This is the unique id of the chapter start or container, used in order to find the chapter within
- *               the content file
- * @param index a number representing which chapter this is, though this will probably not match up with actual book
- *              chapter numbers, as all the fluff at beginning of books are often in their own chapters
+ * Represents metadata for a single chapter extracted from an EPUB Table of Contents.
+ * This includes information needed to locate and display the chapter content.
+ *
+ * @param title The title of the chapter.
+ * @param anchor An optional anchor identifier within the chapter's content file.
+ * @param index The sequential index of the chapter based on its order in the TOC.
+ * @param filePath The path to the content file within the EPUB archive containing this chapter.
  */
 public record EpubChapter(String title, String anchor, int index, String filePath) {}
