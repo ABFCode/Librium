@@ -235,7 +235,7 @@ function Library() {
               <div className="w-full aspect-[2/3] overflow-hidden">
                 <img
                   src={
-                    book.coverImagePath
+                    book.hasCoverImage
                       ? apiService.getCoverImage(book.id)
                       : "book-opened.svg"
                   }

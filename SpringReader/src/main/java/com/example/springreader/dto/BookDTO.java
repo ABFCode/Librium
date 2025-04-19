@@ -10,7 +10,7 @@ public class BookDTO {
     private String title;
     private String author;
     private int lastChapterIndex;
-    private String coverImagePath;
+    private boolean hasCoverImage = false;
 
 
     public static BookDTO fromUserBook(UserBook userBook){
@@ -20,7 +20,7 @@ public class BookDTO {
         bookDTO.setTitle(book.getTitle());
         bookDTO.setAuthor(book.getAuthor());
         bookDTO.setLastChapterIndex(userBook.getLastChapterIndex());
-        bookDTO.setCoverImagePath(book.getCoverImagePath());
+        bookDTO.setHasCoverImage(book.getCoverImagePath() != null);
         return bookDTO;
     }
 }

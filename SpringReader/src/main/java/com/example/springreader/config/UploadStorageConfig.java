@@ -40,7 +40,7 @@ public class UploadStorageConfig {
             if (!Files.exists(directory)) {
                 logger.info("Creating upload directory: {}", uploadDir);
                 Files.createDirectories(directory);
-                return;// No need to clean if we just created it
+                return;
             }
 
 //            //Empty existing directory
