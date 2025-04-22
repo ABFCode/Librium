@@ -307,7 +307,7 @@ public class LibraryService {
         Book book = bookRepository.findById(bookId)
                 .orElseThrow(() -> new ResourceNotFoundException("Book", bookId.toString()));
 
-        Chapter chapter = chapterRepository.findByBookIdAndChapterIndex(bookId, chapterIndex)
+        Chapter chapter = chapterRepository.findByBookIdAndChapterIndex(bookId, chapterIndex);
 
         Path epubPath = Path.of(uploadDir).resolve(book.getFilePath()).normalize();
 
