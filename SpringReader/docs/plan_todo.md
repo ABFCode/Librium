@@ -7,6 +7,10 @@
 REMOVE H2 LEGACY STUFF
 1. Remove anything still related to our H2 DB - esp. security related stuff.
 
+USERNAMES
+1. Should not be case sensitive
+   2. Every query/saving of a username should be done using lowercase
+
 TESTS
 Fix broken tests. 
 
