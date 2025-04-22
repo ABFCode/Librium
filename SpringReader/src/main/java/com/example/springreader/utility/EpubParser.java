@@ -25,52 +25,22 @@ import java.util.zip.ZipFile;
 
 
 /**
- * A collection of methods for handling parsing epubs.
- * Can parse the metadata from a novel, right now just title/author/toc.
- *
- * As well as extract plain text chapter contents with simple formatting
+ * Utility class for parsing EPUB files. Provides static methods to extract
+ * metadata (title, author, table of contents), chapter content, and cover images.
  */
 @Slf4j //Creates a static log for me to use
 public class EpubParser {
 
 
-
     /**
-     * This method is used parsing and extracting metadata from EPUB files.
-     *
-     * It provides methods for extracting book titles, authors, table of contents,
-     * and chapter content files from the EPUB file structure.
-     *
-     * The table of contents is processed into a structure.
-     * including each chapter's title, file path, and position(index)
-     *
-     * Full metadata structure:
-     * {
-     *   "title": "Book Title",
-     *   "author": "Author Name",
-     *   "toc": {
-     *     "contentFiles": [
-     *       {
-     *         "filePath": "chapter1.html",
-     *         "chapters": [
-     *           { "chapterTitle": "Chapter 1", "anchor": "ch1", "index": 0 },
-     *           { "chapterTitle": "Chapter 2", "anchor": "ch2", "index": 1 }
-     *         ]
-     *       },
-     *       {
-     *         "filePath": "chapter2.html",
-     *         "chapters": [
-     *           { "chapterTitle": "Chapter 3", "anchor": "ch3", "index": 2 }
-     *         ]
-     *       }
-     *     ]
-     *   }
-     * }
-     *
+     * Parses the core metadata from an EPUB file, including title, author, and table of contents.
+     * Navigates the EPUB structure (container.xml -> OPF -> NCX/TOC) to extract information.
      *
      * @param epubFile the epub to extract the metadata from
-     * @return a hashmap structure as shown above
-     *
+     * @return a Map containing extracted metadata ("title", "author", "toc").
+     * @throws EpubProcessingException If the EPUB structure is invalid or required files are missing/malformed.
+     * @throws IOException If an error occurs reading the EPUB file.
+     * @throws IllegalArgumentException If epubFile is null.
      */
     public static Map<String, Object> parseMeta(File epubFile) throws EpubProcessingException, IOException{
         if (epubFile == null) {
@@ -78,8 +48,6 @@ public class EpubParser {
         }
 
         Map<String, Object> response = new HashMap<>();
-
-
 
         try(ZipFile zipFile = new ZipFile(epubFile)){
             OpfData opfData = getOpfDocument(zipFile);
@@ -173,30 +141,23 @@ public class EpubParser {
         }
         catch (ZipException e){
             log.error("Invalid Zip/Epub file: {}", epubFile, e);
-            throw new EpubProcessingException("Invalid Zip/Epub file: " + epubFile.getName() + "\n" + e);
+            throw new EpubProcessingException("Invalid Zip/Epub file: " + epubFile.getName() + "\n" + e.getMessage());
         }
         return response;
     }
 
     /**
-     * Parses the content of a specific chapter from an epub file.
+     * Parses and extracts the text content of a specific chapter from an EPUB file.
+     * Uses Jsoup to parse the chapter's HTML and extracts text from headings/paragraphs.
+     * Handles optional anchors to extract specific sections.
      *
-     * Needs to be completely redone. Likely using the ToC we built from parseMeta.
-     * As it is now we load the entire novel each time we want to fetch a chapter.
-     *
-     * Extracts simple text content of a specified chapter from its headings
-     * and paragraphs elements from an epub file.
-     *
-     * If an anchor is present in the chapter's content reference, it will use it to extract content starting from the specified anchor until
-     * the next anchor, otherwise:
-     * If no anchor is provided, it extracts all text content of the chapter.
-     *
-     *
-     * @param epubFile     The epub file to parse.
-     * @param filePath file path of the html where our chapter is inside the epub archive
-     * @param anchor anchor of our chapter content in the file
-     * @return A map containing the parsed chapter content under the key "chapterContent".
-     *         In case of errors or unique behavior, return an empty map.
+     * @param epubFile Path to the EPUB file on the filesystem.
+     * @param filePath The path to the chapter's content file *within* the EPUB archive.
+     * @param anchor The optional anchor (ID) within the chapter file to start extraction from. Can be empty.
+     * @return A String containing the extracted text content, paragraphs separated by double newlines.
+     * @throws EpubProcessingException If the chapter file or anchor cannot be found.
+     * @throws IOException If an error occurs reading the EPUB or chapter file.
+     * @throws IllegalArgumentException If epubFile or filePath is null or blank.
      */
     public static String parseContent(Path epubFile, String filePath, String anchor) throws EpubProcessingException, IOException{
         if(epubFile == null){
@@ -276,7 +237,7 @@ public class EpubParser {
                         }
 
                         //Return the text content
-                      return contentBuilder.toString().trim();
+                        return contentBuilder.toString().trim();
                     } else {
                         //There was an anchor, but couldn't find it in our documenet
                         return "Anchor not found: " + anchor;
@@ -310,12 +271,23 @@ public class EpubParser {
                     return contentBuilder.toString().trim();
                 }
             }
-    } catch (ZipException e){
+        } catch (ZipException e){
             log.error("Invalid Zip/Epub file: {}", epubFile.getFileName(), e);
             throw new EpubProcessingException("Invalid Zip/Epub file: " + epubFile.getFileName() + "\n" + e);
         }
     }
 
+    /**
+     * Extracts the cover image data (bytes and media type) from an EPUB file.
+     * Searches the OPF manifest for an item identified as the cover image.
+     *
+     * @param epubFile The EPUB file to extract the cover from.
+     * @return An Optional containing a Map with "coverImage" (byte[]) and "mediaType" (String) if found,
+     *         otherwise an empty Optional.
+     * @throws EpubProcessingException If the EPUB structure is invalid or reading the image fails.
+     * @throws IOException If an error occurs reading the EPUB file.
+     * @throws IllegalArgumentException If epubFile is null.
+     */
     public static Optional<Map<String, Object>> extractCoverImage(File epubFile) throws EpubProcessingException, IOException{
         if(epubFile == null){
             throw new IllegalArgumentException("epubFile cannot be null");
@@ -386,12 +358,12 @@ public class EpubParser {
     }
 
 
-
     /**
-     * Parses an XML file from the given InputStream and returns an Optional containing the parsed Document.
+     * Parses an XML InputStream into a W3C Document object.
      *
      * @param input the InputStream representing the XML to be parsed
-     * @return an Optional containing the parsed Document, or an empty Optional if parsing fails
+     * @return The parsed Document object.
+     * @throws EpubProcessingException if parsing fails.
      */
     private static Document parseXML(InputStream input) throws EpubProcessingException {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -404,53 +376,51 @@ public class EpubParser {
     }
 
     /**
-     * Retrieves the OPF document from the provided zip file.
-     *
-     * This method extracts and parses the OPF document located within an EPUB file
-     * by finding the container.xml file and then fetching the OPF document from information given on the container
+     * Locates and parses the OPF file within the EPUB archive.
+     * Reads META-INF/container.xml to find the path to the OPF file.
      *
      * @param zipFile the zip file representing the EPUB
-     * @return an Optional containing the extracted OPF data, or an empty Optional if
-     * the OPF document is not found or cannot be parsed
+     * @return an OpfData record containing the parsed OPF Document, its path, and its parent directory path.
+     * @throws EpubProcessingException If container.xml or the OPF file is missing or invalid.
+     * @throws IOException If an error occurs reading from the zip file.
      */
     private static OpfData getOpfDocument(ZipFile zipFile) throws EpubProcessingException, IOException {
-            ZipEntry containerEntry = zipFile.getEntry("META-INF/container.xml");
-            if (containerEntry == null) {
-                throw new EpubProcessingException("Container.xml not found at: META-INF/container.xml");
-            }
+        ZipEntry containerEntry = zipFile.getEntry("META-INF/container.xml");
+        if (containerEntry == null) {
+            throw new EpubProcessingException("Container.xml not found at: META-INF/container.xml");
+        }
 
-            Document containerDocument = parseXML(zipFile.getInputStream(containerEntry));
+        Document containerDocument = parseXML(zipFile.getInputStream(containerEntry));
 
-            NodeList containerRootFiles = containerDocument.getElementsByTagName("rootfile");
-            if(containerRootFiles.getLength() == 0 || containerRootFiles.item(0).getAttributes().getNamedItem("full-path") == null){
-                throw new EpubProcessingException("Invalid container.xml: No rootfile found or full-path attribute not found");
-            }
+        NodeList containerRootFiles = containerDocument.getElementsByTagName("rootfile");
+        if(containerRootFiles.getLength() == 0 || containerRootFiles.item(0).getAttributes().getNamedItem("full-path") == null){
+            throw new EpubProcessingException("Invalid container.xml: No rootfile found or full-path attribute not found");
+        }
 
-            String opfFilePath = containerRootFiles.item(0).getAttributes().getNamedItem("full-path").getTextContent();
+        String opfFilePath = containerRootFiles.item(0).getAttributes().getNamedItem("full-path").getTextContent();
 
 
-            ZipEntry opfEntry = zipFile.getEntry(opfFilePath);
-            if(opfEntry == null){
-                throw new EpubProcessingException("OPF file not found at: " + opfFilePath);
-            }
-            Document opfDocument = parseXML(zipFile.getInputStream(opfEntry));
+        ZipEntry opfEntry = zipFile.getEntry(opfFilePath);
+        if(opfEntry == null){
+            throw new EpubProcessingException("OPF file not found at: " + opfFilePath);
+        }
+        Document opfDocument = parseXML(zipFile.getInputStream(opfEntry));
 
-            String opfParentDir = Path.of(opfFilePath).getParent() != null ? Path.of(opfFilePath).getParent().toString() : "";
+        String opfParentDir = Path.of(opfFilePath).getParent() != null ? Path.of(opfFilePath).getParent().toString() : "";
 
-            return new OpfData(opfDocument, opfFilePath, opfParentDir);
+        return new OpfData(opfDocument, opfFilePath, opfParentDir);
 
     }
 
     /**
-     * Retrieves the toc (table of contents) file from a ZIP file, based on some metadata of an opf document.
-     *
+     * Locates and parses the TOC (Table of Contents) file (typically NCX) referenced within the OPF manifest.
      *
      * @param zipFile our epub file represented as java ZipFile
-     * @param opfDocument the OPF document of the eBook, which gives us a lot of metadata on the book, relevant to us
-     *                    is the toc.ncx path
-     * @param opfFilePath the file path of the OPF document within the archive
-     * @return an Optional containing the TOC document if found,
-     *         or an empty Optional if not found or an error occurs
+     * @param opfDocument the OPF document containing the reference to the TOC file.
+     * @param opfFilePath the file path of the OPF document within the archive (for resolving relative paths).
+     * @return The parsed TOC Document object.
+     * @throws EpubProcessingException If the TOC reference is not found or the TOC file is missing/invalid.
+     * @throws IOException If an error occurs reading from the zip file.
      */
     private static Document getToc(ZipFile zipFile, Document opfDocument, String opfFilePath) throws EpubProcessingException, IOException{
 
@@ -464,8 +434,6 @@ public class EpubParser {
             }
         }
 
-
-
         if(tocHref.isBlank()){
             throw new EpubProcessingException("TOC entry reference not found in OPF document.");
         }
@@ -477,7 +445,6 @@ public class EpubParser {
         else{
             tocPath = tocHref;
         }
-
 
         tocPath = tocPath.replace("\\", "/");
 
@@ -494,27 +461,30 @@ public class EpubParser {
     }
 
     /**
-     * Gets the ToC from our metadata map
-     * @param meta Our finished metadata map that we return from parseMeta
-     * @return Our custom EpubToc object (which is a list of contentFiles, where each contentFile is a list of chapters)
+     * Helper method to extract the EpubToc object from the metadata map returned by parseMeta.
+     *
+     * @param meta The metadata map.
+     * @return The EpubToc object, or null if not found.
      */
     public static EpubToc getToc(Map<String, Object> meta) {
         return (EpubToc) meta.get("toc");
     }
 
     /**
-     * Gets our book title our meta map
-     * @param meta Our finished metadata map that we return from parseMeta
-     * @return A string with the title
+     * Helper method to extract the title string from the metadata map returned by parseMeta.
+     *
+     * @param meta The metadata map.
+     * @return The title String, or null if not found.
      */
     public static String getTitle(Map<String, Object> meta) {
         return (String) meta.get("title");
     }
 
     /**
-     * Gets our author for our book from the meta hashmap
-     * @param meta Our finished metadata map that we return from parseMeta
-     * @return A string author
+     * Helper method to extract the author string from the metadata map returned by parseMeta.
+     *
+     * @param meta The metadata map.
+     * @return The author String, or null if not found.
      */
     public static String getAuthor(Map<String, Object> meta){
         return (String) meta.get("author");
