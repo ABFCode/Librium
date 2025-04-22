@@ -37,7 +37,7 @@ public class JwtService {
 
     /**
      * Convenience method, for generating tokens when we don't have extra claims to add on.
-     * Passes in an empty hashmap representing any extra claims(none in the case we're using this method)
+     * Passes in an empty hashmap representing any extra claims (none in the case we're using this method)
      * @param user The user for which we are generating a token
      * @return a JWT token as a string
      */
@@ -50,7 +50,7 @@ public class JwtService {
     /**
      * Generates a JWT token for a specified user.
      *
-     * @param extraClaims a map of additional claims to include in the token (will always be empty in currnet impl.)
+     * @param extraClaims a map of additional claims to include in the token (will always be empty in current impl.)
      * @param user the user details for which the token is being generated
      * @return a JWT token as a string
      */
@@ -90,7 +90,7 @@ public class JwtService {
 
     /**
      * Extracts a specific claim from a given JWT token using the provided claims resolver function.
-     * CLaims can be in many times so this needs to be generic. (data/string/int)
+     * Claims can be in many times, so this needs to be generic. (data/string/int)
      *
      * @param <T> the type of the claim to be returned
      * @param token the JWT token from which the claim is to be extracted
@@ -126,7 +126,7 @@ public class JwtService {
     }
 
     /**
-     * Checks if token is it has expired by seeing if expiration data is before now
+     * Checks if the token is it has expired by seeing if expiration data is before now
      * @param token token to check
      * @return if expired: true
      */
@@ -138,7 +138,7 @@ public class JwtService {
     /**
      * Extracts the expiration date
      *
-     * @param token extract expir data from
+     * @param token extract expiration data from
      * @return the expiration date of the token as a Date
      */
     private Date extractExpiration(String token){
