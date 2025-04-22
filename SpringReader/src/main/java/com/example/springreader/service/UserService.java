@@ -19,7 +19,7 @@ import java.util.Optional;
 
 /**
  * Service class responsible for user-related operations like authentication
- * and registration
+ * and registration.
  */
 @Service
 @RequiredArgsConstructor
@@ -28,62 +28,60 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
-
-    //temp for defaultbook
     private final BookRepository bookRepository;
     private final UserBookRepository userBookRepository;
 
 
     /**
-     * Authenticates a user based on a given login request.
-     * The method validates the username and password, and if successful,
-     * generates a JWT token to be sent back to the user.
+     * Authenticates a user based on provided credentials.
+     * Verifies the username exists and the provided password matches the stored hash.
+     * If successful, generates and returns a JWT token for the user.
      *
-     * @param loginRequest the login request containing the username and password.
-     * @return an object containing a success or failure status,
-     *         and a generated JWT token if the authentication is successful
+     * @param loginRequest DTO containing the username and password attempt.
+     * @return A JWT token string upon successful authentication.
+     * @throws BadCredentialsException if the username is not found or the password does not match.
      */
     public String authenticate(LoginRequest loginRequest) {
+        //Find user, check password match, generate token, or throw exception
         return userRepository.findByUsername(loginRequest.username())
                 .filter(user -> passwordEncoder.matches(loginRequest.password(), user.getPassword()))
-                .map(user -> jwtService.generateToken(user))
+                .map(jwtService::generateToken)
                 .orElseThrow(() -> new BadCredentialsException("Invalid username or password"));
     }
 
 
     /**
-     * Registers a new user. Does not log them in or pass them a JWT token.
-     * Only creates a user from their details and saves to DB.
+     * Registers a new user in the system.
+     * Checks if the username already exists. If not, encodes the password,
+     * saves the new user, and associates the default book with the user.
      *
-     * @param loginRequest login request record, contains just a user/pass
-     * @return if username is already present false, else true
+     * @param loginRequest DTO containing the desired username and password.
+     * @throws UsernameAlreadyExistsException if the requested username is already taken.
      */
     @Transactional
-    public boolean register(LoginRequest loginRequest) {
+    public void register(LoginRequest loginRequest) {
         if (userRepository.findByUsername(loginRequest.username()).isPresent()) {
             throw new UsernameAlreadyExistsException(loginRequest.username());
         }
 
+        //Create and save the new user with encoded password
         User newUser = new User(loginRequest.username(), passwordEncoder.encode(loginRequest.password()));
         userRepository.save(newUser);
+        log.info("Registered new user: {}", newUser.getUsername());
 
-
+        //Associate default book with new user
         Optional<Book> defaultBookOpt = bookRepository.findByisDefaultTrue();
-
         if(defaultBookOpt.isPresent()){
             Book defaultBook = defaultBookOpt.get();
             UserBook userBook = new UserBook();
             userBook.setUser(newUser);
             userBook.setBook(defaultBook);
             userBookRepository.save(userBook);
-            log.info("Default book added to user: {}", newUser.getUsername());
+            log.info("Associated default book (ID: {}) with new user: {}", defaultBook.getId(), newUser.getUsername());
         }
         else{
-            //should never happen
-            log.error("Default book not found in DB");
+            //This should never happen, BookInitService is broken.
+            log.error("Default book not found in DB during registration for user: {}", newUser.getUsername());
         }
-
-
-        return true;
     }
 }
