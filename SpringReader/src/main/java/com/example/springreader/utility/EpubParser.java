@@ -273,7 +273,7 @@ public class EpubParser {
             }
         } catch (ZipException e){
             log.error("Invalid Zip/Epub file: {}", epubFile.getFileName(), e);
-            throw new EpubProcessingException("Invalid Zip/Epub file: " + epubFile.getFileName() + "\n" + e);
+            throw new EpubProcessingException("Invalid Zip/Epub file: " + epubFile.getFileName() + "\n" + e.getMessage());
         }
     }
 
@@ -313,10 +313,10 @@ public class EpubParser {
                     String coverImagePath;
                     if(id.toLowerCase().contains("cover") || properties.toLowerCase().contains("cover-image") || href.toLowerCase().contains("cover")){
                         if(Path.of(opfData.opfFilePath()).getParent() != null){
-                            coverImagePath = Path.of(opfData.opfFilePath()).getParent().resolve(href).toString().replace("\\", "/");
+                            coverImagePath = Path.of(opfData.opfFilePath()).getParent().resolve(href).normalize().toString().replace("\\", "/");
                         }
                         else{
-                            coverImagePath = href.replace("\\", "/");
+                            coverImagePath = Path.of(href).normalize().toString().replace("\\", "/");
                         }
 
 
@@ -334,7 +334,7 @@ public class EpubParser {
                             }
                             catch (IOException e){
                                 log.error("Error reading cover image stream for path: {}", coverImagePath, e);
-                                throw new EpubProcessingException("Error reading cover image: " + coverImagePath + e);
+                                throw new EpubProcessingException("Error reading cover image: " + coverImagePath + "\n" + e.getMessage());
                             }
                         }
                         else{
@@ -353,7 +353,7 @@ public class EpubParser {
         }
         catch (ZipException e){
             log.error("Invalid Zip/Epub file: {}", epubFile.getName(), e);
-            throw new EpubProcessingException("Invalid Zip/Epub file: " + epubFile.getName() + "\n" + e);
+            throw new EpubProcessingException("Invalid Zip/Epub file: " + epubFile.getName() + "\n" + e.getMessage());
         }
     }
 
@@ -371,7 +371,7 @@ public class EpubParser {
             return factory.newDocumentBuilder().parse(input);
         } catch (Exception e) {
             log.error("Error parsing XML", e);
-            throw new EpubProcessingException("Failed to parse XML: " + e);
+            throw new EpubProcessingException("Failed to parse XML: " + e.getMessage());
         }
     }
 
@@ -390,7 +390,11 @@ public class EpubParser {
             throw new EpubProcessingException("Container.xml not found at: META-INF/container.xml");
         }
 
-        Document containerDocument = parseXML(zipFile.getInputStream(containerEntry));
+        Document containerDocument;
+        try(InputStream containerStream = zipFile.getInputStream(containerEntry)){
+            containerDocument = parseXML(containerStream);
+        }
+
 
         NodeList containerRootFiles = containerDocument.getElementsByTagName("rootfile");
         if(containerRootFiles.getLength() == 0 || containerRootFiles.item(0).getAttributes().getNamedItem("full-path") == null){
@@ -399,12 +403,18 @@ public class EpubParser {
 
         String opfFilePath = containerRootFiles.item(0).getAttributes().getNamedItem("full-path").getTextContent();
 
+        if(opfFilePath.isBlank()){
+            throw new EpubProcessingException("OPF file path is blank in container.xml");
+        }
 
         ZipEntry opfEntry = zipFile.getEntry(opfFilePath);
         if(opfEntry == null){
             throw new EpubProcessingException("OPF file not found at: " + opfFilePath);
         }
-        Document opfDocument = parseXML(zipFile.getInputStream(opfEntry));
+        Document opfDocument;
+        try(InputStream opfStream = zipFile.getInputStream(opfEntry)){
+            opfDocument = parseXML(opfStream);
+        }
 
         String opfParentDir = Path.of(opfFilePath).getParent() != null ? Path.of(opfFilePath).getParent().toString() : "";
 
@@ -440,10 +450,10 @@ public class EpubParser {
         String tocPath;
         Path opfPath =  Path.of(opfFilePath);
         if(Path.of(opfFilePath).getParent() != null){
-            tocPath = opfPath.getParent().resolve(tocHref).toString();
+            tocPath = opfPath.getParent().resolve(tocHref).normalize().toString();
         }
         else{
-            tocPath = tocHref;
+            tocPath = Path.of(tocHref).normalize().toString();
         }
 
         tocPath = tocPath.replace("\\", "/");
@@ -456,7 +466,9 @@ public class EpubParser {
             throw new EpubProcessingException("TOC not found at: " + tocPath);
         }
 
-        return parseXML(zipFile.getInputStream(tocEntry));
+        try(InputStream tocStream = zipFile.getInputStream(tocEntry)){
+            return parseXML(tocStream);
+        }
 
     }
 
@@ -467,7 +479,14 @@ public class EpubParser {
      * @return The EpubToc object, or null if not found.
      */
     public static EpubToc getToc(Map<String, Object> meta) {
-        return (EpubToc) meta.get("toc");
+        Object tocObj = meta.get("toc");
+        if(tocObj instanceof EpubToc){
+            return (EpubToc) tocObj;
+        }
+        else{
+            log.warn("Value for 'toc' is not an EpubToc object.");
+            return null;
+        }
     }
 
     /**
@@ -477,7 +496,14 @@ public class EpubParser {
      * @return The title String, or null if not found.
      */
     public static String getTitle(Map<String, Object> meta) {
-        return (String) meta.get("title");
+        Object titleObj = meta.get("title");
+        if(titleObj instanceof String){
+            return (String) titleObj;
+        }
+        else{
+            log.warn("Value for 'title' is not a String.");
+            return null;
+        }
     }
 
     /**
@@ -487,7 +513,14 @@ public class EpubParser {
      * @return The author String, or null if not found.
      */
     public static String getAuthor(Map<String, Object> meta){
-        return (String) meta.get("author");
+        Object authorObj = meta.get("author");
+        if(authorObj instanceof String){
+            return (String) authorObj;
+        }
+        else{
+            log.warn("Value for 'author' is not a String.");
+            return null;
+        }
     }
 
 }
