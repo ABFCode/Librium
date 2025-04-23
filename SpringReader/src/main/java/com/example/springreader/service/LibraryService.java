@@ -38,6 +38,7 @@ public class LibraryService {
     private final ChapterRepository chapterRepository;
     private final UserBookRepository userBookRepository;
     private final String uploadDir;
+    private final EpubParser epubParser;
 
 
     /**
@@ -51,16 +52,16 @@ public class LibraryService {
      */
     @Transactional
     public Book addBook(File epubFile) throws IOException, EpubProcessingException {
-        Map<String, Object> meta = EpubParser.parseMeta(epubFile);
-        String title = EpubParser.getTitle(meta);
-        String author = EpubParser.getAuthor(meta);
+        Map<String, Object> meta = epubParser.parseMeta(epubFile);
+        String title = epubParser.getTitle(meta);
+        String author = epubParser.getAuthor(meta);
         String coverImagePath = null;
 
-        EpubToc toc = EpubParser.getToc(meta);
+        EpubToc toc = epubParser.getToc(meta);
         List<EpubChapter> flattenedToc = flattenToc(toc);
 
 
-        Optional<Map<String, Object>> coverImageData = EpubParser.extractCoverImage(epubFile);
+        Optional<Map<String, Object>> coverImageData = epubParser.extractCoverImage(epubFile);
 
         if(coverImageData.isPresent()) {
             coverImagePath = extractAndSaveCoverImage(coverImageData.get());
@@ -321,7 +322,7 @@ public class LibraryService {
             throw new NoSuchFileException("Epub file does not exist at path: " + epubPath);
         }
 
-        String content = EpubParser.parseContent(epubPath, chapter.getFilePath(), chapter.getAnchor());
+        String content = epubParser.parseContent(epubPath, chapter.getFilePath(), chapter.getAnchor());
         return new ChapterContentDTO(content);
     }
 
