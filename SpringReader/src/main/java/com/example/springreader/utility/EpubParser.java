@@ -7,6 +7,7 @@ import com.example.springreader.model.EpubToc;
 import com.example.springreader.model.OpfData;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
+import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -28,7 +29,8 @@ import java.util.zip.ZipFile;
  * Utility class for parsing EPUB files. Provides static methods to extract
  * metadata (title, author, table of contents), chapter content, and cover images.
  */
-@Slf4j //Creates a static log for me to use
+@Slf4j
+@Component
 public class EpubParser {
 
 
@@ -42,7 +44,7 @@ public class EpubParser {
      * @throws IOException If an error occurs reading the EPUB file.
      * @throws IllegalArgumentException If epubFile is null.
      */
-    public static Map<String, Object> parseMeta(File epubFile) throws EpubProcessingException, IOException{
+    public Map<String, Object> parseMeta(File epubFile) throws EpubProcessingException, IOException{
         if (epubFile == null) {
             throw new IllegalArgumentException("epubFile cannot be null");
         }
@@ -159,7 +161,7 @@ public class EpubParser {
      * @throws IOException If an error occurs reading the EPUB or chapter file.
      * @throws IllegalArgumentException If epubFile or filePath is null or blank.
      */
-    public static String parseContent(Path epubFile, String filePath, String anchor) throws EpubProcessingException, IOException{
+    public String parseContent(Path epubFile, String filePath, String anchor) throws EpubProcessingException, IOException{
         if(epubFile == null){
             throw new IllegalArgumentException("epubFile cannot be null");
         }
@@ -288,7 +290,7 @@ public class EpubParser {
      * @throws IOException If an error occurs reading the EPUB file.
      * @throws IllegalArgumentException If epubFile is null.
      */
-    public static Optional<Map<String, Object>> extractCoverImage(File epubFile) throws EpubProcessingException, IOException{
+    public Optional<Map<String, Object>> extractCoverImage(File epubFile) throws EpubProcessingException, IOException{
         if(epubFile == null){
             throw new IllegalArgumentException("epubFile cannot be null");
         }
@@ -365,7 +367,7 @@ public class EpubParser {
      * @return The parsed Document object.
      * @throws EpubProcessingException if parsing fails.
      */
-    private static Document parseXML(InputStream input) throws EpubProcessingException {
+    private Document parseXML(InputStream input) throws EpubProcessingException {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         try {
             return factory.newDocumentBuilder().parse(input);
@@ -384,7 +386,7 @@ public class EpubParser {
      * @throws EpubProcessingException If container.xml or the OPF file is missing or invalid.
      * @throws IOException If an error occurs reading from the zip file.
      */
-    private static OpfData getOpfDocument(ZipFile zipFile) throws EpubProcessingException, IOException {
+    private OpfData getOpfDocument(ZipFile zipFile) throws EpubProcessingException, IOException {
         ZipEntry containerEntry = zipFile.getEntry("META-INF/container.xml");
         if (containerEntry == null) {
             throw new EpubProcessingException("Container.xml not found at: META-INF/container.xml");
@@ -432,7 +434,7 @@ public class EpubParser {
      * @throws EpubProcessingException If the TOC reference is not found or the TOC file is missing/invalid.
      * @throws IOException If an error occurs reading from the zip file.
      */
-    private static Document getToc(ZipFile zipFile, Document opfDocument, String opfFilePath) throws EpubProcessingException, IOException{
+    private Document getToc(ZipFile zipFile, Document opfDocument, String opfFilePath) throws EpubProcessingException, IOException{
 
         NodeList manifestItems = opfDocument.getElementsByTagName("item");
         String tocHref = "";
@@ -478,7 +480,7 @@ public class EpubParser {
      * @param meta The metadata map.
      * @return The EpubToc object, or null if not found.
      */
-    public static EpubToc getToc(Map<String, Object> meta) {
+    public EpubToc getToc(Map<String, Object> meta) {
         Object tocObj = meta.get("toc");
         if(tocObj instanceof EpubToc){
             return (EpubToc) tocObj;
@@ -495,7 +497,7 @@ public class EpubParser {
      * @param meta The metadata map.
      * @return The title String, or null if not found.
      */
-    public static String getTitle(Map<String, Object> meta) {
+    public String getTitle(Map<String, Object> meta) {
         Object titleObj = meta.get("title");
         if(titleObj instanceof String){
             return (String) titleObj;
@@ -512,7 +514,7 @@ public class EpubParser {
      * @param meta The metadata map.
      * @return The author String, or null if not found.
      */
-    public static String getAuthor(Map<String, Object> meta){
+    public String getAuthor(Map<String, Object> meta){
         Object authorObj = meta.get("author");
         if(authorObj instanceof String){
             return (String) authorObj;
