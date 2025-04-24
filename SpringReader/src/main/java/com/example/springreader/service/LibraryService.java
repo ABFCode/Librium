@@ -37,7 +37,7 @@ public class LibraryService {
     private final BookRepository bookRepository;
     private final ChapterRepository chapterRepository;
     private final UserBookRepository userBookRepository;
-    private final String uploadDir;
+    private final Path uploadDir;
     private final EpubParser epubParser;
 
 
@@ -101,7 +101,7 @@ public class LibraryService {
             log.warn("Invalid or missing MediaType: {}, defaulting to 'jpg'", mediaType);
         }
 
-        Path coverDir = Path.of(uploadDir, "covers");
+        Path coverDir = uploadDir.resolve("covers");
         if(!Files.exists(coverDir)){
             Files.createDirectories(coverDir);
             log.info("Created covers directory at: {}", coverDir);
@@ -196,10 +196,10 @@ public class LibraryService {
             return;
         }
 
-        Path path = Path.of(uploadDir).resolve(filePathStr).normalize();
+        Path path = uploadDir.resolve(filePathStr).normalize();
 
         //Basic security check to prevent path traversal outside uploadDir
-        if (!path.startsWith(Path.of(uploadDir).normalize())) {
+        if (!path.startsWith(uploadDir.normalize())) {
             log.error("Attempted to delete file outside of the upload directory: {}", path);
             return;
         }
@@ -271,9 +271,9 @@ public class LibraryService {
             throw new ResourceNotFoundException("Book file path is missing for bookId: " + bookId);
         }
 
-        Path absoluteFilePath = Path.of(uploadDir).resolve(relativeFilePath).normalize();
+        Path absoluteFilePath = uploadDir.resolve(relativeFilePath).normalize();
 
-        if (!absoluteFilePath.startsWith(Path.of(uploadDir).normalize())) {
+        if (!absoluteFilePath.startsWith(uploadDir.normalize())) {
             log.error("Attempted to access file outside of the upload directory: {}", absoluteFilePath);
             throw new SecurityException("Access denied to file path: " + absoluteFilePath);
         }
@@ -310,9 +310,9 @@ public class LibraryService {
 
         Chapter chapter = chapterRepository.findByBookIdAndChapterIndex(bookId, chapterIndex);
 
-        Path epubPath = Path.of(uploadDir).resolve(book.getFilePath()).normalize();
+        Path epubPath = uploadDir.resolve(book.getFilePath()).normalize();
 
-        if (!epubPath.startsWith(Path.of(uploadDir).normalize())) {
+        if (!epubPath.startsWith(uploadDir.normalize())) {
             log.error("Attempted to access EPUB file outside of the upload directory: {}", epubPath);
             throw new SecurityException("Access denied to EPUB path: " + epubPath);
         }
@@ -346,9 +346,9 @@ public class LibraryService {
             throw new ResourceNotFoundException("Book cover image path is missing for bookId: " + bookId);
         }
 
-        Path absoluteCoverImagePath = Path.of(uploadDir).resolve(coverImagePath).normalize();
+        Path absoluteCoverImagePath = uploadDir.resolve(coverImagePath).normalize();
 
-        if (!absoluteCoverImagePath.startsWith(Path.of(uploadDir).normalize())) {
+        if (!absoluteCoverImagePath.startsWith(uploadDir.normalize())) {
             log.error("Attempted to access cover image outside of the upload directory: {}", absoluteCoverImagePath);
             throw new SecurityException("Access denied to cover image path: " + absoluteCoverImagePath);
         }

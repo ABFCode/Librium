@@ -66,7 +66,7 @@ public class UploadStorageConfig {
      * @return the path of the upload dir as a string
      */
     @Bean
-    public String uploadDir() {
-        return uploadDir;
+    public Path uploadDir() {
+        return Path.of(uploadDir);
     }
 }
