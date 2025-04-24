@@ -30,7 +30,7 @@ import java.util.UUID;
 public class BookInitService {
     private final BookRepository bookRepository;
     private final ResourceLoader resourceLoader;
-    private final String uploadDir;
+    private final Path uploadDir;
     private final LibraryService libraryService;
 
     /**
@@ -62,7 +62,7 @@ public class BookInitService {
 
                 //Generate a unique name to avoid potential conflicts if run multiple times somehow
                 String fileName = "default-" + UUID.randomUUID() + ".epub";
-                Path targetPath = Path.of(uploadDir, fileName);
+                Path targetPath = uploadDir.resolve(fileName);
 
                 try(InputStream inputStream = resource.getInputStream()){
                     Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);

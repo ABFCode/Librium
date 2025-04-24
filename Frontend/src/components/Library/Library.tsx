@@ -170,12 +170,48 @@ function Library() {
     closeDeleteModal();
   };
 
-  const handleDownload = (e: React.MouseEvent) => {
+  const handleDownload = async (
+    e: React.MouseEvent,
+    bookIdToDownload: string,
+    bookTitle: string
+  ) => {
     e.stopPropagation();
     e.preventDefault();
-    console.log("Download button clicked");
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
+    try {
+      setError("");
+      const response = await apiService.downloadBook(bookIdToDownload);
+      const blob = await response.blob();
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+
+      const filename = `${bookTitle}.epub`;
+      link.setAttribute("download", filename);
+
+      document.body.appendChild(link);
+
+      link.click();
+
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.details.status === 401 || error.details.status === 403) {
+          console.log("Unauthorized, redirecting to sign-in");
+          auth.handleUnauthorized(navigate);
+        } else {
+          setError(
+            `Failed to download book: ${
+              error.details.detail || error.details.title || "Server error"
+            }`
+          );
+        }
+      } else if (error instanceof Error) {
+        setError(`Failed to download book: ${error.message}`);
+      } else {
+        setError(`Failed to download book: Very unexpected error`);
+      }
     }
   };
 
@@ -260,14 +296,26 @@ function Library() {
                   role="button"
                   className="btn btn-ghost btn-xs"
                 >
-                  svg
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    fill="currentColor"
+                    viewBox="0 0 16 16"
+                  >
+                    <path d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0m0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0" />
+                  </svg>
                 </button>
                 <ul
                   tabIndex={0}
                   className="dropdown-content menu bg-base-300 rounded-box z-[1] w-32 p=2 shadow"
                 >
                   <li>
-                    <button onClick={handleDownload}>Download</button>
+                    <button
+                      onClick={(e) => handleDownload(e, book.id, book.title)}
+                    >
+                      Download
+                    </button>
                   </li>
                   <li>
                     <button

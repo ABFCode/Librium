@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/library")
 public class LibraryController {
     private final LibraryService libraryService;
-    private final String uploadDir;
+    private final Path uploadDir;
     private final UserBookService userBookService;
 
     /**
@@ -43,7 +43,7 @@ public class LibraryController {
      * @param uploadDir The directory for uploads.
      * @param userBookService The service for userBook operations
      */
-    public LibraryController(LibraryService libraryService, String uploadDir, UserBookService userBookService){
+    public LibraryController(LibraryService libraryService, Path uploadDir, UserBookService userBookService){
         this.libraryService = libraryService;
         this.uploadDir = uploadDir;
         this.userBookService = userBookService;
@@ -82,7 +82,7 @@ public class LibraryController {
 
         String filename = UUID.randomUUID() + "-" + originalFileName;
 
-        Path filepath = Path.of(uploadDir, filename);
+        Path filepath = uploadDir.resolve(filename);
 
         Files.copy(file.getInputStream(), filepath, StandardCopyOption.REPLACE_EXISTING);
 

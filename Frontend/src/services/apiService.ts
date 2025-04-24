@@ -155,6 +155,17 @@ export const apiService = {
     return;
   },
 
+  downloadBook: async (bookId: string): Promise<Response> => {
+    const response = await fetch(`${API_URL}/library/download/${bookId}`, {
+      method: "GET",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      await handleApiError(response);
+    }
+    return response;
+  },
+
   getCoverImage: (bookId: string): string => {
     return `${API_URL}/epub/${bookId}/cover`;
   },
