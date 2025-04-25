@@ -4,19 +4,11 @@
 ## FIX
 ### BACKEND ###
 
-USERNAMES
-1. Should not be case sensitive
-   2. Every query/saving of a username should be done using lowercase
-
 TESTS
-Fix broken tests. 
-
-OTHER
-~~1. Image controller is sending JPEG filetype as default, could be PNG.~~
+Fix broken tests.
 
 ### FRONT END ###
 
-Phone: Remove chapter nav arrows for phone size
 
 
 
