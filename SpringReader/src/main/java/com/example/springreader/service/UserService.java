@@ -43,7 +43,8 @@ public class UserService {
      */
     public String authenticate(LoginRequest loginRequest) {
         //Find user, check password match, generate token, or throw exception
-        return userRepository.findByUsername(loginRequest.username())
+        String lowercaseUsername = loginRequest.username().toLowerCase();
+        return userRepository.findByUsername(lowercaseUsername)
                 .filter(user -> passwordEncoder.matches(loginRequest.password(), user.getPassword()))
                 .map(jwtService::generateToken)
                 .orElseThrow(() -> new BadCredentialsException("Invalid username or password"));
@@ -60,12 +61,13 @@ public class UserService {
      */
     @Transactional
     public void register(LoginRequest loginRequest) {
-        if (userRepository.findByUsername(loginRequest.username()).isPresent()) {
+        String lowercaseUsername = loginRequest.username().toLowerCase();
+        if (userRepository.findByUsername(lowercaseUsername).isPresent()) {
             throw new UsernameAlreadyExistsException(loginRequest.username());
         }
 
         //Create and save the new user with encoded password
-        User newUser = new User(loginRequest.username(), passwordEncoder.encode(loginRequest.password()));
+        User newUser = new User(lowercaseUsername, passwordEncoder.encode(loginRequest.password()));
         userRepository.save(newUser);
         log.info("Registered new user: {}", newUser.getUsername());
 
