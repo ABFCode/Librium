@@ -25,7 +25,7 @@ public class User implements UserDetails {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true) // Ensures usernames are unique in the database
+    @Column(unique = true) //Ensures usernames are unique in the database
     private String username;
 
     private String password;
