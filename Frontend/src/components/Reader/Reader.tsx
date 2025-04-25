@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import auth from "../../utility/auth";
 import ThemeToggle from "../ThemeToggle";
@@ -22,6 +22,8 @@ function Reader() {
   const [error, setError] = useState<string>("");
 
   const navigate = useNavigate();
+
+  const mainContentRef = useRef<HTMLElement>(null);
 
   const initializeReader = useCallback(async () => {
     if (!bookId) {
@@ -122,6 +124,12 @@ function Reader() {
       loadChapter(currentChapterIndex);
     }
   }, [currentChapterIndex, flattenedToc, loadChapter]);
+
+  useEffect(() => {
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTop = 0;
+    }
+  }, [chapterContent]);
 
   const saveProgress = useCallback(
     async (chapterIndexToSave: number) => {
@@ -277,7 +285,10 @@ function Reader() {
           Next
         </button>
 
-        <main className="bg-base-100 w-full max-w-4xl p-8 overflow-y-auto leading-relaxed text-lg z-5 relative">
+        <main
+          ref={mainContentRef}
+          className="bg-base-100 w-full max-w-4xl p-8 overflow-y-auto leading-relaxed text-lg z-5 relative"
+        >
           {chapterContent.split("\n\n").map((paragraph, index) => (
             <p
               key={index}
