@@ -4,9 +4,6 @@
 ## FIX
 ### BACKEND ###
 
-REMOVE H2 LEGACY STUFF
-1. Remove anything still related to our H2 DB - esp. security related stuff.
-
 USERNAMES
 1. Should not be case sensitive
    2. Every query/saving of a username should be done using lowercase
@@ -45,6 +42,7 @@ Phone: Remove chapter nav arrows for phone size
     - No reason to use coverimage path or stream all userBooks
     - Just send bookID and combine with userID
 16. Maybe user-specific directories later? For now, all go into the main uploadDir.
+17. Make a proper Readme
 
 
 

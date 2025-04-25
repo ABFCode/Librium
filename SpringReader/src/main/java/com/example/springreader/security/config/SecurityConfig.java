@@ -50,12 +50,11 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource(allowedOrigins)))
                 .authorizeHttpRequests(auth ->
-                        auth.requestMatchers("/api/user/login", "/api/user/register", "/h2-console/**").permitAll()
+                        auth.requestMatchers("/api/user/login", "/api/user/register").permitAll()
                                 .anyRequest().authenticated())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .headers(headers -> headers.frameOptions(frame -> frame.disable()));
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
