@@ -5,6 +5,7 @@ import {
   apiService,
   UserCredentials,
 } from "../../services/apiService";
+import ErrorAlert from "../UI/ErrorAlert";
 function SignIn() {
   const navigate = useNavigate();
   const [credentials, setCredentials] = useState<UserCredentials>({
@@ -45,11 +46,7 @@ function SignIn() {
         <h1 className="text-5xl font-bold text-center mb-4 text-primary p-3">
           Sign In
         </h1>
-        {error && (
-          <div className="alert alert-error shadow-lg mb-4">
-            <span>{error}</span>
-          </div>
-        )}
+        <ErrorAlert message={error} />
         <div className="mb-4">
           <label htmlFor="username" className="block text-base-content mb-2">
             Username
