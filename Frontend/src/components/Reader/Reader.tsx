@@ -9,6 +9,7 @@ import {
   Chapter,
   UserBookProgress,
 } from "../../services/apiService";
+import ErrorAlert from "../UI/ErrorAlert";
 
 function Reader() {
   const { bookId } = useParams<{ bookId: string }>();
@@ -251,7 +252,7 @@ function Reader() {
         </div>
       </div>
 
-      {error && <span className="alert alert-error">Error: {error}</span>}
+      <ErrorAlert message={error} />
 
       <div className="flex justify-center mt-16 h-[calc(100vh-4rem)] relative">
         <div

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import auth from "../../utility/auth";
 import ThemeToggle from "../ThemeToggle";
 import { ApiError, apiService, Book } from "../../services/apiService";
+import ErrorAlert from "../UI/ErrorAlert";
 
 interface BookToDelete {
   id: string;
@@ -236,11 +237,7 @@ function Library() {
         </div>
       </header>
 
-      {error && (
-        <div>
-          <span className="alert alert-error">Error: {error}</span>{" "}
-        </div>
-      )}
+      <ErrorAlert message={error} />
 
       {showUploadForm && (
         <div className="bg-base-100 p-4 rounded mb-6 shadow-md">

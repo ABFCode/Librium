@@ -26,24 +26,21 @@ Fix broken tests.
 12. Search impl.
     - Could do in frontend or backend, could be a major change. 
     - Would be much easier on backend, after we do #4 (Store only parsed parts)
-13. Library management/organization/searching. 
-14. Cover placeholder image
-    - Generate a blank image with the title of the book maybe?
+13. Library management/organization/searching.
 15. CoverImage endpoint
     - move logic to a service class or method
     - No reason to use coverimage path or stream all userBooks
     - Just send bookID and combine with userID
 16. Maybe user-specific directories later? For now, all go into the main uploadDir.
 17. Make a proper Readme
-
+18. Accessibility overhaul for frontend
 
 
 UI CHANGES:
 1. a component for the nav bar.
-2. Make things more consistent throughout.
 3. Change book card sizes
 4. Colors for light theme aren't great
-5. I don't like how we're doing upload. Looks and feels old, at least drag and drop impl. 
+5. I don't like how we're doing upload. 
 6. Prev/Next buttons on EBOOK reader, not great. Replace it with arrows or nothing? Like Kindle. (see Kindle.png)
 
 RESEARCH/PLAN:
