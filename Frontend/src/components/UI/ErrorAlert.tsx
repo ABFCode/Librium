@@ -2,7 +2,7 @@ interface ErrorAlertProps {
   message: string | null | undefined;
 }
 
-const ErrorAlert: React.FC<ErrorAlertProps> = ({ message }) => {
+const ErrorAlert = ({ message }: ErrorAlertProps) => {
   if (!message) {
     return null;
   }
