@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ApiError,
   apiService,
@@ -8,11 +8,14 @@ import {
 import ErrorAlert from "../UI/ErrorAlert";
 function SignIn() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [credentials, setCredentials] = useState<UserCredentials>({
     username: "",
     password: "",
   });
   const [error, setError] = useState<string>("");
+
+  const from = location.state?.from?.pathname || "/";
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -28,7 +31,7 @@ function SignIn() {
     try {
       await apiService.login(credentials);
 
-      navigate("/");
+      navigate(from, { replace: true });
     } catch (error) {
       if (error instanceof ApiError) {
         setError(error.details.detail || error.details.title || "Login failed");
