@@ -264,7 +264,7 @@ function Library() {
             key={book.id}
             className="flex flex-col bg-base-100 rounded shadow hover:shadow-md transition-shadow duration-200"
           >
-            <Link to={`/epub/${book.id}`}>
+            <Link to={`/epub/${book.id}/${book.lastChapterIndex || 0}`}>
               <div className="w-full aspect-[2/3] overflow-hidden">
                 <img
                   src={

@@ -12,7 +12,12 @@ import {
 import ErrorAlert from "../UI/ErrorAlert";
 
 function Reader() {
-  const { bookId } = useParams<{ bookId: string }>();
+  const navigate = useNavigate();
+  const { bookId, chapterIndex: chapterIndexStr } = useParams<{
+    bookId: string;
+    chapterIndex: string;
+  }>();
+
   const [meta, setMeta] = useState<BookMeta | null>(null);
   const [flattenedToc, setFlattenedToc] = useState<Chapter[]>([]);
   const [currentChapterIndex, setCurrentChapterIndex] = useState<number | null>(
@@ -22,30 +27,25 @@ function Reader() {
   const [isTocOpen, setIsTocOpen] = useState(false);
   const [error, setError] = useState<string>("");
 
-  const navigate = useNavigate();
-
   const mainContentRef = useRef<HTMLElement>(null);
 
-  const initializeReader = useCallback(async () => {
+  const fetchBookMeta = useCallback(async () => {
     if (!bookId) {
       setError("BookId is missing");
       return;
     }
     setError("");
+    setMeta(null);
+    setFlattenedToc([]);
+    setCurrentChapterIndex(null);
+    setChapterContent("");
+
     try {
-      const [metaResponse, progressResponse] = await Promise.all([
-        apiService.getBookMeta(bookId),
-        apiService.getProgress(bookId),
-      ]);
-      //console.log("API Responses: ", {metaResponse, progressResponse});
-      if (metaResponse && typeof progressResponse === "number") {
-        setMeta(metaResponse);
-        setFlattenedToc(metaResponse.chapters);
-        setCurrentChapterIndex(progressResponse);
-      } else {
-        setError("Failed to initialize reader: Data is invalid");
-      }
+      const metaResponse = await apiService.getBookMeta(bookId);
+      setMeta(metaResponse);
+      setFlattenedToc(metaResponse.chapters || []);
     } catch (error) {
+      console.error("Error fetching boom metadata:", error);
       if (error instanceof ApiError) {
         if (error.details.status === 401 || error.details.status === 403) {
           auth.handleUnauthorized(navigate);
@@ -65,22 +65,20 @@ function Reader() {
   }, [bookId, navigate]);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const isAuthenticated = await auth.isAuthenticated();
-      if (!isAuthenticated) {
-        console.log("Not authenticated on initial check");
-        auth.handleUnauthorized(navigate);
+    fetchBookMeta();
+  }, [fetchBookMeta]);
+
+  const fetchChapterContent = useCallback(
+    async (index: number) => {
+      if (
+        !flattenedToc ||
+        !bookId ||
+        index < 0 ||
+        index >= flattenedToc.length
+      ) {
+        setError("Invalid state for loading chapter content.");
         return;
       }
-      initializeReader();
-    };
-    checkAuth();
-  }, [navigate, initializeReader]);
-
-  const loadChapter = useCallback(
-    async (index: number) => {
-      if (!flattenedToc || !bookId || index < 0 || index >= flattenedToc.length)
-        return;
 
       const chapter = flattenedToc[index];
       if (isNaN(chapter.index)) {
@@ -90,6 +88,7 @@ function Reader() {
       }
 
       setError("");
+      setChapterContent("");
 
       try {
         const chapterData = await apiService.getChapterContent(
@@ -121,10 +120,31 @@ function Reader() {
   );
 
   useEffect(() => {
-    if (flattenedToc.length > 0 && currentChapterIndex !== null) {
-      loadChapter(currentChapterIndex);
+    if (
+      flattenedToc.length > 0 &&
+      chapterIndexStr !== null &&
+      chapterIndexStr !== undefined
+    ) {
+      const parsedIndex = parseInt(chapterIndexStr, 10);
+
+      if (
+        !isNaN(parsedIndex) &&
+        parsedIndex >= 0 &&
+        parsedIndex < flattenedToc.length
+      ) {
+        setCurrentChapterIndex(parsedIndex);
+        fetchChapterContent(parsedIndex);
+      } else {
+        setError(
+          `Invalid chapter index in URL: ${chapterIndexStr}. Max is ${
+            flattenedToc.length - 1
+          }`
+        );
+        setCurrentChapterIndex(null);
+        setChapterContent("");
+      }
     }
-  }, [currentChapterIndex, flattenedToc, loadChapter]);
+  }, [chapterIndexStr, flattenedToc, fetchChapterContent]);
 
   useEffect(() => {
     if (mainContentRef.current) {
@@ -134,7 +154,6 @@ function Reader() {
 
   const saveProgress = useCallback(
     async (chapterIndexToSave: number) => {
-      //console.log(`Saving progress at ${chapterIndex}`);
       if (!bookId) {
         console.error("Book ID is not defined");
         return;
@@ -159,7 +178,6 @@ function Reader() {
         lastChapterIndex: chapterIndexToSave,
       };
 
-      setError("");
       try {
         await apiService.saveProgress(progressData);
       } catch (error) {
@@ -169,51 +187,72 @@ function Reader() {
             console.error("Unauthorized, returning to sign-in");
             auth.handleUnauthorized(navigate);
           } else {
-            setError(
+            console.warn(
               `Failed to save progress: ${
                 error.details.detail || error.details.title || "Server error"
               }`
             );
           }
         } else if (error instanceof Error) {
-          setError(`Failed to save progress: ${error.message}`);
+          console.warn(`Failed to save progress: ${error.message}`);
         } else {
-          setError(`A very unexpected error has occured while saving progress`);
+          console.warn(
+            `A very unexpected error has occured while saving progress`
+          );
         }
       }
     },
     [bookId, navigate, flattenedToc]
   );
 
-  const handleChapterSelect = (index: number) => {
-    if (index !== currentChapterIndex) {
-      setCurrentChapterIndex(index);
+  const navigateToChapter = useCallback(
+    (index: number) => {
+      if (
+        !bookId ||
+        index < 0 ||
+        index >= flattenedToc.length ||
+        index === currentChapterIndex
+      ) {
+        setIsTocOpen(false);
+        return;
+      }
       saveProgress(index);
-    }
-    setIsTocOpen(false);
-  };
+      navigate(`/epub/${bookId}/${index}`);
+      setIsTocOpen(false);
+    },
+    [bookId, navigate, flattenedToc.length, saveProgress, currentChapterIndex]
+  );
+
+  const handleChapterSelect = useCallback(
+    (index: number) => {
+      navigateToChapter(index);
+    },
+    [navigateToChapter]
+  );
 
   const handleNext = useCallback(() => {
     if (
-      currentChapterIndex != null &&
+      currentChapterIndex !== null &&
       currentChapterIndex < flattenedToc.length - 1
     ) {
-      const nextIndex = currentChapterIndex + 1;
-      setCurrentChapterIndex(nextIndex);
-      saveProgress(nextIndex);
+      navigateToChapter(currentChapterIndex + 1);
     }
-  }, [currentChapterIndex, flattenedToc.length, saveProgress]);
+  }, [currentChapterIndex, flattenedToc.length, navigateToChapter]);
 
   const handlePrev = useCallback(() => {
-    if (currentChapterIndex != null && currentChapterIndex > 0) {
-      const prevIndex = currentChapterIndex - 1;
-      setCurrentChapterIndex(prevIndex);
-      saveProgress(prevIndex);
+    if (currentChapterIndex !== null && currentChapterIndex > 0) {
+      navigateToChapter(currentChapterIndex - 1);
     }
-  }, [currentChapterIndex, saveProgress]);
+  }, [currentChapterIndex, navigateToChapter]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
       if (event.key === "ArrowLeft") {
         handlePrev();
       } else if (event.key === "ArrowRight") {
@@ -225,7 +264,7 @@ function Reader() {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [currentChapterIndex, flattenedToc.length, handleNext, handlePrev]);
+  }, [handleNext, handlePrev]);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-base-200">
