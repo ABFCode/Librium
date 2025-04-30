@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import auth from "../../utility/auth";
-import ThemeToggle from "../ThemeToggle";
 import { ApiError, apiService, Book } from "../../services/apiService";
 import ErrorAlert from "../UI/ErrorAlert";
+import Navbar from "../Layout/Navbar";
 
 interface BookToDelete {
   id: string;
@@ -60,6 +60,11 @@ function Library() {
   const handleLogout = () => {
     auth.logout();
     navigate("/signin");
+  };
+
+  const handleToggleUploadForm = () => {
+    setShowUploadForm(!showUploadForm);
+    setError("");
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -217,25 +222,24 @@ function Library() {
   };
 
   return (
-    <div className="p-6 bg-base-200 min-h-screen">
-      <header className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-primary">Library</h1>
-        <div className="flex gap-4 items-center">
-          <ThemeToggle />
-          <button
-            onClick={() => {
-              setShowUploadForm(!showUploadForm);
-              setError("");
-            }}
-            className="btn btn-accent"
-          >
-            {showUploadForm ? "Cancel" : "Add Book"}
-          </button>
-          <button onClick={handleLogout} className="btn btn-error">
-            Logout
-          </button>
-        </div>
-      </header>
+    <div className="pt-16 bg-base-200 min-h-screen">
+      <Navbar
+        startContent={
+          <Link to="/" className="btn btn-ghost text-xl normal-case">
+            Library
+          </Link>
+        }
+        endContent={
+          <>
+            <button onClick={handleToggleUploadForm} className="btn btn-accent">
+              {showUploadForm ? "Cancel" : "Add Book"}
+            </button>
+            <button onClick={handleLogout} className="btn btn-error">
+              Logout
+            </button>
+          </>
+        }
+      />
 
       <ErrorAlert message={error} />
 

@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import auth from "../../utility/auth";
-import ThemeToggle from "../ThemeToggle";
 import {
   ApiError,
   apiService,
@@ -10,6 +9,7 @@ import {
   UserBookProgress,
 } from "../../services/apiService";
 import ErrorAlert from "../UI/ErrorAlert";
+import Navbar from "../Layout/Navbar";
 
 function Reader() {
   const navigate = useNavigate();
@@ -245,6 +245,11 @@ function Reader() {
     }
   }, [currentChapterIndex, navigateToChapter]);
 
+  const handleToggleToc = () => {
+    setIsTocOpen(!isTocOpen);
+    setError("");
+  };
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
@@ -268,28 +273,25 @@ function Reader() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-base-200">
-      <div className="navbar bg-base-100 shadow-md fixed top-0 z-10">
-        <div className="navbar-start">
-          <Link to="/" className="btn btn-ghost">
-            Library
-          </Link>
-        </div>
-        <div className="navbar-center">
-          <div className="text-center">
-            <h1 className="text-lg font-medium">{meta?.title}</h1>
-            <h2 className="text-sm">{meta?.author}</h2>
-          </div>
-        </div>
-        <div className="navbar-end">
-          <ThemeToggle />
-          <button
-            className="btn btn-ghost"
-            onClick={() => setIsTocOpen(!isTocOpen)}
-          >
+      <Navbar
+        centerContent={
+          meta && (
+            <div className="text-center">
+              <h1 className="text-lg font-medium truncate max-w-xs sm:max-w-sm md:max-w-md">
+                {meta.title}
+              </h1>
+              <h2 className="text-sm text-base-content/70 truncate max-w-xs sm:max-w-sm md:max-w-md">
+                {meta.author}
+              </h2>
+            </div>
+          )
+        }
+        endContent={
+          <button className="btn btn-ghost" onClick={handleToggleToc}>
             Contents
           </button>
-        </div>
-      </div>
+        }
+      />
 
       <ErrorAlert message={error} />
 
