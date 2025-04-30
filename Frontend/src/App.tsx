@@ -22,7 +22,7 @@ function App() {
           }
         />
         <Route
-          path="/epub/:bookId/:chapterIndex"
+          path="/epub/:bookId"
           element={
             <ProtectedRoute>
               <Reader />

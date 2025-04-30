@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import auth from "../../utility/auth";
 import {
   ApiError,
@@ -13,10 +13,11 @@ import Navbar from "../Layout/Navbar";
 
 function Reader() {
   const navigate = useNavigate();
-  const { bookId, chapterIndex: chapterIndexStr } = useParams<{
+  const { bookId } = useParams<{
     bookId: string;
-    chapterIndex: string;
   }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const chapterIndexStr = searchParams.get("chapter");
 
   const [meta, setMeta] = useState<BookMeta | null>(null);
   const [flattenedToc, setFlattenedToc] = useState<Chapter[]>([]);
@@ -217,10 +218,16 @@ function Reader() {
         return;
       }
       saveProgress(index);
-      navigate(`/epub/${bookId}/${index}`);
+      setSearchParams({ chapter: index.toString() }, { replace: true });
       setIsTocOpen(false);
     },
-    [bookId, navigate, flattenedToc.length, saveProgress, currentChapterIndex]
+    [
+      bookId,
+      flattenedToc.length,
+      saveProgress,
+      currentChapterIndex,
+      setSearchParams,
+    ]
   );
 
   const handleChapterSelect = useCallback(
