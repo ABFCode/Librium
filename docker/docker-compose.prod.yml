@@ -32,7 +32,7 @@ services:
   backend:
     restart: unless-stopped
     build:
-      context: ./SpringReader
+      context: ../SpringReader
       dockerfile: Dockerfile
     container_name: backend-app
     environment:
@@ -65,7 +65,7 @@ services:
       - "traefik.http.routers.frontend.tls.certresolver=myresolver"
       - "traefik.http.routers.frontend.priority=50"
     build:
-      context: ./Frontend
+      context: ../Frontend
       dockerfile: Dockerfile.prod
       args:
         VITE_API_URL: "https://librium.dev/api"
