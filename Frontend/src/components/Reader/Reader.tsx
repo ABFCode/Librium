@@ -230,20 +230,28 @@ function Reader() {
     [navigateToChapter]
   );
 
-  const handleNext = useCallback(() => {
-    if (
-      currentChapterIndex !== null &&
-      currentChapterIndex < flattenedToc.length - 1
-    ) {
-      navigateToChapter(currentChapterIndex + 1);
-    }
-  }, [currentChapterIndex, flattenedToc.length, navigateToChapter]);
+  const handleNext = useCallback(
+    (e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      if (
+        currentChapterIndex !== null &&
+        currentChapterIndex < flattenedToc.length - 1
+      ) {
+        navigateToChapter(currentChapterIndex + 1);
+      }
+    },
+    [currentChapterIndex, flattenedToc.length, navigateToChapter]
+  );
 
-  const handlePrev = useCallback(() => {
-    if (currentChapterIndex !== null && currentChapterIndex > 0) {
-      navigateToChapter(currentChapterIndex - 1);
-    }
-  }, [currentChapterIndex, navigateToChapter]);
+  const handlePrev = useCallback(
+    (e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      if (currentChapterIndex !== null && currentChapterIndex > 0) {
+        navigateToChapter(currentChapterIndex - 1);
+      }
+    },
+    [currentChapterIndex, navigateToChapter]
+  );
 
   const handleToggleToc = () => {
     setIsTocOpen(!isTocOpen);
@@ -313,14 +321,14 @@ function Reader() {
         />
 
         <button
-          onClick={handlePrev}
+          onClick={(e) => handlePrev(e)}
           disabled={currentChapterIndex === 0}
           className="btn btn-primary hidden md:block fixed left-1/12 top-1/2 transform z-10"
         >
           Prev
         </button>
         <button
-          onClick={handleNext}
+          onClick={(e) => handleNext(e)}
           disabled={currentChapterIndex === flattenedToc.length - 1}
           className="btn btn-primary hidden md:block fixed right-1/12 top-1/2 transform z-10"
         >
