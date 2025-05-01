@@ -44,9 +44,10 @@ public class EpubController {
     @GetMapping("/{bookId}/chapter/{index}")
     public ResponseEntity<ChapterContentDTO> getEpubChapter(
             @PathVariable Long bookId,
-            @PathVariable Integer index) throws IOException {
+            @PathVariable Integer index,
+    @AuthenticationPrincipal User user) throws IOException {
 
-        ChapterContentDTO chapterContentDTO = libraryService.getChapterContent(bookId, index);
+        ChapterContentDTO chapterContentDTO = libraryService.getChapterContent(bookId, user.getId(), index);
         return ResponseEntity.ok(chapterContentDTO);
     }
 
@@ -58,8 +59,8 @@ public class EpubController {
      * @return A ResponseEntity containing the book metadata DTO upon success.
      */
     @GetMapping("/{bookId}/meta")
-    public ResponseEntity<BookMetaDTO> getEpubMeta(@PathVariable Long bookId) {
-        BookMetaDTO bookMetaDTO = libraryService.getBookMeta(bookId);
+    public ResponseEntity<BookMetaDTO> getEpubMeta(@PathVariable Long bookId, @AuthenticationPrincipal User user) {
+        BookMetaDTO bookMetaDTO = libraryService.getBookMeta(bookId, user.getId());
         return ResponseEntity.ok(bookMetaDTO);
     }
 

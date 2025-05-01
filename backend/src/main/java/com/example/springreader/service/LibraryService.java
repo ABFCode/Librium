@@ -239,9 +239,10 @@ public class LibraryService {
      * @throws ResourceNotFoundException If the book with the given ID doesn't exist.
      */
     @Transactional(readOnly = true)
-    public BookMetaDTO getBookMeta(Long bookId) throws ResourceNotFoundException {
-        Book book = bookRepository.findById(bookId)
-                .orElseThrow(() -> new ResourceNotFoundException("Book", bookId.toString()));
+    public BookMetaDTO getBookMeta(Long bookId, Long userId) throws ResourceNotFoundException {
+        UserBook userbook = userBookRepository.findByUserIdAndBookId(userId, bookId).orElseThrow(() -> new ResourceNotFoundException("UserBook not found for bookId: " + bookId + " and userId: " + userId));
+
+        Book book = userbook.getBook();
 
         List<ChapterDTO> chapters = book.getChapters().stream()
                 .map(chapter -> new ChapterDTO(chapter.getTitle(), chapter.getAnchor(), chapter.getChapterIndex()))
@@ -304,9 +305,10 @@ public class LibraryService {
      * @throws ResourceNotFoundException If the book or the specific chapter index is not found.
      */
     @Transactional(readOnly = true)
-    public ChapterContentDTO getChapterContent(Long bookId, Integer chapterIndex) throws IOException, EpubProcessingException, ResourceNotFoundException {
-        Book book = bookRepository.findById(bookId)
-                .orElseThrow(() -> new ResourceNotFoundException("Book", bookId.toString()));
+    public ChapterContentDTO getChapterContent(Long bookId, Long userId, Integer chapterIndex) throws IOException, EpubProcessingException, ResourceNotFoundException {
+        UserBook userBook = userBookRepository.findByUserIdAndBookId(userId, bookId).orElseThrow(() -> new ResourceNotFoundException("UserBook not found for bookId: " + bookId + " and userId: " + userId));
+
+        Book book = userBook.getBook();
 
         Chapter chapter = chapterRepository.findByBookIdAndChapterIndex(bookId, chapterIndex);
 
