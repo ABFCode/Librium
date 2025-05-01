@@ -1,8 +1,7 @@
 # Librium - Personal Ebook Library & Reader
 
 <p align="center">
-  <!-- Corrected path with capital 'F' -->
-  <img src="./Frontend/public/book-opened.svg" alt="Librium Logo" width="120"/>
+  <img src="./frontend/public/book-opened.svg" alt="Librium Logo" width="120"/>
 </p>
 
 
@@ -67,7 +66,7 @@ This project is evolving. Some key areas planned for future development include:
 *   **Stability & Robustness:** Comprehensive error handling, increased test coverage.
 *   **Accessibility:** Auditing and improvements.
 
-*(See `SpringReader/docs/plan_todo.md` for more granular details if that file exists)*
+*(See `SpringReader/docs/plan_todo.md` for more granular details)*
 
 ---
 
