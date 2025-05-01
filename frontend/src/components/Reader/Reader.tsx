@@ -1,5 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import auth from "../../utility/auth";
 import {
   ApiError,
@@ -286,6 +291,20 @@ function Reader() {
     };
   }, [handleNext, handlePrev]);
 
+  if (error) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-4">
+        <Navbar />
+        <div className="w-full max-w-md text-center">
+          <ErrorAlert message={error} />
+          <Link to="/" className="btn btn-primary mt-4">
+            Go to Library
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-base-200">
       <Navbar
@@ -307,8 +326,6 @@ function Reader() {
           </button>
         }
       />
-
-      <ErrorAlert message={error} />
 
       <div className="flex justify-center mt-16 h-[calc(100vh-4rem)] relative">
         <div

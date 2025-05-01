@@ -91,8 +91,22 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleResourceNotFoundException(ResourceNotFoundException e){
         log.warn("Resource not found: {}", e.getMessage());
 
+        String userFriendlyDetail;
+        if (e.getMessage() != null && e.getMessage().startsWith("UserBook not found")) {
+            userFriendlyDetail = "The requested book either does not exist, was not found in your library or could not be accessed.";
+        } else if (e.getMessage() != null && e.getMessage().startsWith("Book cover image path is missing")) {
+            userFriendlyDetail = "The cover image for this book could not be found.";
+        } else if (e.getMessage() != null && e.getMessage().startsWith("Cover Image File")) {
+            userFriendlyDetail = "The cover image file could not be found.";
+        }
+        else {
+            userFriendlyDetail = "The resource you requested could not be found.";
+        }
+
+
+
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
-                HttpStatus.NOT_FOUND, e.getMessage()
+                HttpStatus.NOT_FOUND, userFriendlyDetail
         );
         problemDetail.setTitle("Resource Not Found");
         problemDetail.setProperty("timestamp", Instant.now());
