@@ -5,6 +5,7 @@ import SignIn from "./components/Auth/SignIn";
 import Reader from "./components/Reader/Reader";
 import Register from "./components/Auth/Register";
 import ProtectedRoute from "./components/Auth/ProtectedRoute";
+import NotFound from "./components/UI/NotFound";
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
   );
