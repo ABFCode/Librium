@@ -13,7 +13,7 @@ The project consists of:
 
 ---
 
-> **⚠️ Status: Active Development ⚠️**
+> **Status: Active Development**
 >
 > Librium is currently under **heavy active development** and is **not yet ready for production or general use**. Features are incomplete, APIs might change, and stability is not guaranteed. Expect bugs and potential data loss. **Use at your own risk!**
 >
@@ -21,7 +21,7 @@ The project consists of:
 
 ---
 
-## ✨ Features (Current State)
+##  Features (Current State)
 
 Even in its early stage, Librium offers several core functionalities:
 
@@ -40,7 +40,7 @@ Even in its early stage, Librium offers several core functionalities:
 
 ---
 
-## 🛠️ Technology Stack
+##  Technology Stack
 
 *   **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, DaisyUI
 *   **Backend:** Java 17+, Spring Boot 3, Spring Security (JWT), Spring Data JPA
@@ -51,7 +51,7 @@ Even in its early stage, Librium offers several core functionalities:
 
 ---
 
-## 🚀 Future Plans & Roadmap (High-Level)
+##  Future Plans & Roadmap (High-Level)
 
 This project is evolving. Some key areas planned for future development include:
 
@@ -71,7 +71,7 @@ This project is evolving. Some key areas planned for future development include:
 ---
 
 
-## 🤝 Contributing
+##  Contributing
 
 Given the early and active development stage, formal contributions are not the primary focus. However, if you encounter bugs or have specific feature suggestions, feel free to:
 
