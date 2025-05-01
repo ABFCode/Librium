@@ -25,7 +25,7 @@ The project consists of:
 
 Even in its early stage, Librium offers several core functionalities:
 
-*   **User Authentication:** Secure registration and login using JWT stored in HTTP-only cookies.
+*   **User Authentication:** Secure registration and login using Spring Security JWT. 
 *   **EPUB Upload & Processing:** Upload your `.epub` files to your personal library. The backend parses metadata (title, author, ToC) and cover images.
 *   **Library Management:**
     *   View your uploaded books with cover images (if available), titles, and authors.
