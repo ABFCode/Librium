@@ -1,16 +1,15 @@
 # Librium - Personal Ebook Library & Reader
 
 <p align="center">
-  <!-- Corrected path with capital 'F' -->
-  <img src="./Frontend/public/book-opened.svg" alt="Librium Logo" width="120"/>
+  <img src="./frontend/public/book-opened.svg" alt="Librium Logo" width="120"/>
 </p>
 
 
-Librium is a self-hosted, web-based application designed for uploading, storing, managing, and reading your personal digital book collection. It primarily focuses on the EPUB format and aims to provide a clean, simple interface to access your library across different devices.
+Librium is a performance-focused web application for uploading, managing, and reading your personal ebook library online. Built as a Single Page Application (SPA) primarily for EPUBs, it delivers a fast and seamless reading experience directly in your browser, accessible from anywhere.
 
 The project consists of:
 *   **Frontend:** A React application (built with Vite + TypeScript) providing the user interface.
-*   **Backend (SpringReader):** A Spring Boot application handling user authentication, book processing, storage management, and API endpoints.
+*   **Backend:** A Spring Boot application handling user authentication, book processing, storage management, and API endpoints.
 
 ---
 
@@ -26,7 +25,7 @@ The project consists of:
 
 Even in its early stage, Librium offers several core functionalities:
 
-*   **User Authentication:** Secure registration and login using JWT stored in HTTP-only cookies.
+*   **User Authentication:** Secure registration and login using Spring Security JWT. 
 *   **EPUB Upload & Processing:** Upload your `.epub` files to your personal library. The backend parses metadata (title, author, ToC) and cover images.
 *   **Library Management:**
     *   View your uploaded books with cover images (if available), titles, and authors.
@@ -43,7 +42,7 @@ Even in its early stage, Librium offers several core functionalities:
 
 ## 🛠️ Technology Stack
 
-*   **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, DaisyUI, React Router
+*   **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, DaisyUI
 *   **Backend:** Java 17+, Spring Boot 3, Spring Security (JWT), Spring Data JPA
 *   **Database:** PostgreSQL
 *   **Parsing:** Jsoup (HTML parsing for content), Java XML APIs (EPUB structure)
@@ -67,7 +66,7 @@ This project is evolving. Some key areas planned for future development include:
 *   **Stability & Robustness:** Comprehensive error handling, increased test coverage.
 *   **Accessibility:** Auditing and improvements.
 
-*(See `SpringReader/docs/plan_todo.md` for more granular details if that file exists)*
+*(See `SpringReader/docs/plan_todo.md` for more granular details)*
 
 ---
 
