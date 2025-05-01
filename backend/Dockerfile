@@ -17,7 +17,7 @@ FROM openjdk:17-oracle
 WORKDIR /app
 
 # Copy the built jar from the maven build stage.
-COPY --from=maven_build /build/target/SpringReader-0.0.1-SNAPSHOT.jar /app/app.jar
+COPY --from=maven_build /build/target/backend-0.0.1-SNAPSHOT.jar /app/app.jar
 
 # Copy the entrypoint script into the image.
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
