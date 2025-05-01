@@ -65,7 +65,7 @@ services:
       - "traefik.http.routers.frontend.tls.certresolver=myresolver"
       - "traefik.http.routers.frontend.priority=50"
     build:
-      context: ../Frontend
+      context: ../frontend
       dockerfile: Dockerfile.prod
       args:
         VITE_API_URL: "https://librium.dev/api"
