@@ -5,7 +5,7 @@
 </p>
 
 
-Librium is a performance-focused web application for uploading, managing, and reading your personal ebook library online. Built as a modern Single Page Application (SPA) primarily for EPUBs, it delivers a fast and seamless reading experience directly in your browser, accessible from anywhere.
+Librium is a performance-focused web application for uploading, managing, and reading your personal ebook library online. Built as a Single Page Application (SPA) primarily for EPUBs, it delivers a fast and seamless reading experience directly in your browser, accessible from anywhere.
 
 The project consists of:
 *   **Frontend:** A React application (built with Vite + TypeScript) providing the user interface.
