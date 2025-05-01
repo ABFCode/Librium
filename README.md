@@ -5,11 +5,11 @@
 </p>
 
 
-Librium is a self-hosted, web-based application designed for uploading, storing, managing, and reading your personal digital book collection. It primarily focuses on the EPUB format and aims to provide a clean, simple interface to access your library across different devices.
+Librium is a performance-focused web application for uploading, managing, and reading your personal ebook library online. Built as a modern Single Page Application (SPA) primarily for EPUBs, it delivers a fast and seamless reading experience directly in your browser, accessible from anywhere.
 
 The project consists of:
 *   **Frontend:** A React application (built with Vite + TypeScript) providing the user interface.
-*   **Backend (SpringReader):** A Spring Boot application handling user authentication, book processing, storage management, and API endpoints.
+*   **Backend:** A Spring Boot application handling user authentication, book processing, storage management, and API endpoints.
 
 ---
 
@@ -42,7 +42,7 @@ Even in its early stage, Librium offers several core functionalities:
 
 ## 🛠️ Technology Stack
 
-*   **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, DaisyUI, React Router
+*   **Frontend:** React 19, TypeScript, Vite, Tailwind CSS, DaisyUI
 *   **Backend:** Java 17+, Spring Boot 3, Spring Security (JWT), Spring Data JPA
 *   **Database:** PostgreSQL
 *   **Parsing:** Jsoup (HTML parsing for content), Java XML APIs (EPUB structure)
