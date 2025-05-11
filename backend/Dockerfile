@@ -13,7 +13,7 @@ RUN mvn clean install -Pprod -Dmaven.test.skip=true \
   -B --no-transfer-progress -e
 
 # Stage 2: Create the runtime image
-FROM openjdk:17-oracle
+FROM openjdk:17-oracle 
 WORKDIR /app
 
 # Copy the built jar from the maven build stage.

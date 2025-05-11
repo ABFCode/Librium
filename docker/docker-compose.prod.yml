@@ -12,7 +12,7 @@ services:
       - "443:443"
     volumes:
       - letsencrypt:/letsencrypt
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   postgres:
     image: postgres:15
@@ -51,7 +51,7 @@ services:
       - jwt-secret
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`librium.dev`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.rule=Host(`librium.dev`,`www.librium.dev`) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entryPoints=websecure"
       - "traefik.http.routers.backend.tls.certresolver=myresolver"
       - "traefik.http.routers.backend.priority=100"
@@ -60,7 +60,7 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`librium.dev`) && PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.rule=Host(`librium.dev`,`www.librium.dev`) && PathPrefix(`/`)"
       - "traefik.http.routers.frontend.entryPoints=websecure"
       - "traefik.http.routers.frontend.tls.certresolver=myresolver"
       - "traefik.http.routers.frontend.priority=50"
