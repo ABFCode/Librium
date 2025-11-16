@@ -3,6 +3,10 @@ package com.example.springreader.model;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDateTime;
 
 /**
  * Represents the association between a User and a Book.
@@ -32,5 +36,15 @@ public class UserBook {
     @JoinColumn(name = "book_id", nullable = false) // Maps to the book_id foreign key column
     private Book book;
 
+    @Column(nullable = false)
     private Integer lastChapterIndex = 0;
+
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    private LocalDateTime lastAccessed;
+
+
 }

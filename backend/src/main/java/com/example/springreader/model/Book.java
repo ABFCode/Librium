@@ -3,28 +3,36 @@ package com.example.springreader.model;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Represents a Book entity in the application.
- *
  * This entity stores information about a book, including its title, author,
  * file path for the content, path for the cover image, and its associated chapters.
  * An index is defined on the isDefault column for optimized querying.
  */
 @Entity
 @Data
-@Table(name = "books", indexes = {@Index(name="isDefaultIndex", columnList = "isDefault")})
+@Table(name = "books", indexes = {@Index(name="idx_books_is_default", columnList = "isDefault")})
 @NoArgsConstructor
 public class Book {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String title;
-    private String author;
+
+    @Column(nullable = false)
+    private String title = "Untitled";
+
+    @Column(nullable = false)
+    private String author = "Unknown";
+
+    @Column(nullable = false)
     private String filePath;
+
     private String coverImagePath;
 
     /**
@@ -40,6 +48,10 @@ public class Book {
     @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("chapterIndex ASC")
     private List<Chapter> chapters = new ArrayList<>();
+
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
 
     /**
      * Adds a new chapter to this book's list of chapters.

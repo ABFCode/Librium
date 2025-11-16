@@ -7,14 +7,13 @@ import lombok.NoArgsConstructor;
 
 /**
  * Represents a Chapter entity, linked to a specific Book.
- *
  * Contains details about a chapter, such as its title, index within the book,
  * the path to its content file within the EPUB, and an optional anchor.
  * An index is defined on book_id and chapterIndex.
  */
 @Entity
 @NoArgsConstructor
-@Table(name = "chapters", indexes = {@Index(name = "chapterBookIndex", columnList = "book_id, chapterIndex")})
+@Table(name = "chapters", indexes = {@Index(name = "idx_chapters_book_chapter", columnList = "book_id, chapterIndex")})
 @Data
 public class Chapter {
 
@@ -22,10 +21,19 @@ public class Chapter {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String title;
+    @Column(nullable = false)
+    private String title = "Untitled Chapter";
+
+    @Column(nullable = false)
     private int chapterIndex;
+
+    @Column(nullable = false)
     private String filePath; //Path within the EPUB archive
+
     private String anchor; //Optional identifier within the chapter file
+
+    @Column(nullable = false)
+    private int wordCount = 0;
 
     /**
      * The Book to which this chapter belongs.
