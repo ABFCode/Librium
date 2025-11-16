@@ -34,7 +34,7 @@ build/
 .idea/
 
 secrets.properties
-db
+*.db
 
 uploads/
 defaults/
