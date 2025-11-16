@@ -27,8 +27,9 @@ public class Book {
     @Column(nullable = false)
     private String title = "Untitled";
 
-    @Column(nullable = false)
-    private String author = "Unknown";
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "author_id", nullable = false)
+    private Author author;
 
     @Column(nullable = false)
     private String filePath;
@@ -61,9 +62,8 @@ public class Book {
     public void addChapter(Chapter chapter){
         chapters.add(chapter);
     }
-    public Book(String title, String author, String filePath, String coverImagePath){
+    public Book(String title, String filePath, String coverImagePath){
         this.title = title;
-        this.author = author;
         this.filePath = filePath;
         this.coverImagePath = coverImagePath;
     }
