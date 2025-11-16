@@ -125,11 +125,7 @@ public class LibraryController {
      */
     @GetMapping()
     public ResponseEntity<List<BookDTO>> getUserBooks(@AuthenticationPrincipal User user){
-        List<UserBook> userBooks = userBookService.getUserBooks(user.getId());
-        //Convert UserBook entities to BookDTOs for the response
-        List<BookDTO> bookDTOS = userBooks.stream()
-                .map(userBook -> BookDTO.fromUserBook(userBook))
-                .collect(Collectors.toList());
+        List<BookDTO> bookDTOS = libraryService.getUserBooksWithCoverInfo(user.getId());
         return ResponseEntity.ok(bookDTOS);
     }
 
