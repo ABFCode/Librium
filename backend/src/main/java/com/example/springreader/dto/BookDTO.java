@@ -25,14 +25,14 @@ public class BookDTO {
      * @param userBook The UserBook entity containing book and progress info.
      * @return A new BookDTO instance.
      */
-    public static BookDTO fromUserBook(UserBook userBook){
+    public static BookDTO fromUserBook(UserBook userBook, boolean hasCoverImage){
         BookDTO bookDTO = new BookDTO();
         Book book = userBook.getBook();
         bookDTO.setId(book.getId());
         bookDTO.setTitle(book.getTitle());
         bookDTO.setAuthor(book.getAuthor().getName());
         bookDTO.setLastChapterIndex(userBook.getLastChapterIndex());
-        bookDTO.setHasCoverImage(book.getCoverImagePath() != null);
+        bookDTO.setHasCoverImage(hasCoverImage);
         return bookDTO;
     }
 }

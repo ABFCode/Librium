@@ -17,7 +17,7 @@ import java.util.List;
  */
 @Entity
 @Data
-@Table(name = "books", indexes = {@Index(name="idx_books_is_default", columnList = "isDefault")})
+@Table(name = "books")
 @NoArgsConstructor
 public class Book {
     @Id
@@ -31,10 +31,12 @@ public class Book {
     @JoinColumn(name = "author_id", nullable = false)
     private Author author;
 
-    @Column(nullable = false)
-    private String filePath;
+    @OneToOne(mappedBy = "book", cascade = CascadeType.ALL, orphanRemoval = true)
+    private BookFile bookFile;
 
-    private String coverImagePath;
+    @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<BookImage> images = new ArrayList<>();
+
 
     /**
      * Flag indicating if this book is a default book provided with the application.
@@ -54,6 +56,11 @@ public class Book {
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
+    public boolean hasCoverImage() {
+        return images.stream()
+                .anyMatch(img -> ImageType.COVER.equals(img.getImageType()));
+    }
+
     /**
      * Adds a new chapter to this book's list of chapters.
      *
@@ -62,9 +69,7 @@ public class Book {
     public void addChapter(Chapter chapter){
         chapters.add(chapter);
     }
-    public Book(String title, String filePath, String coverImagePath){
+    public Book(String title){
         this.title = title;
-        this.filePath = filePath;
-        this.coverImagePath = coverImagePath;
     }
 }

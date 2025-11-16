@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
  */
 @Entity
 @NoArgsConstructor
-@Table(name = "chapters", indexes = {@Index(name = "idx_chapters_book_chapter", columnList = "book_id, chapterIndex")})
+@Table(name = "chapters")
 @Data
 public class Chapter {
 

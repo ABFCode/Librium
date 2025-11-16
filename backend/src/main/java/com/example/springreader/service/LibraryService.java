@@ -1,15 +1,13 @@
 package com.example.springreader.service;
 
+import com.example.springreader.dto.BookDTO;
 import com.example.springreader.dto.BookMetaDTO;
 import com.example.springreader.dto.ChapterContentDTO;
 import com.example.springreader.dto.ChapterDTO;
 import com.example.springreader.exception.EpubProcessingException;
 import com.example.springreader.exception.ResourceNotFoundException;
 import com.example.springreader.model.*;
-import com.example.springreader.repository.AuthorRepository;
-import com.example.springreader.repository.BookRepository;
-import com.example.springreader.repository.ChapterRepository;
-import com.example.springreader.repository.UserBookRepository;
+import com.example.springreader.repository.*;
 import com.example.springreader.utility.EpubParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Service layer for managing books and their related data (metadata, chapters, cover images).
@@ -39,6 +38,8 @@ public class LibraryService {
     private final ChapterRepository chapterRepository;
     private final UserBookRepository userBookRepository;
     private final AuthorRepository authorRepository;
+    private final BookFileRepository bookFileRepository;
+    private final BookImageRepository bookImageRepository;
     private final Path uploadDir;
     private final EpubParser epubParser;
 
@@ -80,15 +81,37 @@ public class LibraryService {
             log.warn("No cover data found for epub: {}", epubFile.getName());
         }
 
-        Book book = new Book(title, epubFile.getName(), coverImagePath);
+        Book book = new Book(title);
         book.setAuthor(author);
 
-        //Persist each chapter associated with the book
         for(EpubChapter EpubChapter: flattenedToc){
             Chapter chapter = new Chapter(EpubChapter.title(), EpubChapter.index(), EpubChapter.filePath(), EpubChapter.anchor(), book);
-            book.addChapter(chapter); //Associates chapter with book before saving
+            book.addChapter(chapter);
         }
-        return  bookRepository.save(book); //Saves book and cascades to save chapters
+        book = bookRepository.save(book);
+
+        BookFile bookFile = new BookFile(
+                epubFile.getName(),
+                FileFormat.EPUB,
+                epubFile.length(),
+                book
+        );
+        bookFileRepository.save(bookFile);
+
+        if (coverImagePath != null) {
+            String mediaType = coverImagePath.endsWith(".png") ? "image/png" : "image/jpeg";
+            java.io.File coverFile = uploadDir.resolve(coverImagePath).toFile();
+
+            BookImage coverImage = new BookImage(
+                    coverImagePath,
+                    mediaType,
+                    coverFile.length(),
+                    ImageType.COVER,
+                    book
+            );
+            bookImageRepository.save(coverImage);
+        }
+        return book;
     }
 
     /**
@@ -170,29 +193,26 @@ public class LibraryService {
             return;
         }
 
-        String epubFilePath = book.getFilePath();
-        String coverImagePath = book.getCoverImagePath();
-
-        //Delete the user-book association
         userBookRepository.delete(userBook);
         log.info("Deleted UserBook association for bookId: {} and userId: {}", bookId, userId);
 
-        //Check if the book is default
         if(book.isDefault()){
             log.info("Skipping deletion of default book for user: {}", userId);
         }
         else{
+            bookFileRepository.findByBookId(bookId).ifPresent(bookFile -> {
+                deleteFile(bookFile.getFilePath(), "epub");
+                log.info("Epub file deleted with path: {}", bookFile.getFilePath());
+            });
+
+            bookImageRepository.findByBookIdAndImageType(bookId, ImageType.COVER).ifPresent(coverImage -> {
+                deleteFile(coverImage.getFilePath(), "cover image");
+                log.info("Cover image deleted with path: {}", coverImage.getFilePath());
+            });
+
             bookRepository.delete(book);
-            deleteFile(epubFilePath, "epub");
-            log.info("Epub file deleted with path: {}", epubFilePath);
-            if(coverImagePath != null && !coverImagePath.isBlank()){
-                deleteFile(coverImagePath, "cover image");
-                log.info("Cover image deleted with path: {}", coverImagePath);
-            }
             log.info("Book record deleted with id: {}", bookId);
         }
-        log.info("Book record deleted with id: {}", bookId);
-
     }
 
     /**
@@ -277,12 +297,10 @@ public class LibraryService {
                 .orElseThrow(() -> new ResourceNotFoundException("UserBook not found with bookId: " + bookId + " and User Id: " + userId));
 
         Book book = userBook.getBook();
-        String relativeFilePath = book.getFilePath();
-        if(relativeFilePath == null || relativeFilePath.isBlank()){
-            log.error("Book file path is missing for bookId: {}", bookId);
-            throw new ResourceNotFoundException("Book file path is missing for bookId: " + bookId);
-        }
+        BookFile bookFile = bookFileRepository.findByBookId(bookId)
+                .orElseThrow(() -> new ResourceNotFoundException("Book file not found for bookId: " + bookId));
 
+        String relativeFilePath = bookFile.getFilePath();
         Path absoluteFilePath = uploadDir.resolve(relativeFilePath).normalize();
 
         if (!absoluteFilePath.startsWith(uploadDir.normalize())) {
@@ -298,7 +316,6 @@ public class LibraryService {
         }
 
         Map<String, Object> bookInfo = new HashMap<>();
-        // Use the original filename stored in the Book entity if available, otherwise derive from path
         bookInfo.put("fileName", Path.of(relativeFilePath).getFileName().toString());
         bookInfo.put("bookData", bookData);
 
@@ -323,7 +340,9 @@ public class LibraryService {
 
         Chapter chapter = chapterRepository.findByBookIdAndChapterIndex(bookId, chapterIndex);
 
-        Path epubPath = uploadDir.resolve(book.getFilePath()).normalize();
+        BookFile bookFile = bookFileRepository.findByBookId(bookId)
+                .orElseThrow(() -> new ResourceNotFoundException("Book file not found for bookId: " + bookId));
+        Path epubPath = uploadDir.resolve(bookFile.getFilePath()).normalize();
 
         if (!epubPath.startsWith(uploadDir.normalize())) {
             log.error("Attempted to access EPUB file outside of the upload directory: {}", epubPath);
@@ -353,12 +372,10 @@ public class LibraryService {
                 .orElseThrow(() -> new ResourceNotFoundException("UserBook not found for bookId: " + bookId + " and userId: " + userId));
 
         Book book = userBook.getBook();
-        String coverImagePath = book.getCoverImagePath();
-        if(coverImagePath == null || coverImagePath.isBlank()){
-            log.warn("Book cover image path is missing for bookId: {}", bookId);
-            throw new ResourceNotFoundException("Book cover image path is missing for bookId: " + bookId);
-        }
+        BookImage coverImage = bookImageRepository.findByBookIdAndImageType(bookId, ImageType.COVER)
+                .orElseThrow(() -> new ResourceNotFoundException("Cover image not found for bookId: " + bookId));
 
+        String coverImagePath = coverImage.getFilePath();
         Path absoluteCoverImagePath = uploadDir.resolve(coverImagePath).normalize();
 
         if (!absoluteCoverImagePath.startsWith(uploadDir.normalize())) {
@@ -373,15 +390,25 @@ public class LibraryService {
             throw new ResourceNotFoundException("Cover Image File", "Path: " + absoluteCoverImagePath);
         }
 
-        MediaType contentType = MediaType.IMAGE_JPEG; //Default to JPEG
-        if(coverImagePath.endsWith(".png")){
-            contentType = MediaType.IMAGE_PNG;
-        }
+        MediaType contentType = MediaType.parseMediaType(coverImage.getMediaType());
 
         Map<String, Object> response = new HashMap<>();
         response.put("coverImage", resource);
         response.put("contentType", contentType);
 
         return response;
+    }
+
+    @Transactional(readOnly = true)
+    public List<BookDTO> getUserBooksWithCoverInfo(Long userId) {
+        List<UserBook> userBooks = userBookRepository.findByUserId(userId);
+
+        return userBooks.stream()
+                .map(userBook -> {
+                    Long bookId = userBook.getBook().getId();
+                    boolean hasCover = bookImageRepository.findByBookIdAndImageType(bookId, ImageType.COVER).isPresent();
+                    return BookDTO.fromUserBook(userBook, hasCover);
+                })
+                .collect(Collectors.toList());
     }
 }
