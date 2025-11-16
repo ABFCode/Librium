@@ -6,6 +6,7 @@ import com.example.springreader.dto.ChapterDTO;
 import com.example.springreader.exception.EpubProcessingException;
 import com.example.springreader.exception.ResourceNotFoundException;
 import com.example.springreader.model.*;
+import com.example.springreader.repository.AuthorRepository;
 import com.example.springreader.repository.BookRepository;
 import com.example.springreader.repository.ChapterRepository;
 import com.example.springreader.repository.UserBookRepository;
@@ -37,6 +38,7 @@ public class LibraryService {
     private final BookRepository bookRepository;
     private final ChapterRepository chapterRepository;
     private final UserBookRepository userBookRepository;
+    private final AuthorRepository authorRepository;
     private final Path uploadDir;
     private final EpubParser epubParser;
 
@@ -54,7 +56,15 @@ public class LibraryService {
     public Book addBook(File epubFile) throws IOException, EpubProcessingException {
         Map<String, Object> meta = epubParser.parseMeta(epubFile);
         String title = epubParser.getTitle(meta);
-        String author = epubParser.getAuthor(meta);
+
+        String authorName = epubParser.getAuthor(meta);
+        if (authorName == null || authorName.isBlank()) {
+            authorName = "Unknown Author";
+        }
+        String finalAuthorName = authorName;
+        Author author = authorRepository.findByName(authorName)
+                .orElseGet(() -> authorRepository.save(new Author(finalAuthorName)));
+
         String coverImagePath = null;
 
         EpubToc toc = epubParser.getToc(meta);
@@ -70,7 +80,8 @@ public class LibraryService {
             log.warn("No cover data found for epub: {}", epubFile.getName());
         }
 
-        Book book = new Book(title, author, epubFile.getName(), coverImagePath);
+        Book book = new Book(title, epubFile.getName(), coverImagePath);
+        book.setAuthor(author);
 
         //Persist each chapter associated with the book
         for(EpubChapter EpubChapter: flattenedToc){
@@ -248,7 +259,7 @@ public class LibraryService {
                 .map(chapter -> new ChapterDTO(chapter.getTitle(), chapter.getAnchor(), chapter.getChapterIndex()))
                 .toList();
 
-        return new BookMetaDTO(book.getTitle(), book.getAuthor(), chapters);
+        return new BookMetaDTO(book.getTitle(), book.getAuthor().getName(), chapters);
     }
 
     /**

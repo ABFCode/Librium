@@ -30,7 +30,7 @@ public class BookDTO {
         Book book = userBook.getBook();
         bookDTO.setId(book.getId());
         bookDTO.setTitle(book.getTitle());
-        bookDTO.setAuthor(book.getAuthor());
+        bookDTO.setAuthor(book.getAuthor().getName());
         bookDTO.setLastChapterIndex(userBook.getLastChapterIndex());
         bookDTO.setHasCoverImage(book.getCoverImagePath() != null);
         return bookDTO;
