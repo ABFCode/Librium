@@ -40,6 +40,7 @@ public class LibraryService {
     private final AuthorRepository authorRepository;
     private final BookFileRepository bookFileRepository;
     private final BookImageRepository bookImageRepository;
+    private final DefaultBookRepository defaultBookRepository;
     private final Path uploadDir;
     private final EpubParser epubParser;
 
@@ -196,7 +197,10 @@ public class LibraryService {
         userBookRepository.delete(userBook);
         log.info("Deleted UserBook association for bookId: {} and userId: {}", bookId, userId);
 
-        if(book.isDefault()){
+        boolean isDefaultBook = defaultBookRepository.findAll().stream()
+                .anyMatch(db -> db.getBook().getId().equals(bookId));
+
+        if(isDefaultBook){
             log.info("Skipping deletion of default book for user: {}", userId);
         }
         else{

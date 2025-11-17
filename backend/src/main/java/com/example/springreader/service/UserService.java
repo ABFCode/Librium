@@ -3,9 +3,11 @@ package com.example.springreader.service;
 import com.example.springreader.dto.LoginRequest;
 import com.example.springreader.exception.UsernameAlreadyExistsException;
 import com.example.springreader.model.Book;
+import com.example.springreader.model.DefaultBook;
 import com.example.springreader.model.User;
 import com.example.springreader.model.UserBook;
 import com.example.springreader.repository.BookRepository;
+import com.example.springreader.repository.DefaultBookRepository;
 import com.example.springreader.repository.UserBookRepository;
 import com.example.springreader.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -26,6 +29,7 @@ import java.util.Optional;
 @Slf4j
 public class UserService {
     private final UserRepository userRepository;
+    private final DefaultBookRepository defaultBookRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final BookRepository bookRepository;
@@ -71,19 +75,17 @@ public class UserService {
         userRepository.save(newUser);
         log.info("Registered new user: {}", newUser.getUsername());
 
-        //Associate default book with new user
-        Optional<Book> defaultBookOpt = bookRepository.findByisDefaultTrue();
-        if(defaultBookOpt.isPresent()){
-            Book defaultBook = defaultBookOpt.get();
+        List<DefaultBook> defaultBooks = defaultBookRepository.findAll();
+        for (DefaultBook defaultBook : defaultBooks) {
             UserBook userBook = new UserBook();
             userBook.setUser(newUser);
-            userBook.setBook(defaultBook);
+            userBook.setBook(defaultBook.getBook());
             userBookRepository.save(userBook);
-            log.info("Associated default book (ID: {}) with new user: {}", defaultBook.getId(), newUser.getUsername());
+            log.info("Associated default book (ID: {}) with new user: {}", defaultBook.getBook().getId(), newUser.getUsername());
         }
-        else{
-            //This should never happen, BookInitService is broken.
-            log.error("Default book not found in DB during registration for user: {}", newUser.getUsername());
+
+        if (defaultBooks.isEmpty()) {
+            log.warn("No default books found in DB during registration for user: {}", newUser.getUsername());
         }
     }
 }
