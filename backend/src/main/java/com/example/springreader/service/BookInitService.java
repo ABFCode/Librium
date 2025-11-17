@@ -1,7 +1,9 @@
 package com.example.springreader.service;
 
 import com.example.springreader.model.Book;
+import com.example.springreader.model.DefaultBook;
 import com.example.springreader.repository.BookRepository;
+import com.example.springreader.repository.DefaultBookRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +19,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,6 +32,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BookInitService {
     private final BookRepository bookRepository;
+    private final DefaultBookRepository defaultBookRepository;
     private final ResourceLoader resourceLoader;
     private final Path uploadDir;
     private final LibraryService libraryService;
@@ -50,40 +54,42 @@ public class BookInitService {
     @PostConstruct
     @Transactional
     public void initializeDefaultBook(){
-        Optional<Book> existingDefaultBook = bookRepository.findByisDefaultTrue();
+        List<DefaultBook> existingDefaultBooks = defaultBookRepository.findAll();
 
-        if(existingDefaultBook.isEmpty()){
-            try {
-                Resource resource = resourceLoader.getResource(defaultBookPath);
-                if(!resource.exists()){
-                    log.error("Default book file not found at path: {}", defaultBookPath);
-                    return;
-                }
+        if(!existingDefaultBooks.isEmpty()){
+            DefaultBook existingDefault = existingDefaultBooks.get(0);
+            log.info("Default book already exists in DB with title: {} and ID: {}",
+                    existingDefault.getBook().getTitle(), existingDefault.getBook().getId());
+            return;
+        }
 
-                //Generate a unique name to avoid potential conflicts if run multiple times somehow
-                String fileName = "default-" + UUID.randomUUID() + ".epub";
-                Path targetPath = uploadDir.resolve(fileName);
-
-                try(InputStream inputStream = resource.getInputStream()){
-                    Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
-                    log.info("Default book file copied to: {}", targetPath);
-                }
-
-                File bookFile = targetPath.toFile();
-                Book book = libraryService.addBook(bookFile); //Use LibraryService to handle parsing and DB entry
-                book.setDefault(true); //Mark this book as the default one
-                bookRepository.save(book);
-
-                log.info("Is bookdefault : {}", book.isDefault());
-                log.info("Default book with title: {} and ID: {} added to DB", book.getTitle(), book.getId());
-
-            } catch (IOException e) {
-                log.error("IOException while initializing default book", e);
-            } catch (Exception e){
-                log.error("General exception while initializing default book", e);
+        try {
+            Resource resource = resourceLoader.getResource(defaultBookPath);
+            if(!resource.exists()){
+                log.error("Default book file not found at path: {}", defaultBookPath);
+                return;
             }
-        } else {
-            log.info("Default book already exists in DB with title: {} and ID: {}", existingDefaultBook.get().getTitle(), existingDefaultBook.get().getId());
+
+            String fileName = "default-" + UUID.randomUUID() + ".epub";
+            Path targetPath = uploadDir.resolve(fileName);
+
+            try(InputStream inputStream = resource.getInputStream()){
+                Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                log.info("Default book file copied to: {}", targetPath);
+            }
+
+            File bookFile = targetPath.toFile();
+            Book book = libraryService.addBook(bookFile);
+
+            DefaultBook defaultBook = new DefaultBook(book);
+            defaultBookRepository.save(defaultBook);
+
+            log.info("Default book with title: {} and ID: {} added to DB", book.getTitle(), book.getId());
+
+        } catch (IOException e) {
+            log.error("IOException while initializing default book", e);
+        } catch (Exception e){
+            log.error("General exception while initializing default book", e);
         }
     }
 }

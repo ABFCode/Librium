@@ -17,7 +17,4 @@ import java.util.Optional;
  * Spring Data JPA automatically generates the implementation at runtime, enabling
  * interaction with the database without the need for boilerplate code.
  */
-public interface BookRepository extends JpaRepository<Book, Long> {
-
-    Optional<Book> findByisDefaultTrue();
-}
+public interface BookRepository extends JpaRepository<Book, Long> { }

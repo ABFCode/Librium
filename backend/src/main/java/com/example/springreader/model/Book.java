@@ -13,7 +13,6 @@ import java.util.List;
  * Represents a Book entity in the application.
  * This entity stores information about a book, including its title, author,
  * file path for the content, path for the cover image, and its associated chapters.
- * An index is defined on the isDefault column for optimized querying.
  */
 @Entity
 @Data
@@ -36,14 +35,6 @@ public class Book {
 
     @OneToMany(mappedBy = "book", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<BookImage> images = new ArrayList<>();
-
-
-    /**
-     * Flag indicating if this book is a default book provided with the application.
-     * Defaults to false.Indexed for faster lookups.
-     */
-    @Column(nullable = false)
-    private boolean isDefault = false;
 
     /**
      * A list of chapters belonging to this book.
