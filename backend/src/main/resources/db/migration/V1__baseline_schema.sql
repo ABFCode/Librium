@@ -26,6 +26,7 @@ CREATE TABLE chapters (
                               REFERENCES books(id) ON DELETE CASCADE
 );
 
+-- Composite index for efficient chapter retrieval by book and chapter order
 CREATE INDEX idx_chapters_book_chapter ON chapters(book_id, chapter_index);
 
 CREATE TABLE user_books (

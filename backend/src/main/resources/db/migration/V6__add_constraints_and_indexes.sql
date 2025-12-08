@@ -45,5 +45,7 @@ ALTER TABLE book_images ADD CONSTRAINT chk_book_images_height CHECK (height IS N
 
 ALTER TABLE user_books ADD CONSTRAINT uk_user_books_user_book UNIQUE (user_id, book_id);
 
+-- Index on user_id for fast retrieval of all books in a user library
 CREATE INDEX idx_user_books_user ON user_books(user_id);
+-- Composite index supporting the unique constraint and fast user-book lookups
 CREATE INDEX idx_user_books_user_book ON user_books(user_id, book_id);

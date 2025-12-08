@@ -9,6 +9,7 @@ ALTER TABLE books ADD CONSTRAINT fk_books_author
     FOREIGN KEY (author_id) REFERENCES authors(id)
         ON DELETE RESTRICT;
 
+-- Index on author_id for fast lookups when filtering books by author
 CREATE INDEX idx_books_author ON books (author_id);
 
 ALTER TABLE books DROP COLUMN IF EXISTS author;
