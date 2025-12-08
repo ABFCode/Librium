@@ -43,7 +43,7 @@ public class UserBook {
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp
+//    @UpdateTimestamp
     private LocalDateTime lastAccessed;
 
 
