@@ -1,6 +1,7 @@
 package com.example.springreader.controller;
 
 import com.example.springreader.dto.BookDTO;
+import com.example.springreader.dto.BookUpdateDTO;
 import com.example.springreader.model.Book;
 import com.example.springreader.model.User;
 import com.example.springreader.model.UserBook;
@@ -141,6 +142,22 @@ public class LibraryController {
     @DeleteMapping("/delete/{bookId}")
     public ResponseEntity<Void> deleteBook(@PathVariable Long bookId, @AuthenticationPrincipal User user){
         libraryService.deleteBook(bookId, user.getId());
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Updates the title and/or author of a book in the user's library.
+     *
+     * @param bookId The ID of the book to update.
+     * @param bookUpdateDTO DTO containing the new title and/or author name.
+     * @param user The currently authenticated user.
+     * @return ResponseEntity indicating success (200 OK) or failure.
+     */
+    @PutMapping("/update/{bookId}")
+    public ResponseEntity<Void> updateBook(@PathVariable Long bookId, 
+                                          @RequestBody BookUpdateDTO bookUpdateDTO,
+                                          @AuthenticationPrincipal User user){
+        libraryService.updateBook(bookId, user.getId(), bookUpdateDTO.title(), bookUpdateDTO.authorName());
         return ResponseEntity.ok().build();
     }
 
