@@ -23,7 +23,9 @@ CREATE TABLE book_images (
                                  REFERENCES books(id) ON DELETE CASCADE
 );
 
+-- Composite index for filtering images by book and type (COVER vs CONTENT)
 CREATE INDEX idx_book_images_book_type ON book_images(book_id, image_type);
+-- Unique partial index ensuring one cover image per book and fast cover lookups
 CREATE UNIQUE INDEX idx_book_images_cover ON book_images(book_id) WHERE image_type = 'COVER';
 
 ALTER TABLE books DROP COLUMN file_path;
