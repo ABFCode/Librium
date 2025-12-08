@@ -415,4 +415,36 @@ public class LibraryService {
                 })
                 .collect(Collectors.toList());
     }
+
+    /**
+     * Updates the title and/or author of a book.
+     *
+     * @param bookId The ID of the book to update.
+     * @param userId The ID of the user making the update (must own the book).
+     * @param title The new title (optional, can be null).
+     * @param authorName The new author name (optional, can be null).
+     * @throws ResourceNotFoundException If the book is not found or user doesn't have access.
+     */
+    @Transactional
+    public void updateBook(Long bookId, Long userId, String title, String authorName) {
+        UserBook userBook = userBookRepository.findByUserIdAndBookId(userId, bookId)
+                .orElseThrow(() -> new ResourceNotFoundException("Book not found with id: " + bookId + " for userId: " + userId));
+
+        Book book = userBook.getBook();
+        
+        if (title != null && !title.isBlank()) {
+            book.setTitle(title);
+            log.info("Updated title for bookId: {} to: {}", bookId, title);
+        }
+
+        if (authorName != null && !authorName.isBlank()) {
+            String finalAuthorName = authorName;
+            Author author = authorRepository.findByName(authorName)
+                    .orElseGet(() -> authorRepository.save(new Author(finalAuthorName)));
+            book.setAuthor(author);
+            log.info("Updated author for bookId: {} to: {}", bookId, authorName);
+        }
+
+        bookRepository.save(book);
+    }
 }

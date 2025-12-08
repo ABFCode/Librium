@@ -1,6 +1,7 @@
 package com.example.springreader.service;
 
 import com.example.springreader.dto.LoginRequest;
+import com.example.springreader.exception.ResourceNotFoundException;
 import com.example.springreader.exception.UsernameAlreadyExistsException;
 import com.example.springreader.model.Book;
 import com.example.springreader.model.DefaultBook;
@@ -87,5 +88,22 @@ public class UserService {
         if (defaultBooks.isEmpty()) {
             log.warn("No default books found in DB during registration for user: {}", newUser.getUsername());
         }
+    }
+
+    /**
+     * Updates the password for the currently authenticated user.
+     *
+     * @param userId The ID of the user to update.
+     * @param newPassword The new password to set (will be encoded before saving).
+     * @throws ResourceNotFoundException If the user is not found.
+     */
+    @Transactional
+    public void updatePassword(Long userId, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+        
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        log.info("Updated password for user: {}", user.getUsername());
     }
 }

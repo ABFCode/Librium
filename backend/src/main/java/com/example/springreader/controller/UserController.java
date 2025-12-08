@@ -1,12 +1,15 @@
 package com.example.springreader.controller;
 
 import com.example.springreader.dto.LoginRequest;
+import com.example.springreader.dto.UserUpdateDTO;
+import com.example.springreader.model.User;
 import com.example.springreader.service.UserService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -103,6 +106,20 @@ public class UserController {
      */
     @GetMapping("/validate")
     public ResponseEntity<Void> validateToken(){
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Updates the password for the currently authenticated user.
+     *
+     * @param userUpdateDTO DTO containing the new password.
+     * @param user The currently authenticated user making the request.
+     * @return ResponseEntity indicating success (200 OK).
+     */
+    @PutMapping("/update")
+    public ResponseEntity<Void> updateUser(@RequestBody UserUpdateDTO userUpdateDTO, 
+                                           @AuthenticationPrincipal User user) {
+        userService.updatePassword(user.getId(), userUpdateDTO.password());
         return ResponseEntity.ok().build();
     }
 }
