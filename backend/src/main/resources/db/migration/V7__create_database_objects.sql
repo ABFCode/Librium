@@ -71,3 +71,49 @@ CREATE TRIGGER trigger_update_last_accessed
     FOR EACH ROW
     WHEN (OLD.last_chapter_index IS DISTINCT FROM NEW.last_chapter_index)
     EXECUTE FUNCTION update_last_accessed();
+
+CREATE OR REPLACE FUNCTION get_authors_with_book_counts()
+RETURNS TABLE (
+    author_id BIGINT,
+    author_name VARCHAR,
+    book_count INTEGER
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        a.id AS author_id,
+        a.name AS author_name,
+        COUNT(b.id)::INTEGER AS book_count
+    FROM authors a
+    LEFT JOIN books b ON b.author_id = a.id
+    GROUP BY a.id, a.name
+    ORDER BY book_count DESC, a.name ASC;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION get_recently_accessed_books(p_user_id BIGINT, p_limit INTEGER DEFAULT 10)
+RETURNS TABLE (
+    book_id BIGINT,
+    book_title VARCHAR,
+    last_accessed TIMESTAMP,
+    last_chapter_index INTEGER
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        b.id AS book_id,
+        b.title AS book_title,
+        ub.last_accessed,
+        ub.last_chapter_index
+    FROM user_books ub
+    JOIN books b ON b.id = ub.book_id
+    WHERE ub.user_id = p_user_id
+    AND ub.last_accessed IS NOT NULL
+    ORDER BY ub.last_accessed DESC
+    LIMIT p_limit;
+END;
+$$;
