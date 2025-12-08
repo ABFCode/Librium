@@ -45,12 +45,27 @@ public class UserBookService {
      * @param user The currently authenticated User making the update.
      * @throws ResourceNotFoundException if no UserBook association exists for the given user and bookId.
      */
+//    @Transactional
+//    public void saveBookProgress(UserBookProgressDTO progressDTO, User user) {
+//        UserBook userBook = userBookRepository.findByUserIdAndBookId(user.getId(), progressDTO.bookId())
+//                .orElseThrow(() -> new ResourceNotFoundException("UserBook not found for user: " + user.getId() + " and book: " + progressDTO.bookId()));
+//        userBook.setLastChapterIndex(progressDTO.lastChapterIndex());
+//        userBookRepository.save(userBook);
+//    }
+
     @Transactional
     public void saveBookProgress(UserBookProgressDTO progressDTO, User user) {
-        UserBook userBook = userBookRepository.findByUserIdAndBookId(user.getId(), progressDTO.bookId())
-                .orElseThrow(() -> new ResourceNotFoundException("UserBook not found for user: " + user.getId() + " and book: " + progressDTO.bookId()));
-        userBook.setLastChapterIndex(progressDTO.lastChapterIndex());
-        userBookRepository.save(userBook);
+        try {
+            userBookRepository.updateReadingProgress(
+                    user.getId(),
+                    progressDTO.bookId(),
+                    progressDTO.lastChapterIndex()
+            );
+        } catch (Exception e) {
+            throw new ResourceNotFoundException(
+                    "Failed to update reading progress: " + e.getMessage()
+            );
+        }
     }
 
 
