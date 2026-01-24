@@ -55,9 +55,15 @@ export const Route = createFileRoute('/api/import')({
 
         const body = await response.json()
         if (response.ok) {
+          const title = file.name.replace(/\.epub$/i, '')
+          const bookId = await convex.mutation('books:createBook', {
+            ownerId: userId,
+            title,
+          })
           await convex.mutation('importJobs:updateImportJobStatus', {
             importJobId,
             status: 'completed',
+            bookId,
           })
         } else {
           await convex.mutation('importJobs:updateImportJobStatus', {
