@@ -70,8 +70,13 @@ function Reader() {
   const rowVirtualizer = useVirtualizer({
     count: chunks.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 56,
+    estimateSize: () => 120,
+    getItemKey: (index) => chunks[index]?.id ?? index,
     overscan: 10,
+    measureElement:
+      typeof ResizeObserver !== 'undefined'
+        ? (element) => element.getBoundingClientRect().height
+        : undefined,
   })
 
   return (
@@ -116,34 +121,12 @@ function Reader() {
             ref={parentRef}
             className="h-[60vh] overflow-auto rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left text-sm text-slate-200"
           >
-          <div
-            style={{
-              height: rowVirtualizer.getTotalSize(),
-              width: '100%',
-              position: 'relative',
-            }}
-          >
-            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const chunk = chunks[virtualRow.index]
-              return (
-                <div
-                  key={chunk.id}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                >
-                  <div className="py-3 leading-relaxed">
-                    {chunk.content}
-                  </div>
-                </div>
-              )
-            })}
+            {chunks.map((chunk) => (
+              <div key={chunk.id} className="py-3 leading-relaxed whitespace-pre-wrap break-words">
+                {chunk.content}
+              </div>
+            ))}
           </div>
-        </div>
         <div>
           <button
             className="mt-4 inline-flex items-center justify-center rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300"

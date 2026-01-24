@@ -8,8 +8,14 @@ export const Route = createFileRoute('/')({ component: App })
 
 function App() {
   const userId = useLocalUser()
-  const [file, setFile] = useState<File | null>(null)
-  const [result, setResult] = useState<unknown | null>(null)
+  const [files, setFiles] = useState<File[]>([])
+  const [isDragging, setIsDragging] = useState(false)
+  const [result, setResult] = useState<{
+    fileName: string
+    fileSize: number
+    sections: number
+    chunks: number
+  } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const importJobs = useQuery(
@@ -18,8 +24,8 @@ function App() {
   )
 
   const submit = async () => {
-    if (!file) {
-      setError('Select an EPUB file first.')
+    if (files.length === 0) {
+      setError('Select at least one EPUB file.')
       return
     }
     if (!userId) {
@@ -29,20 +35,38 @@ function App() {
     setIsUploading(true)
     setError(null)
     setResult(null)
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('userId', userId)
-    const response = await fetch('/api/import', {
-      method: 'POST',
-      body: formData,
-    })
-    const body = await response.json()
-    if (!response.ok) {
-      setError(body?.error ?? 'Upload failed')
-    } else {
-      setResult(body)
+    for (const file of files) {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('userId', userId)
+      const response = await fetch('/api/import', {
+        method: 'POST',
+        body: formData,
+      })
+      const body = await response.json()
+      if (!response.ok) {
+        setError(body?.error ?? `Upload failed for ${file.name}`)
+        continue
+      }
+      setResult({
+        fileName: body?.parser?.fileName ?? file.name,
+        fileSize: body?.parser?.fileSize ?? file.size,
+        sections: body?.parser?.sections?.length ?? 0,
+        chunks: body?.parser?.chunks?.length ?? 0,
+      })
     }
     setIsUploading(false)
+  }
+
+  const addFiles = (incoming: FileList | File[]) => {
+    const next = Array.from(incoming).filter((file) =>
+      file.name.toLowerCase().endsWith('.epub'),
+    )
+    if (next.length === 0) {
+      setError('Only EPUB files are supported.')
+      return
+    }
+    setFiles((prev) => [...prev, ...next])
   }
 
   return (
@@ -55,30 +79,76 @@ function App() {
           <p className="mt-2 text-sm text-slate-300">
             Upload an EPUB to run through the parser service.
           </p>
-          <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-center">
-            <input
-              className="w-full cursor-pointer rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-200 file:mr-4 file:rounded-md file:border-0 file:bg-slate-800 file:px-3 file:py-1 file:text-sm file:text-slate-200"
-              type="file"
-              accept=".epub,application/epub+zip"
-              onChange={(event) =>
-                setFile(event.target.files?.[0] ?? null)
-              }
-            />
-            <button
-              className="inline-flex items-center justify-center rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300"
-              onClick={submit}
-              disabled={isUploading || !file}
+          <div className="mt-6 flex flex-col gap-4">
+            <div
+              className={`flex min-h-[140px] flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-8 text-center text-sm transition ${
+                isDragging
+                  ? 'border-sky-400 bg-sky-500/10 text-sky-200'
+                  : 'border-slate-700 bg-slate-950/40 text-slate-300'
+              }`}
+              onDragEnter={(event) => {
+                event.preventDefault()
+                setIsDragging(true)
+              }}
+              onDragOver={(event) => {
+                event.preventDefault()
+                setIsDragging(true)
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(event) => {
+                event.preventDefault()
+                setIsDragging(false)
+                if (event.dataTransfer.files.length > 0) {
+                  addFiles(event.dataTransfer.files)
+                }
+              }}
             >
-              {isUploading ? 'Uploading...' : 'Import EPUB'}
-            </button>
+              <p className="text-base font-semibold">
+                Drag and drop EPUBs here
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                or use the file picker below
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+              <input
+                className="w-full cursor-pointer rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-200 file:mr-4 file:rounded-md file:border-0 file:bg-slate-800 file:px-3 file:py-1 file:text-sm file:text-slate-200"
+                type="file"
+                multiple
+                accept=".epub,application/epub+zip"
+                onChange={(event) => {
+                  if (event.target.files) {
+                    addFiles(event.target.files)
+                  }
+                }}
+              />
+              <button
+                className="inline-flex items-center justify-center rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300"
+                onClick={submit}
+                disabled={isUploading || files.length === 0}
+              >
+                {isUploading
+                  ? `Uploading ${files.length} file(s)...`
+                  : 'Import EPUB'}
+              </button>
+            </div>
           </div>
+          {files.length > 0 ? (
+            <div className="mt-4 text-xs text-slate-400">
+              Selected: {files.length} file(s)
+            </div>
+          ) : null}
           {error ? (
             <p className="mt-3 text-sm text-rose-400">{error}</p>
           ) : null}
           {result ? (
-            <pre className="mt-4 rounded-lg bg-slate-950 p-4 text-xs text-slate-200">
-              {JSON.stringify(result, null, 2)}
-            </pre>
+            <div className="mt-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+              <div className="font-semibold">{result.fileName}</div>
+              <div className="text-xs text-emerald-100/80">
+                {Math.round(result.fileSize / 1024)} KB •{' '}
+                {result.sections} sections • {result.chunks} chunks
+              </div>
+            </div>
           ) : null}
         </div>
 
