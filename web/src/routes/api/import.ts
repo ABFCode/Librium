@@ -59,10 +59,19 @@ export const Route = createFileRoute('/api/import')({
 
         const body = await response.json()
         if (response.ok) {
-          const title = file.name.replace(/\.epub$/i, '')
+          const parsedTitle =
+            body?.metadata?.title || file.name.replace(/\.epub$/i, '')
+          const authorList = Array.isArray(body?.metadata?.authors)
+            ? body.metadata.authors
+            : []
+          const author =
+            authorList.length > 0 ? authorList.join(', ') : undefined
+          const language = body?.metadata?.language || undefined
           const bookId = await convex.mutation('books:createBook', {
             ownerId: userId,
-            title,
+            title: parsedTitle,
+            author,
+            language,
           })
 
           await convex.mutation('userBooks:upsertUserBook', {
