@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import '../App.css'
+import { useLocalUser } from '../hooks/useLocalUser'
 
 export const Route = createFileRoute('/')({ component: App })
 
 function App() {
+  const userId = useLocalUser()
   const [file, setFile] = useState<File | null>(null)
   const [result, setResult] = useState<unknown | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -15,11 +17,16 @@ function App() {
       setError('Select an EPUB file first.')
       return
     }
+    if (!userId) {
+      setError('User not ready yet.')
+      return
+    }
     setIsUploading(true)
     setError(null)
     setResult(null)
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('userId', userId)
     const response = await fetch('/api/import', {
       method: 'POST',
       body: formData,

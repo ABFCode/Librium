@@ -1,28 +1,18 @@
-import { useEffect, useState } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useMutation, useQuery, skip } from 'convex/react'
-import type { Id } from 'convex/values'
+import { useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
+import { useLocalUser } from '../hooks/useLocalUser'
 
 export const Route = createFileRoute('/library')({
   component: Library,
 })
 
 function Library() {
-  const [userId, setUserId] = useState<Id<'users'> | null>(null)
-  const upsertUser = useMutation(api.users.upsertUser)
+  const userId = useLocalUser()
   const books = useQuery(
     api.books.listByOwner,
-    userId ? { ownerId: userId } : skip,
+    userId ? { ownerId: userId } : 'skip',
   )
-
-  useEffect(() => {
-    upsertUser({
-      authProvider: 'local',
-      externalId: 'local-dev',
-      name: 'Local Dev',
-    }).then(setUserId)
-  }, [upsertUser])
 
   return (
     <div className="App">
