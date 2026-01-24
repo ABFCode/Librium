@@ -12,9 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReaderBookIdRouteImport } from './routes/reader/$bookId'
-import { Route as ApiSectionsRouteImport } from './routes/api/sections'
 import { Route as ApiImportRouteImport } from './routes/api/import'
-import { Route as ApiChunksRouteImport } from './routes/api/chunks'
 import { Route as DemoStartServerFuncsRouteImport } from './routes/demo/start.server-funcs'
 import { Route as DemoStartApiRequestRouteImport } from './routes/demo/start.api-request'
 import { Route as DemoApiNamesRouteImport } from './routes/demo/api.names'
@@ -38,19 +36,9 @@ const ReaderBookIdRoute = ReaderBookIdRouteImport.update({
   path: '/reader/$bookId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSectionsRoute = ApiSectionsRouteImport.update({
-  id: '/api/sections',
-  path: '/api/sections',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiImportRoute = ApiImportRouteImport.update({
   id: '/api/import',
   path: '/api/import',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiChunksRoute = ApiChunksRouteImport.update({
-  id: '/api/chunks',
-  path: '/api/chunks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DemoStartServerFuncsRoute = DemoStartServerFuncsRouteImport.update({
@@ -92,9 +80,7 @@ const DemoStartSsrDataOnlyRoute = DemoStartSsrDataOnlyRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
-  '/api/chunks': typeof ApiChunksRoute
   '/api/import': typeof ApiImportRoute
-  '/api/sections': typeof ApiSectionsRoute
   '/reader/$bookId': typeof ReaderBookIdRoute
   '/demo/api/names': typeof DemoApiNamesRoute
   '/demo/start/api-request': typeof DemoStartApiRequestRoute
@@ -107,9 +93,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
-  '/api/chunks': typeof ApiChunksRoute
   '/api/import': typeof ApiImportRoute
-  '/api/sections': typeof ApiSectionsRoute
   '/reader/$bookId': typeof ReaderBookIdRoute
   '/demo/api/names': typeof DemoApiNamesRoute
   '/demo/start/api-request': typeof DemoStartApiRequestRoute
@@ -123,9 +107,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
-  '/api/chunks': typeof ApiChunksRoute
   '/api/import': typeof ApiImportRoute
-  '/api/sections': typeof ApiSectionsRoute
   '/reader/$bookId': typeof ReaderBookIdRoute
   '/demo/api/names': typeof DemoApiNamesRoute
   '/demo/start/api-request': typeof DemoStartApiRequestRoute
@@ -140,9 +122,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/library'
-    | '/api/chunks'
     | '/api/import'
-    | '/api/sections'
     | '/reader/$bookId'
     | '/demo/api/names'
     | '/demo/start/api-request'
@@ -155,9 +135,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/library'
-    | '/api/chunks'
     | '/api/import'
-    | '/api/sections'
     | '/reader/$bookId'
     | '/demo/api/names'
     | '/demo/start/api-request'
@@ -170,9 +148,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/library'
-    | '/api/chunks'
     | '/api/import'
-    | '/api/sections'
     | '/reader/$bookId'
     | '/demo/api/names'
     | '/demo/start/api-request'
@@ -186,9 +162,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LibraryRoute: typeof LibraryRoute
-  ApiChunksRoute: typeof ApiChunksRoute
   ApiImportRoute: typeof ApiImportRoute
-  ApiSectionsRoute: typeof ApiSectionsRoute
   ReaderBookIdRoute: typeof ReaderBookIdRoute
   DemoApiNamesRoute: typeof DemoApiNamesRoute
   DemoStartApiRequestRoute: typeof DemoStartApiRequestRoute
@@ -222,25 +196,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReaderBookIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/sections': {
-      id: '/api/sections'
-      path: '/api/sections'
-      fullPath: '/api/sections'
-      preLoaderRoute: typeof ApiSectionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/import': {
       id: '/api/import'
       path: '/api/import'
       fullPath: '/api/import'
       preLoaderRoute: typeof ApiImportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/chunks': {
-      id: '/api/chunks'
-      path: '/api/chunks'
-      fullPath: '/api/chunks'
-      preLoaderRoute: typeof ApiChunksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/demo/start/server-funcs': {
@@ -298,9 +258,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LibraryRoute: LibraryRoute,
-  ApiChunksRoute: ApiChunksRoute,
   ApiImportRoute: ApiImportRoute,
-  ApiSectionsRoute: ApiSectionsRoute,
   ReaderBookIdRoute: ReaderBookIdRoute,
   DemoApiNamesRoute: DemoApiNamesRoute,
   DemoStartApiRequestRoute: DemoStartApiRequestRoute,

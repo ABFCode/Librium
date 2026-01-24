@@ -12,6 +12,8 @@ import type * as books from "../books.js";
 import type * as chunks from "../chunks.js";
 import type * as importJobs from "../importJobs.js";
 import type * as sections from "../sections.js";
+import type * as seed from "../seed.js";
+import type * as userBooks from "../userBooks.js";
 import type * as users from "../users.js";
 
 import type {
@@ -25,6 +27,8 @@ declare const fullApi: ApiFromModules<{
   chunks: typeof chunks;
   importJobs: typeof importJobs;
   sections: typeof sections;
+  seed: typeof seed;
+  userBooks: typeof userBooks;
   users: typeof users;
 }>;
 

@@ -24,11 +24,15 @@ export const Route = createFileRoute('/api/import')({
         }
 
         const convex = getConvexClient()
-        const userId = await convex.mutation('users:upsertUser', {
-          authProvider: 'local',
-          externalId: 'local-dev',
-          name: 'Local Dev',
-        })
+        const providedUserId = formData.get('userId')
+        const userId =
+          typeof providedUserId === 'string' && providedUserId.length > 0
+            ? providedUserId
+            : await convex.mutation('users:upsertUser', {
+                authProvider: 'local',
+                externalId: 'local-dev',
+                name: 'Local Dev',
+              })
 
         const importJobId = await convex.mutation(
           'importJobs:createImportJob',
@@ -60,6 +64,16 @@ export const Route = createFileRoute('/api/import')({
             ownerId: userId,
             title,
           })
+
+          await convex.mutation('userBooks:upsertUserBook', {
+            userId,
+            bookId,
+          })
+
+          await convex.mutation('seed:seedBookContent', {
+            bookId,
+          })
+
           await convex.mutation('importJobs:updateImportJobStatus', {
             importJobId,
             status: 'completed',
@@ -74,7 +88,7 @@ export const Route = createFileRoute('/api/import')({
         }
 
         return json(
-          { importJobId, parser: body },
+          { importJobId, userId, parser: body },
           { status: response.status },
         )
       },
