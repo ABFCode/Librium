@@ -11,6 +11,7 @@
 import type * as chunks from "../chunks.js";
 import type * as importJobs from "../importJobs.js";
 import type * as sections from "../sections.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -22,6 +23,7 @@ declare const fullApi: ApiFromModules<{
   chunks: typeof chunks;
   importJobs: typeof importJobs;
   sections: typeof sections;
+  users: typeof users;
 }>;
 
 /**
