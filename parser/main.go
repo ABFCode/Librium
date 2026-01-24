@@ -48,12 +48,25 @@ type metadataPayload struct {
 	Title    string   `json:"title"`
 	Authors  []string `json:"authors"`
 	Language string   `json:"language"`
+	Publisher string  `json:"publisher"`
+	PublishedAt string `json:"publishedAt"`
+	Series string `json:"series"`
+	SeriesIndex string `json:"seriesIndex"`
+	Subjects []string `json:"subjects"`
+	Identifiers []identifierPayload `json:"identifiers"`
 }
 
 type warningPayload struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Path    string `json:"path"`
+}
+
+type identifierPayload struct {
+	ID     string `json:"id"`
+	Scheme string `json:"scheme"`
+	Value  string `json:"value"`
+	Type   string `json:"type"`
 }
 
 func main() {
@@ -158,11 +171,7 @@ func handleParse(w http.ResponseWriter, r *http.Request) {
 		Message:  message,
 		Sections: sections,
 		Chunks:   chunks,
-		Metadata: metadataPayload{
-			Title:    book.Metadata.Title,
-			Authors:  book.Metadata.Authors,
-			Language: book.Metadata.Language,
-		},
+		Metadata: buildMetadata(book.Metadata),
 		Warnings: mapWarnings(book.Warnings),
 	})
 }
@@ -324,6 +333,35 @@ func mapWarnings(warnings []spine.Warning) []warningPayload {
 		})
 	}
 	return out
+}
+
+func buildMetadata(meta spine.Metadata) metadataPayload {
+	subjects := make([]string, 0, len(meta.Subjects))
+	for _, subject := range meta.Subjects {
+		if subject.Value != "" {
+			subjects = append(subjects, subject.Value)
+		}
+	}
+	identifiers := make([]identifierPayload, 0, len(meta.Identifiers))
+	for _, ident := range meta.Identifiers {
+		identifiers = append(identifiers, identifierPayload{
+			ID:     ident.ID,
+			Scheme: ident.Scheme,
+			Value:  ident.Value,
+			Type:   ident.Type,
+		})
+	}
+	return metadataPayload{
+		Title:       meta.Title,
+		Authors:     meta.Authors,
+		Language:    meta.Language,
+		Publisher:   meta.Publisher,
+		PublishedAt: meta.PubDate,
+		Series:      meta.Series,
+		SeriesIndex: meta.SeriesIndex,
+		Subjects:    subjects,
+		Identifiers: identifiers,
+	}
 }
 
 func countWords(text string) int {
