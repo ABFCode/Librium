@@ -1,4 +1,4 @@
-import { ConvexHttpClient } from 'convex/node'
+import { ConvexHttpClient } from 'convex/browser'
 import { createFileRoute } from '@tanstack/react-router'
 import { json } from '@tanstack/react-start'
 
