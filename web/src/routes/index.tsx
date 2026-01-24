@@ -13,8 +13,7 @@ function App() {
   const [result, setResult] = useState<{
     fileName: string
     fileSize: number
-    sections: number
-    chunks: number
+    author: string
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
@@ -48,11 +47,15 @@ function App() {
         setError(body?.error ?? `Upload failed for ${file.name}`)
         continue
       }
+      const authorList = Array.isArray(body?.parser?.metadata?.authors)
+        ? body.parser.metadata.authors
+        : []
+      const author =
+        authorList.length > 0 ? authorList.join(', ') : 'Unknown author'
       setResult({
         fileName: body?.parser?.fileName ?? file.name,
         fileSize: body?.parser?.fileSize ?? file.size,
-        sections: body?.parser?.sections?.length ?? 0,
-        chunks: body?.parser?.chunks?.length ?? 0,
+        author,
       })
     }
     setIsUploading(false)
@@ -145,8 +148,7 @@ function App() {
             <div className="mt-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
               <div className="font-semibold">{result.fileName}</div>
               <div className="text-xs text-emerald-100/80">
-                {Math.round(result.fileSize / 1024)} KB •{' '}
-                {result.sections} sections • {result.chunks} chunks
+                {Math.round(result.fileSize / 1024)} KB • {result.author}
               </div>
             </div>
           ) : null}

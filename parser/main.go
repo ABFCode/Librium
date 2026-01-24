@@ -26,6 +26,8 @@ type parseResponse struct {
 	Message  string `json:"message"`
 	Sections []sectionPayload `json:"sections"`
 	Chunks   []chunkPayload `json:"chunks"`
+	Metadata metadataPayload `json:"metadata"`
+	Warnings []warningPayload `json:"warnings"`
 }
 
 type sectionPayload struct {
@@ -40,6 +42,18 @@ type chunkPayload struct {
 	EndOffset         int    `json:"endOffset"`
 	WordCount         int    `json:"wordCount"`
 	Content           string `json:"content"`
+}
+
+type metadataPayload struct {
+	Title    string   `json:"title"`
+	Authors  []string `json:"authors"`
+	Language string   `json:"language"`
+}
+
+type warningPayload struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Path    string `json:"path"`
 }
 
 func main() {
@@ -144,6 +158,12 @@ func handleParse(w http.ResponseWriter, r *http.Request) {
 		Message:  message,
 		Sections: sections,
 		Chunks:   chunks,
+		Metadata: metadataPayload{
+			Title:    book.Metadata.Title,
+			Authors:  book.Metadata.Authors,
+			Language: book.Metadata.Language,
+		},
+		Warnings: mapWarnings(book.Warnings),
 	})
 }
 
@@ -289,6 +309,21 @@ func resolveSectionIndex(chunkIndex int, anchors []sectionAnchor) int {
 		}
 	}
 	return best
+}
+
+func mapWarnings(warnings []spine.Warning) []warningPayload {
+	if len(warnings) == 0 {
+		return nil
+	}
+	out := make([]warningPayload, 0, len(warnings))
+	for _, warning := range warnings {
+		out = append(out, warningPayload{
+			Code:    warning.Code,
+			Message: warning.Message,
+			Path:    warning.Path,
+		})
+	}
+	return out
 }
 
 func countWords(text string) int {
