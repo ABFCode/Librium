@@ -14,6 +14,21 @@ const books = defineTable({
   title: v.string(),
   author: v.optional(v.string()),
   language: v.optional(v.string()),
+  publisher: v.optional(v.string()),
+  publishedAt: v.optional(v.string()),
+  series: v.optional(v.string()),
+  seriesIndex: v.optional(v.string()),
+  subjects: v.optional(v.array(v.string())),
+  identifiers: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        scheme: v.string(),
+        value: v.string(),
+        type: v.string(),
+      }),
+    ),
+  ),
   createdAt: v.number(),
   updatedAt: v.number(),
 }).index("by_owner", ["ownerId", "updatedAt"]);

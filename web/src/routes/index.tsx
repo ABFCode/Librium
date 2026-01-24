@@ -47,13 +47,15 @@ function App() {
         setError(body?.error ?? `Upload failed for ${file.name}`)
         continue
       }
-      const authorList = Array.isArray(body?.parser?.metadata?.authors)
-        ? body.parser.metadata.authors
+      const meta = body?.parser?.metadata ?? {}
+      const authorList = Array.isArray(meta?.authors)
+        ? meta.authors
         : []
       const author =
         authorList.length > 0 ? authorList.join(', ') : 'Unknown author'
+      const title = meta?.title || (body?.parser?.fileName ?? file.name)
       setResult({
-        fileName: body?.parser?.fileName ?? file.name,
+        fileName: title,
         fileSize: body?.parser?.fileSize ?? file.size,
         author,
       })
