@@ -70,9 +70,13 @@ export const Route = createFileRoute('/api/import')({
             bookId,
           })
 
-          await convex.mutation('seed:seedBookContent', {
-            bookId,
-          })
+          if (body?.sections && body?.chunks) {
+            await convex.mutation('ingest:ingestParsedBook', {
+              bookId,
+              sections: body.sections,
+              chunks: body.chunks,
+            })
+          }
 
           await convex.mutation('importJobs:updateImportJobStatus', {
             importJobId,

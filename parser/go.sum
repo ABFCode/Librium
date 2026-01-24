@@ -1,0 +1,4 @@
+github.com/ABFCode/Spine v0.1.0 h1:DxShGtqHtd/xxtVDI+XI0Tf+qNkD/wdSD0je+dC92Jw=
+github.com/ABFCode/Spine v0.1.0/go.mod h1:1mTagWOXjmMxf9EVbQBWpmreEi1Vh9Fx3m5XZjavrTc=
+golang.org/x/net v0.49.0 h1:eeHFmOGUTtaaPSGNmjBKpbng9MulQsJURQUAfUwY++o=
+golang.org/x/net v0.49.0/go.mod h1:/ysNB2EvaqvesRkuLAyjI1ycPZlQHM3q01F02UY/MV8=
