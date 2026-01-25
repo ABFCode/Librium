@@ -119,7 +119,6 @@ function Reader() {
       return
     }
     setActiveSectionId(sections[index]._id)
-    setIsTocOpen(false)
   }
 
   const goNext = () => {
@@ -364,13 +363,16 @@ function Reader() {
 
   return (
     <RequireAuth>
-      <div className="min-h-screen px-6 pb-16 pt-10">
-        <div className="mx-auto w-full max-w-6xl">
+      <div className="min-h-screen px-4 pb-16 pt-10 sm:px-6">
+        <div
+          className={`mx-auto w-full ${
+            isTocOpen ? 'max-w-6xl' : 'max-w-7xl lg:pr-16'
+          }`}
+        >
           <div className="surface flex flex-wrap items-center justify-between gap-4 rounded-[22px] px-5 py-3">
             <div className="flex items-center gap-3">
-              <span className="pill">Reader</span>
               <span className="text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
-                {activeIndex >= 0 ? `Chapter ${activeIndex + 1}` : 'Loading'}
+                {activeSection?.title ?? 'Reading'}
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -488,7 +490,11 @@ function Reader() {
             </div>
           </div>
 
-          <div className="relative mt-8 grid gap-6 lg:grid-cols-[0.66fr_0.34fr]">
+          <div
+            className={`relative mt-8 grid gap-6 ${
+              isTocOpen ? 'lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-10' : 'lg:grid-cols-1'
+            }`}
+          >
             <div
               className={`fixed inset-0 z-30 bg-black/40 transition-opacity lg:hidden ${
                 isTocOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
@@ -496,20 +502,38 @@ function Reader() {
               onClick={() => setIsTocOpen(false)}
             />
             <aside
-              className={`surface fixed right-6 top-28 z-40 h-[70vh] w-[80vw] max-w-sm overflow-hidden rounded-[24px] p-5 transition-transform lg:static lg:order-2 lg:top-auto lg:h-auto lg:w-auto lg:translate-x-0 ${
+              className={`surface relative fixed right-6 left-auto top-28 z-40 h-[70vh] w-[80vw] max-w-sm overflow-hidden rounded-[24px] p-5 pl-12 transition-transform lg:static lg:order-2 lg:top-auto lg:h-auto lg:w-auto lg:justify-self-end ${
                 isTocOpen ? 'translate-x-0' : 'translate-x-[120%]'
-              }`}
+              } ${!isTocOpen ? 'lg:hidden' : ''}`}
             >
+              <button
+                className="toc-rail-shell is-open tooltip"
+                data-tooltip="Collapse"
+                data-tooltip-position="right"
+                onClick={() => setIsTocOpen(false)}
+              >
+                <span className="sr-only">Collapse</span>
+                <span className="toc-rail-chevron" aria-hidden="true">
+                  <svg
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
+                </span>
+              </button>
               <div className="flex items-center justify-between">
                 <div className="text-sm uppercase tracking-[0.4em] text-[var(--muted-2)]">
                   Chapters
                 </div>
-                <button
-                  className="text-xs text-[var(--muted)] lg:hidden"
-                  onClick={() => setIsTocOpen(false)}
-                >
-                  Close
-                </button>
               </div>
               <div className="mt-4 flex gap-2">
                   {([
@@ -542,31 +566,30 @@ function Reader() {
                   </p>
                 ) : (
                   <div className="mt-4 flex max-h-[55vh] flex-col gap-2 overflow-auto pr-2">
-                    {sections.map((section) => (
-                      <button
-                        key={section._id}
-                        className={`rounded-2xl border px-3 py-3 text-left text-sm transition ${
-                          section._id === sectionId
-                            ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--ink)]'
-                            : 'border-white/10 bg-[rgba(12,15,18,0.6)] text-[var(--muted)] hover:border-white/30'
-                        }`}
-                        style={{
-                          paddingLeft: `${12 + Math.min(section.depth, 4) * 12}px`,
-                        }}
-                        onClick={() => {
-                          setActiveSectionId(section._id)
-                          setIsTocOpen(false)
-                        }}
-                        disabled={section._id === sectionId}
-                      >
-                      <div className="text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
-                        Chapter
-                      </div>
-                        <div className="mt-1 text-base text-[var(--ink)]">
-                          {section.title}
-                        </div>
-                      </button>
-                    ))}
+                    {sections.map((section, index) => {
+                      const isActive = section._id === sectionId
+                      return (
+                        <button
+                          key={section._id}
+                          className={`rounded-2xl border px-3 py-3 text-left text-sm transition ${
+                            isActive
+                              ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--ink)]'
+                              : 'border-white/10 bg-[rgba(12,15,18,0.6)] text-[var(--muted)] hover:border-white/30'
+                          }`}
+                          onClick={() => {
+                            setActiveSectionId(section._id)
+                          }}
+                          disabled={isActive}
+                        >
+                          <div className="text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
+                            {index + 1}
+                          </div>
+                          <div className="mt-1 text-base text-[var(--ink)]">
+                            {section.title}
+                          </div>
+                        </button>
+                      )
+                    })}
                   </div>
                 )
               ) : null}
@@ -644,14 +667,12 @@ function Reader() {
                                 if (bookmark.sectionId !== sectionId) {
                                   pendingScrollRef.current = bookmark.offset
                                   setActiveSectionId(bookmark.sectionId)
-                                  setIsTocOpen(false)
                                   return
                                 }
                                 scrollToChunk(bookmark.chunkIndex)
                                 if (parentRef.current) {
                                   parentRef.current.scrollTop = bookmark.offset
                                 }
-                                setIsTocOpen(false)
                               }}
                             >
                               Go to
@@ -675,6 +696,101 @@ function Reader() {
                 </div>
               ) : null}
             </aside>
+
+            {!isTocOpen ? (
+              <div
+                className="toc-rail-shell is-closed hidden lg:flex"
+                onClick={() => setIsTocOpen(true)}
+              >
+                <span className="toc-rail-chevron" aria-hidden="true">
+                  <svg
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M9 6l6 6-6 6" />
+                  </svg>
+                </span>
+                <div className="toc-rail-divider" aria-hidden="true" />
+                {([
+                  { key: 'toc', label: 'Chapters' },
+                  { key: 'search', label: 'Search' },
+                  { key: 'bookmarks', label: 'Bookmarks' },
+                ] as const).map((tab) => (
+                  <button
+                    key={tab.key}
+                    className={`toc-rail-btn tooltip ${
+                      activeSideTab === tab.key ? 'is-active' : ''
+                    }`}
+                    data-tooltip={tab.label}
+                    data-tooltip-position="left"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setActiveSideTab(tab.key)
+                      setIsTocOpen(true)
+                    }}
+                  >
+                    <span className="sr-only">{tab.label}</span>
+                    {tab.key === 'toc' ? (
+                      <svg
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M4 6h16" />
+                        <path d="M4 12h16" />
+                        <path d="M4 18h16" />
+                      </svg>
+                    ) : tab.key === 'search' ? (
+                      <svg
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <circle cx="11" cy="11" r="8" />
+                        <path d="m21 21-4.3-4.3" />
+                      </svg>
+                    ) : (
+                      <svg
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
             <section className={`card relative overflow-hidden ${themeClass} text-[var(--reader-ink)] lg:order-1`}>
               {!userId ? (
@@ -706,9 +822,7 @@ function Reader() {
                 >
                   {chunks.length === 0 ? (
                     <p className="text-sm text-[var(--reader-muted)]">
-                      {isLoading
-                        ? 'Loading chapter...'
-                        : 'Select a chapter to begin reading.'}
+                      {sectionId ? 'Loading chapter...' : 'Select a chapter to begin reading.'}
                     </p>
                   ) : (
                     chunks.map((chunk, index) => (
@@ -716,6 +830,7 @@ function Reader() {
                         key={chunk.id}
                         data-chunk-index={index}
                         className="py-3 whitespace-pre-wrap text-[var(--reader-ink)]"
+                        style={{ lineHeight }}
                       >
                         {chunk.content}
                       </div>

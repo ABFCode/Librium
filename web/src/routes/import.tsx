@@ -24,16 +24,23 @@ function ImportPage() {
     api.importJobs.listImportJobs,
     userId ? { userId } : 'skip',
   )
-  const books = useQuery(
-    api.books.listByOwner,
-    userId ? { ownerId: userId } : 'skip',
-  )
-  const coverUrls = useQuery(
-    api.books.getCoverUrls,
-    books ? { bookIds: books.map((book) => book._id) } : 'skip',
-  )
   const allowLocalAuth =
     import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
+
+  const statusLabel = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'Ready'
+      case 'failed':
+        return 'Failed'
+      case 'ingesting':
+      case 'parsing':
+        return 'Processing'
+      case 'queued':
+      default:
+        return 'Queued'
+    }
+  }
 
   const submit = async () => {
     if (files.length === 0) {
@@ -86,18 +93,15 @@ function ImportPage() {
     <RequireAuth>
       <div className="min-h-screen px-6 pb-16 pt-10">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
-        <div className="surface flex flex-wrap items-center justify-between gap-6 rounded-[28px] p-6">
-          <div>
-            <span className="pill">Import</span>
-            <h1 className="mt-3 text-3xl">Queue EPUBs for parsing.</h1>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              Drag and drop files to add them to your account.
-            </p>
+          <div className="surface flex flex-wrap items-center justify-between gap-6 rounded-[28px] p-6">
+            <div>
+              <span className="pill">Import</span>
+              <h1 className="mt-3 text-3xl">Queue EPUBs for parsing.</h1>
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                Drag and drop files to add them to your account.
+              </p>
+            </div>
           </div>
-          <Link className="btn btn-primary" to="/library">
-            Back to Library
-          </Link>
-        </div>
 
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <section id="import" className="card p-6">
@@ -204,29 +208,34 @@ function ImportPage() {
                 No imports yet.
               </p>
             ) : (
-              <div className="mt-4 space-y-3">
+              <div className="mt-4 space-y-2">
                 {importJobs.map((job) => (
                   <div
                     key={job._id}
-                    className="flex flex-col gap-2 rounded-2xl border border-white/5 bg-[rgba(12,15,18,0.7)] p-3"
+                    className="flex items-center justify-between gap-4 rounded-2xl border border-white/5 bg-[rgba(12,15,18,0.6)] px-3 py-2 text-xs"
                   >
-                    <div className="text-sm font-semibold">{job.fileName}</div>
-                    <span
-                      className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] ${
-                        job.status === 'completed'
-                          ? 'bg-emerald-500/20 text-emerald-200'
-                          : job.status === 'failed'
-                            ? 'bg-rose-500/20 text-rose-200'
-                            : job.status === 'ingesting'
-                              ? 'bg-[rgba(143,181,166,0.2)] text-[var(--accent-2)]'
-                              : job.status === 'parsing'
-                                ? 'bg-indigo-500/20 text-indigo-200'
-                                : 'bg-white/5 text-[var(--muted)]'
-                      }`}
-                    >
-                      {job.status}
-                    </span>
-                    <div className="flex items-center justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-semibold">{job.fileName}</div>
+                      <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--muted-2)]">
+                        {statusLabel(job.status)}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] ${
+                          job.status === 'completed'
+                            ? 'bg-emerald-500/20 text-emerald-200'
+                            : job.status === 'failed'
+                              ? 'bg-rose-500/20 text-rose-200'
+                              : job.status === 'ingesting'
+                                ? 'bg-[rgba(143,181,166,0.2)] text-[var(--accent-2)]'
+                                : job.status === 'parsing'
+                                  ? 'bg-indigo-500/20 text-indigo-200'
+                                  : 'bg-white/5 text-[var(--muted)]'
+                        }`}
+                      >
+                        {statusLabel(job.status)}
+                      </span>
                       {job.bookId ? (
                         <Link
                           className="btn btn-ghost text-xs"
@@ -250,11 +259,7 @@ function ImportPage() {
                         >
                           Retry
                         </button>
-                      ) : (
-                        <span className="text-xs text-[var(--muted-2)]">
-                          In queue
-                        </span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 ))}
