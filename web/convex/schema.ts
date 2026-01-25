@@ -92,6 +92,10 @@ const userBooks = defineTable({
   lastSectionId: v.optional(v.id("sections")),
   lastChunkIndex: v.number(),
   lastChunkOffset: v.number(),
+  lastScrollRatio: v.optional(v.number()),
+  lastScrollTop: v.optional(v.number()),
+  lastScrollHeight: v.optional(v.number()),
+  lastClientHeight: v.optional(v.number()),
   updatedAt: v.number(),
 })
   .index("by_user_book", ["userId", "bookId"])
