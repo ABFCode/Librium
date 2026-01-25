@@ -375,6 +375,25 @@
   .book-cover-frame {
     background: color-mix(in srgb, var(--surface-3) 45%, transparent);
     box-shadow: 0 12px 26px rgba(0, 0, 0, 0.25);
+    clip-path: inset(0 round 14px);
+  }
+
+  .book-cover-frame.has-cover {
+    background: var(--surface);
+  }
+
+  .book-cover-frame img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 0;
+    background: var(--surface);
+    transform: translateZ(0);
+  }
+
+  .book-cover-frame > .absolute {
+    background: var(--surface);
   }
 
   .book-title {
@@ -626,6 +645,28 @@
     color: var(--reader-muted);
   }
 
+  .reader-panel-item {
+    border: 1px solid color-mix(in srgb, var(--outline) 60%, transparent);
+    background: color-mix(in srgb, var(--surface-2) 86%, transparent);
+    color: var(--muted);
+  }
+
+  .reader-panel-item:hover {
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+
+  .reader-panel-item.is-active {
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--ink);
+  }
+
+  .reader-panel-card {
+    border: 1px solid color-mix(in srgb, var(--outline) 60%, transparent);
+    background: color-mix(in srgb, var(--surface-2) 86%, transparent);
+    color: var(--muted);
+  }
+
   .reader-pre {
     margin: 1rem 0;
     padding: 0.9rem 1rem;
@@ -699,6 +740,10 @@
 
   body[data-theme='paper'] .book-cover-frame {
     background: color-mix(in srgb, var(--surface-3) 60%, white);
+  }
+
+  body[data-theme='paper'] .book-cover-frame.has-cover {
+    background: var(--surface);
   }
 
   body[data-theme='paper'] .progress-badge {

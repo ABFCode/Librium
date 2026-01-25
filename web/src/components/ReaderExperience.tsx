@@ -322,6 +322,12 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     if (!userId || !sectionId || !parentRef.current) {
       return
     }
+    if (userBook === undefined) {
+      return
+    }
+    if (userBook?.lastSectionId && !restoredFromUserBookRef.current) {
+      return
+    }
     const container = parentRef.current
     const scrollTop = container.scrollTop
     let chunkIndex = 0
@@ -926,10 +932,8 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
                 <button
                   key={section._id}
                   data-section-id={section._id}
-                  className={`rounded-2xl border px-3 py-3 text-left text-sm transition ${
-                    isActive
-                      ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--ink)]'
-                      : 'border-white/10 bg-[rgba(12,15,18,0.6)] text-[var(--muted)] hover:border-white/30'
+                  className={`reader-panel-item rounded-2xl px-3 py-3 text-left text-sm transition ${
+                    isActive ? 'is-active' : ''
                   }`}
                   onClick={() => {
                     setActiveSectionId(section._id)
@@ -963,7 +967,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
               {searchMatches.map((match) => (
                 <button
                   key={`${match.index}-${match.snippet}`}
-                  className="rounded-2xl border border-white/10 bg-[rgba(12,15,18,0.6)] p-3 text-left text-xs text-[var(--muted)] hover:border-[rgba(209,161,92,0.4)]"
+                  className="reader-panel-card rounded-2xl p-3 text-left text-xs hover:border-[rgba(209,161,92,0.4)]"
                   onClick={() => scrollToChunk(match.index)}
                 >
                   {match.snippet}
@@ -992,7 +996,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
                     key={bookmark._id}
                     role="button"
                     tabIndex={0}
-                    className="relative cursor-pointer rounded-2xl border border-white/10 bg-[rgba(12,15,18,0.6)] p-3 pr-10 text-xs text-[var(--muted)] transition hover:border-white/30"
+                    className="reader-panel-card relative cursor-pointer rounded-2xl p-3 pr-10 text-xs transition hover:border-white/30"
                     onClick={() => {
                       if (bookmark.sectionId !== sectionId) {
                         pendingScrollRef.current = bookmark.offset

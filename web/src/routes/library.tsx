@@ -242,13 +242,19 @@ function Library() {
                       to="/reader/$bookId"
                       params={{ bookId: book._id }}
                     >
-                      <div className="book-cover-frame relative aspect-[2/3] w-full overflow-hidden rounded-[14px] bg-black/20">
+                      <div
+                        className={`book-cover-frame relative aspect-[2/3] w-full overflow-hidden ${
+                          coverUrl ? 'has-cover' : ''
+                        }`}
+                      >
                         {coverUrl ? (
-                          <img
-                            src={coverUrl}
-                            alt={book.title}
-                            className="h-full w-full object-cover"
-                          />
+                          <div className="absolute inset-0 overflow-hidden">
+                            <img
+                              src={coverUrl}
+                              alt={book.title}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
                         ) : (
                           <div className="h-full w-full bg-[linear-gradient(135deg,rgba(209,161,92,0.22),rgba(143,181,166,0.2))]">
                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.25),transparent_70%)]" />
