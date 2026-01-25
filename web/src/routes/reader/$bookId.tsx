@@ -151,6 +151,27 @@ function Reader() {
     return new Map(sections.map((section) => [section._id, section.title]))
   }, [sections])
 
+  const sectionLinkIndex = useMemo(() => {
+    const map = new Map<string, string>()
+    if (!sections) {
+      return map
+    }
+    for (const section of sections) {
+      const base = normalizeHref(section.href)
+      const anchor = normalizeAnchor(section.anchor)
+      if (base && anchor) {
+        map.set(`${base}#${anchor}`, section._id)
+      }
+      if (base) {
+        map.set(base, section._id)
+      }
+      if (anchor) {
+        map.set(`#${anchor}`, section._id)
+      }
+    }
+    return map
+  }, [sections])
+
   const goToSection = (index: number) => {
     if (!sections || index < 0 || index >= sections.length) {
       return
@@ -396,7 +417,14 @@ function Reader() {
         case 'link': {
           const href = inline.href ?? '#'
           const external =
-            href.startsWith('http://') || href.startsWith('https://')
+            href.startsWith('http://') ||
+            href.startsWith('https://') ||
+            href.startsWith('mailto:') ||
+            href.startsWith('tel:') ||
+            href.startsWith('data:')
+          const targetSectionId = !external
+            ? resolveInternalSectionId(href, activeSection?.href, sectionLinkIndex)
+            : null
           return (
             <a
               key={key}
@@ -404,6 +432,12 @@ function Reader() {
               className="reader-link"
               target={external ? '_blank' : undefined}
               rel={external ? 'noreferrer' : undefined}
+              onClick={(event) => {
+                if (!external && targetSectionId) {
+                  event.preventDefault()
+                  setActiveSectionId(targetSectionId)
+                }
+              }}
             >
               {inline.text}
             </a>
@@ -544,6 +578,96 @@ function Reader() {
       )
     }
     return nodes
+  }
+
+  function normalizeHref(href?: string | null) {
+    if (!href) {
+      return ''
+    }
+    let value = href.trim()
+    if (!value) {
+      return ''
+    }
+    if (value.includes('#')) {
+      value = value.split('#')[0]
+    }
+    if (value.includes('?')) {
+      value = value.split('?')[0]
+    }
+    value = value.replace(/^\.\//, '').replace(/^\//, '')
+    return value
+  }
+
+  function normalizeAnchor(anchor?: string | null) {
+    if (!anchor) {
+      return ''
+    }
+    return anchor.replace(/^#/, '').trim()
+  }
+
+  function resolveInternalSectionId(
+    href: string,
+    baseHref: string | undefined,
+    index: Map<string, string>,
+  ) {
+    const trimmed = href.trim()
+    if (!trimmed) {
+      return null
+    }
+    if (trimmed.startsWith('#')) {
+      const anchorKey = `#${normalizeAnchor(trimmed)}`
+      return index.get(anchorKey) ?? null
+    }
+    let link = trimmed
+    let anchor = ''
+    if (link.includes('#')) {
+      const parts = link.split('#')
+      link = parts[0] ?? ''
+      anchor = parts[1] ?? ''
+    }
+    if (!link && baseHref) {
+      link = baseHref
+    }
+    link = resolveRelativePath(baseHref ?? '', link)
+    const baseKey = normalizeHref(link)
+    const anchorKey = normalizeAnchor(anchor)
+    if (baseKey && anchorKey) {
+      return index.get(`${baseKey}#${anchorKey}`) ?? index.get(baseKey) ?? null
+    }
+    if (baseKey) {
+      return index.get(baseKey) ?? null
+    }
+    if (anchorKey) {
+      return index.get(`#${anchorKey}`) ?? null
+    }
+    return null
+  }
+
+  function resolveRelativePath(baseHref: string, relative: string) {
+    if (!relative) {
+      return normalizeHref(baseHref)
+    }
+    if (relative.startsWith('/')) {
+      return normalizeHref(relative)
+    }
+    if (!baseHref) {
+      return normalizeHref(relative)
+    }
+    const base = normalizeHref(baseHref)
+    const baseParts = base.split('/').filter(Boolean)
+    baseParts.pop()
+    const relParts = relative.split('/').filter((part) => part !== '')
+    for (const part of relParts) {
+      if (part === '.' || part === '') {
+        continue
+      }
+      if (part === '..') {
+        baseParts.pop()
+        continue
+      }
+      baseParts.push(part)
+    }
+    return baseParts.join('/')
   }
 
   const handleCreateBookmark = async () => {
@@ -1050,9 +1174,11 @@ function Reader() {
                 }}
               >
                 <div className="mb-6">
-                  <h1 className="text-2xl text-[var(--reader-ink)]">
-                    {activeSection?.title ?? 'Untitled chapter'}
-                  </h1>
+                  {!blocks || blocks.length === 0 ? (
+                    <h1 className="text-2xl text-[var(--reader-ink)]">
+                      {activeSection?.title ?? 'Untitled chapter'}
+                    </h1>
+                  ) : null}
                 </div>
                 <div
                   className="mx-auto"
