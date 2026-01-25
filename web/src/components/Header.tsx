@@ -73,7 +73,7 @@ export default function Header() {
                 Library
               </Link>
               <Link className="hover:text-[var(--ink)]" to="/import">
-                Import
+                Upload
               </Link>
             </div>
           ) : null}

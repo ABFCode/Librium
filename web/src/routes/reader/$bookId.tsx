@@ -433,9 +433,11 @@ function Reader() {
               target={external ? '_blank' : undefined}
               rel={external ? 'noreferrer' : undefined}
               onClick={(event) => {
-                if (!external && targetSectionId) {
+                if (!external) {
                   event.preventDefault()
-                  setActiveSectionId(targetSectionId)
+                  if (targetSectionId) {
+                    setActiveSectionId(targetSectionId)
+                  }
                 }
               }}
             >
@@ -468,7 +470,18 @@ function Reader() {
 
   const renderBlocks = (contentBlocks: BlockPayload[]) => {
     const nodes: JSX.Element[] = []
+    const normalizedTitle = activeSection?.title
+      ? activeSection.title.trim().toLowerCase()
+      : null
+    const shouldSkipFirstHeading =
+      normalizedTitle &&
+      contentBlocks.length > 0 &&
+      contentBlocks[0].kind === 'heading' &&
+      blockToText(contentBlocks[0]).trim().toLowerCase() === normalizedTitle
     for (let i = 0; i < contentBlocks.length; i += 1) {
+      if (i === 0 && shouldSkipFirstHeading) {
+        continue
+      }
       const block = contentBlocks[i]
       if (block.kind === 'list_item') {
         const ordered = Boolean(block.ordered)
