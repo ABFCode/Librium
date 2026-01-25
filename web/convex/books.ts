@@ -12,6 +12,8 @@ export const createBook = mutation({
     series: v.optional(v.string()),
     seriesIndex: v.optional(v.string()),
     subjects: v.optional(v.array(v.string())),
+    coverStorageId: v.optional(v.id("_storage")),
+    coverContentType: v.optional(v.string()),
     identifiers: v.optional(
       v.array(
         v.object({
@@ -35,6 +37,8 @@ export const createBook = mutation({
       series: args.series,
       seriesIndex: args.seriesIndex,
       subjects: args.subjects,
+      coverStorageId: args.coverStorageId,
+      coverContentType: args.coverContentType,
       identifiers: args.identifiers,
       createdAt: now,
       updatedAt: now,
@@ -100,5 +104,23 @@ export const deleteBook = mutation({
     }
 
     await ctx.db.delete(args.bookId);
+  },
+});
+
+export const getCoverUrls = query({
+  args: {
+    bookIds: v.array(v.id("books")),
+  },
+  handler: async (ctx, args) => {
+    const result: Record<string, string | null> = {};
+    for (const bookId of args.bookIds) {
+      const book = await ctx.db.get(bookId);
+      if (!book?.coverStorageId) {
+        result[bookId] = null;
+        continue;
+      }
+      result[bookId] = await ctx.storage.getUrl(book.coverStorageId);
+    }
+    return result;
   },
 });

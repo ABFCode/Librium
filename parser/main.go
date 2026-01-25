@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -28,6 +30,7 @@ type parseResponse struct {
 	Chunks   []chunkPayload `json:"chunks"`
 	Metadata metadataPayload `json:"metadata"`
 	Warnings []warningPayload `json:"warnings"`
+	Cover    *coverPayload `json:"cover,omitempty"`
 }
 
 type sectionPayload struct {
@@ -60,6 +63,11 @@ type warningPayload struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Path    string `json:"path"`
+}
+
+type coverPayload struct {
+	ContentType string `json:"contentType"`
+	Data        string `json:"data"`
 }
 
 type identifierPayload struct {
@@ -173,6 +181,7 @@ func handleParse(w http.ResponseWriter, r *http.Request) {
 		Chunks:   chunks,
 		Metadata: buildMetadata(book.Metadata),
 		Warnings: mapWarnings(book.Warnings),
+		Cover:    buildCover(book),
 	})
 }
 
@@ -361,6 +370,26 @@ func buildMetadata(meta spine.Metadata) metadataPayload {
 		SeriesIndex: meta.SeriesIndex,
 		Subjects:    subjects,
 		Identifiers: identifiers,
+	}
+}
+
+func buildCover(book *spine.Book) *coverPayload {
+	if book == nil {
+		return nil
+	}
+	cover, err := book.Cover()
+	if err != nil {
+		if errors.Is(err, spine.ErrNoCover) {
+			return nil
+		}
+		return nil
+	}
+	if len(cover.Bytes) == 0 {
+		return nil
+	}
+	return &coverPayload{
+		ContentType: cover.ContentType,
+		Data:        base64.StdEncoding.EncodeToString(cover.Bytes),
 	}
 }
 

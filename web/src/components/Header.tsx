@@ -7,28 +7,23 @@ export default function Header() {
   const allowLocalAuth =
     import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
   return (
-    <header className="sticky top-0 z-40 border-b border-white/5 bg-[rgba(10,12,15,0.88)] px-4 py-4 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-white/5 bg-[rgba(8,10,12,0.9)] px-4 py-4 backdrop-blur">
       <nav className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-6">
           <Link className="flex items-center gap-3" to="/">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(209,161,92,0.4)] bg-[rgba(209,161,92,0.12)] text-lg font-semibold text-[var(--accent)]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(209,161,92,0.5)] bg-[rgba(209,161,92,0.18)] text-lg font-semibold text-[var(--accent)]">
               L
             </div>
-            <div className="leading-tight">
-              <div className="text-lg font-semibold tracking-wide">
-                Librium
-              </div>
-              <div className="text-xs uppercase tracking-[0.4em] text-[var(--muted-2)]">
-                Reading Room
-              </div>
+            <div className="text-lg font-semibold tracking-wide">
+              Librium
             </div>
           </Link>
-          <div className="hidden items-center gap-3 text-sm font-semibold text-[var(--muted)] md:flex">
-            <Link className="hover:text-[var(--ink)]" to="/">
-              Import
-            </Link>
+          <div className="hidden items-center gap-4 text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted-2)] md:flex">
             <Link className="hover:text-[var(--ink)]" to="/library">
               Library
+            </Link>
+            <Link className="hover:text-[var(--ink)]" to="/">
+              Import
             </Link>
           </div>
         </div>
