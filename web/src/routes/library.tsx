@@ -11,9 +11,7 @@ export const Route = createFileRoute('/library')({
 function Library() {
   const convex = useConvex()
   const { isAuthenticated } = useConvexAuth()
-  const allowLocalAuth =
-    import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
-  const canQuery = isAuthenticated || allowLocalAuth
+  const canQuery = isAuthenticated
   const deleteBook = useMutation(api.books.deleteBook)
   const books = useQuery(api.books.listByOwner, canQuery ? {} : 'skip')
   const progressEntries = useQuery(

@@ -53,9 +53,7 @@ type ReaderExperienceProps = {
 
 export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const { isAuthenticated } = useConvexAuth()
-  const allowLocalAuth =
-    import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
-  const canQuery = isAuthenticated || allowLocalAuth
+  const canQuery = isAuthenticated
   const sections = useQuery(
     api.sections.listSections,
     canQuery ? { bookId } : 'skip',

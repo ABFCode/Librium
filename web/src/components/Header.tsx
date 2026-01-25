@@ -10,9 +10,7 @@ export default function Header() {
   const user = session?.user
   const { isAuthenticated } = useConvexAuth()
   const ensureViewer = useMutation(api.users.ensureViewer)
-  const allowLocalAuth =
-    import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
-  const showNav = Boolean(user) || allowLocalAuth
+  const showNav = Boolean(user)
   const { theme, setTheme } = useUserSettings()
 
   useEffect(() => {
@@ -107,8 +105,6 @@ export default function Header() {
                 Sign out
               </button>
             </>
-          ) : allowLocalAuth ? (
-            <span className="text-xs text-[var(--muted)]">Local auth</span>
           ) : (
             <>
               <Link className="btn btn-ghost text-xs" to="/sign-in">

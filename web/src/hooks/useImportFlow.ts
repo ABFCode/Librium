@@ -15,12 +15,9 @@ export const useImportFlow = () => {
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
-  const allowLocalAuth =
-    import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
-  const canUpload = isAuthenticated || allowLocalAuth
   const importJobs = useQuery(
     api.importJobs.listImportJobs,
-    isAuthenticated || allowLocalAuth ? {} : 'skip',
+    isAuthenticated ? {} : 'skip',
   )
 
   const statusLabel = (status: string) => {
@@ -43,7 +40,7 @@ export const useImportFlow = () => {
       setError('Select at least one EPUB file.')
       return
     }
-    if (!isAuthenticated && !allowLocalAuth) {
+    if (!isAuthenticated) {
       setError('Please sign in to upload books.')
       return
     }
@@ -129,8 +126,6 @@ export const useImportFlow = () => {
     isUploading,
     importJobs,
     isAuthenticated,
-    allowLocalAuth,
-    canUpload,
     statusLabel,
     submit,
     addFiles,

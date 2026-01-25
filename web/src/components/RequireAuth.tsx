@@ -9,14 +9,12 @@ type RequireAuthProps = {
 export const RequireAuth = ({ children }: RequireAuthProps) => {
   const navigate = useNavigate()
   const { isAuthenticated, isLoading } = useConvexAuth()
-  const allowLocalAuth =
-    import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !allowLocalAuth) {
+    if (!isLoading && !isAuthenticated) {
       navigate({ to: '/sign-in' })
     }
-  }, [isAuthenticated, isLoading, navigate, allowLocalAuth])
+  }, [isAuthenticated, isLoading, navigate])
 
   if (isLoading) {
     return (
@@ -31,7 +29,7 @@ export const RequireAuth = ({ children }: RequireAuthProps) => {
     )
   }
 
-  if (!isAuthenticated && !allowLocalAuth) {
+  if (!isAuthenticated) {
     return null
   }
 
