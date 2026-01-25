@@ -1,59 +1,28 @@
 import { Link } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
-import { useConvexAuth, useMutation, useQuery } from 'convex/react'
+import { useEffect } from 'react'
+import { useConvexAuth, useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { authClient } from '../lib/auth-client'
+import { useUserSettings } from '../hooks/useUserSettings'
 
 export default function Header() {
   const { data: session } = authClient.useSession()
   const user = session?.user
   const { isAuthenticated } = useConvexAuth()
-  const saveSettings = useMutation(api.userSettings.upsert)
   const ensureViewer = useMutation(api.users.ensureViewer)
   const allowLocalAuth =
     import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
   const showNav = Boolean(user) || allowLocalAuth
-  const settings = useQuery(
-    api.userSettings.getByUser,
-    isAuthenticated || allowLocalAuth ? {} : 'skip',
-  )
-
-  const [theme, setTheme] = useState('night')
-
-  useEffect(() => {
-    const stored =
-      typeof window !== 'undefined'
-        ? localStorage.getItem('librium_theme')
-        : null
-    setTheme(settings?.theme ?? stored ?? 'night')
-  }, [settings?.theme])
-
-  useEffect(() => {
-    if (typeof document === 'undefined') {
-      return
-    }
-    document.body.dataset.theme = theme
-  }, [theme])
+  const { theme, setTheme } = useUserSettings()
 
   useEffect(() => {
     if (isAuthenticated) {
       void ensureViewer({})
     }
   }, [isAuthenticated, ensureViewer])
-  const toggleTheme = async () => {
+  const toggleTheme = () => {
     const next = theme === 'paper' ? 'night' : 'paper'
     setTheme(next)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('librium_theme', next)
-    }
-    if (isAuthenticated || allowLocalAuth) {
-      await saveSettings({
-        fontScale: settings?.fontScale ?? 0,
-        lineHeight: settings?.lineHeight ?? 1.7,
-        contentWidth: settings?.contentWidth ?? 720,
-        theme: next,
-      })
-    }
   }
   return (
     <header className="app-header sticky top-0 z-40 px-4 py-4 backdrop-blur">

@@ -16,27 +16,19 @@ export const getUrlsByBook = query({
     if (!book || book.ownerId !== viewerId) {
       return {};
     }
-    let assets = [];
-    if (args.hrefs && args.hrefs.length > 0) {
-      const items = await Promise.all(
-        args.hrefs.map((href) =>
-          ctx.db
-            .query("bookAssets")
-            .withIndex("by_book_href", (q) =>
-              q.eq("bookId", args.bookId).eq("href", href),
-            )
-            .first(),
-        ),
-      );
-      assets = items.filter(Boolean);
-    } else {
-      assets = await ctx.db
-        .query("bookAssets")
-        .withIndex("by_book", (q) => q.eq("bookId", args.bookId))
-        .collect();
-    }
+    const assets = await ctx.db
+      .query("bookAssets")
+      .withIndex("by_book", (q) => q.eq("bookId", args.bookId))
+      .collect();
+    const hrefFilter =
+      args.hrefs && args.hrefs.length > 0
+        ? new Set(args.hrefs)
+        : null;
     const result: Record<string, string> = {};
     for (const asset of assets) {
+      if (hrefFilter && !hrefFilter.has(asset.href)) {
+        continue;
+      }
       const url = await ctx.storage.getUrl(asset.storageId);
       if (url) {
         result[asset.href] = url;
