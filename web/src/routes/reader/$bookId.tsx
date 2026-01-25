@@ -488,7 +488,7 @@ function Reader() {
             </div>
           </div>
 
-          <div className="relative mt-8 grid gap-6 lg:grid-cols-[0.34fr_0.66fr]">
+          <div className="relative mt-8 grid gap-6 lg:grid-cols-[0.66fr_0.34fr]">
             <div
               className={`fixed inset-0 z-30 bg-black/40 transition-opacity lg:hidden ${
                 isTocOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
@@ -496,7 +496,7 @@ function Reader() {
               onClick={() => setIsTocOpen(false)}
             />
             <aside
-              className={`surface fixed right-6 top-28 z-40 h-[70vh] w-[80vw] max-w-sm overflow-hidden rounded-[24px] p-5 transition-transform lg:static lg:top-auto lg:h-auto lg:w-auto lg:translate-x-0 ${
+              className={`surface fixed right-6 top-28 z-40 h-[70vh] w-[80vw] max-w-sm overflow-hidden rounded-[24px] p-5 transition-transform lg:static lg:order-2 lg:top-auto lg:h-auto lg:w-auto lg:translate-x-0 ${
                 isTocOpen ? 'translate-x-0' : 'translate-x-[120%]'
               }`}
             >
@@ -676,7 +676,7 @@ function Reader() {
               ) : null}
             </aside>
 
-            <section className={`card relative overflow-hidden ${themeClass} text-[var(--reader-ink)]`}>
+            <section className={`card relative overflow-hidden ${themeClass} text-[var(--reader-ink)] lg:order-1`}>
               {!userId ? (
                 <p className="p-6 text-sm text-[var(--muted)]">
                   Loading user...

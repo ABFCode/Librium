@@ -263,6 +263,20 @@
     --reader-muted: #6f6559;
   }
 
+  body[data-theme='paper'] .card {
+    background: color-mix(in srgb, var(--surface) 92%, white);
+    border-color: var(--outline);
+    box-shadow: 0 12px 40px rgba(56, 44, 30, 0.08);
+  }
+
+  body[data-theme='paper'] .card:hover {
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--outline));
+  }
+
+  body[data-theme='paper'] .book-cover-frame {
+    background: color-mix(in srgb, var(--surface-3) 60%, white);
+  }
+
   .card:hover {
     border-color: rgba(209, 161, 92, 0.4);
     box-shadow: var(--shadow-strong);
