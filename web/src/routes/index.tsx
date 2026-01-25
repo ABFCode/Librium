@@ -21,6 +21,8 @@ function App() {
     api.importJobs.listImportJobs,
     userId ? { userId } : 'skip',
   )
+  const allowLocalAuth =
+    import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
 
   const submit = async () => {
     if (files.length === 0) {
@@ -28,7 +30,7 @@ function App() {
       return
     }
     if (!userId) {
-      setError('User not ready yet.')
+      setError('Please sign in to upload books.')
       return
     }
     setIsUploading(true)
@@ -125,7 +127,9 @@ function App() {
               <button
                 className="inline-flex items-center justify-center rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300"
                 onClick={submit}
-                disabled={isUploading || files.length === 0}
+                disabled={
+                  isUploading || files.length === 0 || (!userId && !allowLocalAuth)
+                }
               >
                 {isUploading
                   ? `Uploading ${files.length} file(s)...`
@@ -140,6 +144,11 @@ function App() {
           ) : null}
           {error ? (
             <p className="mt-3 text-sm text-rose-400">{error}</p>
+          ) : null}
+          {!userId && !allowLocalAuth ? (
+            <p className="mt-2 text-xs text-slate-400">
+              Sign in to upload and sync your library.
+            </p>
           ) : null}
           {result ? (
             <div className="mt-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">

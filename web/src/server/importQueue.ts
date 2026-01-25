@@ -151,7 +151,7 @@ const processQueue = async (convexUrl: string, parserUrl: string) => {
       })
 
       if (body?.sections && body?.chunks) {
-        await convex.mutation('ingest:ingestParsedBook', {
+        await convex.action('ingest:ingestParsedBook', {
           bookId,
           sections: body.sections,
           chunks: body.chunks,

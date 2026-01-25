@@ -140,7 +140,7 @@ func handleParse(w http.ResponseWriter, r *http.Request) {
 	cfg := spine.DefaultConfig()
 	cfg.Strict = false
 	cfg.Fallbacks.GenerateTOC = true
-	cfg.Chunking = spine.ChunkingOptions{Mode: spine.ChunkByParagraph}
+	cfg.Chunking = spine.ChunkingOptions{Mode: spine.ChunkBySize, MaxChars: 2000}
 	parser := spine.NewParser(cfg)
 	book, parseErr := parser.ParseFile(temp.Name())
 	if book == nil {
@@ -152,7 +152,7 @@ func handleParse(w http.ResponseWriter, r *http.Request) {
 	defer book.Close()
 
 	sectionsInfo := buildSections(book)
-	chunks := buildChunkPayloads(book, sectionsInfo)
+	chunks := buildChunkPayloads(book, sectionsInfo, cfg.Chunking)
 	sections := make([]sectionPayload, 0, len(sectionsInfo))
 	for _, section := range sectionsInfo {
 		sections = append(sections, sectionPayload{
@@ -240,11 +240,11 @@ func flattenTOC(items []spine.TOCItem, out *[]sectionInfo) {
 	}
 }
 
-func buildChunkPayloads(book *spine.Book, sections []sectionInfo) []chunkPayload {
+func buildChunkPayloads(book *spine.Book, sections []sectionInfo, opts spine.ChunkingOptions) []chunkPayload {
 	if book == nil {
 		return nil
 	}
-	chunks, err := book.Chunks(spine.ChunkingOptions{Mode: spine.ChunkByParagraph})
+	chunks, err := book.Chunks(opts)
 	if err != nil {
 		return nil
 	}

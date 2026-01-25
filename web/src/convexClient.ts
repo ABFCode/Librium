@@ -6,4 +6,6 @@ if (!convexUrl) {
   throw new Error("Missing VITE_CONVEX_URL environment variable.");
 }
 
-export const convexClient = new ConvexReactClient(convexUrl);
+export const convexClient = new ConvexReactClient(convexUrl, {
+  expectAuth: true,
+});

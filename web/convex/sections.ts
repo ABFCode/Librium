@@ -12,3 +12,12 @@ export const listSections = query({
       .collect();
   },
 });
+
+export const getSection = query({
+  args: {
+    sectionId: v.id("sections"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.sectionId);
+  },
+});

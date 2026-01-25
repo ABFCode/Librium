@@ -9,12 +9,24 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SignUpRouteImport } from './routes/sign-up'
+import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReaderBookIdRouteImport } from './routes/reader/$bookId'
 import { Route as ApiImportRetryRouteImport } from './routes/api/import-retry'
 import { Route as ApiImportRouteImport } from './routes/api/import'
 
+const SignUpRoute = SignUpRouteImport.update({
+  id: '/sign-up',
+  path: '/sign-up',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
@@ -44,6 +56,8 @@ const ApiImportRoute = ApiImportRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
+  '/sign-in': typeof SignInRoute
+  '/sign-up': typeof SignUpRoute
   '/api/import': typeof ApiImportRoute
   '/api/import-retry': typeof ApiImportRetryRoute
   '/reader/$bookId': typeof ReaderBookIdRoute
@@ -51,6 +65,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
+  '/sign-in': typeof SignInRoute
+  '/sign-up': typeof SignUpRoute
   '/api/import': typeof ApiImportRoute
   '/api/import-retry': typeof ApiImportRetryRoute
   '/reader/$bookId': typeof ReaderBookIdRoute
@@ -59,6 +75,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
+  '/sign-in': typeof SignInRoute
+  '/sign-up': typeof SignUpRoute
   '/api/import': typeof ApiImportRoute
   '/api/import-retry': typeof ApiImportRetryRoute
   '/reader/$bookId': typeof ReaderBookIdRoute
@@ -68,15 +86,26 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/library'
+    | '/sign-in'
+    | '/sign-up'
     | '/api/import'
     | '/api/import-retry'
     | '/reader/$bookId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/library' | '/api/import' | '/api/import-retry' | '/reader/$bookId'
+  to:
+    | '/'
+    | '/library'
+    | '/sign-in'
+    | '/sign-up'
+    | '/api/import'
+    | '/api/import-retry'
+    | '/reader/$bookId'
   id:
     | '__root__'
     | '/'
     | '/library'
+    | '/sign-in'
+    | '/sign-up'
     | '/api/import'
     | '/api/import-retry'
     | '/reader/$bookId'
@@ -85,6 +114,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LibraryRoute: typeof LibraryRoute
+  SignInRoute: typeof SignInRoute
+  SignUpRoute: typeof SignUpRoute
   ApiImportRoute: typeof ApiImportRoute
   ApiImportRetryRoute: typeof ApiImportRetryRoute
   ReaderBookIdRoute: typeof ReaderBookIdRoute
@@ -92,6 +123,20 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sign-up': {
+      id: '/sign-up'
+      path: '/sign-up'
+      fullPath: '/sign-up'
+      preLoaderRoute: typeof SignUpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/library': {
       id: '/library'
       path: '/library'
@@ -133,6 +178,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LibraryRoute: LibraryRoute,
+  SignInRoute: SignInRoute,
+  SignUpRoute: SignUpRoute,
   ApiImportRoute: ApiImportRoute,
   ApiImportRetryRoute: ApiImportRetryRoute,
   ReaderBookIdRoute: ReaderBookIdRoute,

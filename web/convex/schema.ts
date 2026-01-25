@@ -50,23 +50,12 @@ const sections = defineTable({
   anchor: v.optional(v.string()),
   orderIndex: v.number(),
   depth: v.number(),
+  textStorageId: v.optional(v.id("_storage")),
+  textSize: v.optional(v.number()),
   createdAt: v.number(),
 })
   .index("by_book", ["bookId"])
   .index("by_book_order", ["bookId", "orderIndex"]);
-
-const contentChunks = defineTable({
-  bookId: v.id("books"),
-  sectionId: v.optional(v.id("sections")),
-  chunkIndex: v.number(),
-  startOffset: v.number(),
-  endOffset: v.number(),
-  wordCount: v.number(),
-  content: v.string(),
-  createdAt: v.number(),
-})
-  .index("by_section", ["sectionId"])
-  .index("by_section_index", ["sectionId", "chunkIndex"]);
 
 const importJobs = defineTable({
   userId: v.id("users"),
@@ -96,7 +85,6 @@ export default defineSchema({
   books,
   bookFiles,
   sections,
-  contentChunks,
   importJobs,
   userBooks,
 });
