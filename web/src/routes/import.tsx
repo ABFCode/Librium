@@ -19,6 +19,7 @@ function ImportPage() {
     importJobs,
     isAuthenticated,
     allowLocalAuth,
+    canUpload,
     statusLabel,
     submit,
     addFiles,
@@ -124,6 +125,26 @@ function ImportPage() {
 
                 {error ? (
                   <p className="mt-3 text-sm text-[var(--danger)]">{error}</p>
+                ) : null}
+                {files.length > 0 ? (
+                  <div className="mt-4 rounded-2xl border border-white/5 bg-[rgba(12,15,18,0.6)] px-4 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--muted-2)]">
+                      Selected files
+                    </div>
+                    <ul className="mt-2 space-y-1 text-xs text-[var(--ink)]">
+                      {files.map((file) => (
+                        <li
+                          key={`${file.name}-${file.size}`}
+                          className="flex items-center justify-between gap-3"
+                        >
+                          <span className="truncate">{file.name}</span>
+                          <span className="text-[var(--muted-2)]">
+                            {Math.round(file.size / 1024)} KB
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ) : null}
                 {!isAuthenticated && !allowLocalAuth ? (
                   <p className="mt-2 text-xs text-[var(--muted)]">

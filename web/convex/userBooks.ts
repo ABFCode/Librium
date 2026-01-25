@@ -4,7 +4,6 @@ import {
   getViewerUserId,
   requireBookOwner,
   requireViewerUserId,
-  resolveImportUserId,
 } from "./authHelpers";
 
 export const upsertUserBook = mutation({
@@ -14,48 +13,6 @@ export const upsertUserBook = mutation({
   handler: async (ctx, args) => {
     const userId = await requireViewerUserId(ctx);
     await requireBookOwner(ctx, args.bookId);
-    const existing = await ctx.db
-      .query("userBooks")
-      .withIndex("by_user_book", (q) =>
-        q.eq("userId", userId).eq("bookId", args.bookId),
-      )
-      .first();
-
-    const now = Date.now();
-    if (existing) {
-      await ctx.db.patch(existing._id, { updatedAt: now });
-      return existing._id;
-    }
-
-    return await ctx.db.insert("userBooks", {
-      userId,
-      bookId: args.bookId,
-      lastSectionIndex: 0,
-      lastChunkIndex: 0,
-      lastChunkOffset: 0,
-      lastScrollRatio: 0,
-      lastScrollTop: 0,
-      lastScrollHeight: 0,
-      lastClientHeight: 0,
-      updatedAt: now,
-    });
-  },
-});
-
-export const upsertUserBookForUser = mutation({
-  args: {
-    userId: v.id("users"),
-    bookId: v.id("books"),
-  },
-  handler: async (ctx, args) => {
-    const userId = await resolveImportUserId(ctx, args.userId);
-    const book = await ctx.db.get(args.bookId);
-    if (!book) {
-      throw new Error("Book not found.");
-    }
-    if (book.ownerId !== userId) {
-      throw new Error("Not authorized to link this book.");
-    }
     const existing = await ctx.db
       .query("userBooks")
       .withIndex("by_user_book", (q) =>

@@ -17,6 +17,7 @@ import type * as bookmarks from "../bookmarks.js";
 import type * as books from "../books.js";
 import type * as http from "../http.js";
 import type * as importJobs from "../importJobs.js";
+import type * as imports from "../imports.js";
 import type * as ingest from "../ingest.js";
 import type * as reader from "../reader.js";
 import type * as sections from "../sections.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   books: typeof books;
   http: typeof http;
   importJobs: typeof importJobs;
+  imports: typeof imports;
   ingest: typeof ingest;
   reader: typeof reader;
   sections: typeof sections;

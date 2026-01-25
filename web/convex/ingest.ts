@@ -1,7 +1,7 @@
-import { action, mutation } from "./_generated/server";
+import { action, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "convex/values";
-import { requireBookOwnerOrImporter } from "./authHelpers";
+import { requireBookOwner } from "./authHelpers";
 
 const sectionSchema = v.object({
   title: v.string(),
@@ -94,7 +94,7 @@ export const insertSections = mutation({
     sections: v.array(sectionInsertSchema),
   },
   handler: async (ctx, args) => {
-    await requireBookOwnerOrImporter(ctx, args.bookId);
+    await requireBookOwner(ctx, args.bookId);
     const now = Date.now();
     const idByOrder = new Map<number, Id<"sections">>();
     for (const section of args.sections) {
@@ -121,6 +121,80 @@ export const insertSections = mutation({
   },
 });
 
+export const authorizeBookForIngest = query({
+  args: {
+    bookId: v.id("books"),
+  },
+  handler: async (ctx, args) => {
+    await requireBookOwner(ctx, args.bookId);
+    return true;
+  },
+});
+
+export const listAssetHrefs = query({
+  args: {
+    bookId: v.id("books"),
+  },
+  handler: async (ctx, args) => {
+    await requireBookOwner(ctx, args.bookId);
+    const assets = await ctx.db
+      .query("bookAssets")
+      .withIndex("by_book", (q) => q.eq("bookId", args.bookId))
+      .collect();
+    return assets.map((asset) => asset.href);
+  },
+});
+
+export const upsertBookAssets = mutation({
+  args: {
+    bookId: v.id("books"),
+    assets: v.array(
+      v.object({
+        href: v.string(),
+        storageId: v.id("_storage"),
+        contentType: v.optional(v.string()),
+        byteSize: v.optional(v.number()),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    await requireBookOwner(ctx, args.bookId);
+    for (const asset of args.assets) {
+      const existing = await ctx.db
+        .query("bookAssets")
+        .withIndex("by_book_href", (q) =>
+          q.eq("bookId", args.bookId).eq("href", asset.href),
+        )
+        .unique();
+      if (existing) {
+        continue;
+      }
+      await ctx.db.insert("bookAssets", {
+        bookId: args.bookId,
+        href: asset.href,
+        storageId: asset.storageId,
+        contentType: asset.contentType,
+        byteSize: asset.byteSize,
+        createdAt: Date.now(),
+      });
+    }
+  },
+});
+
+export const patchBookAfterIngest = mutation({
+  args: {
+    bookId: v.id("books"),
+    sectionCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireBookOwner(ctx, args.bookId);
+    await ctx.db.patch(args.bookId, {
+      sectionCount: args.sectionCount,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const ingestParsedBook = action({
   args: {
     bookId: v.id("books"),
@@ -130,7 +204,9 @@ export const ingestParsedBook = action({
     images: v.optional(v.array(imageSchema)),
   },
   handler: async (ctx, args) => {
-    await requireBookOwnerOrImporter(ctx, args.bookId);
+    await ctx.runQuery("ingest:authorizeBookForIngest", {
+      bookId: args.bookId,
+    });
     const sectionTexts = new Map<number, string[]>();
     const sectionBlocks = new Map<number, unknown[]>();
 
@@ -160,7 +236,8 @@ export const ingestParsedBook = action({
       const blocks = sectionBlocks.get(sectionIndex) ?? [];
       if (blocks.length > 0) {
         const json = JSON.stringify(blocks);
-        contentStorageId = await ctx.storage.store(
+        contentStorageId = await storeBlob(
+          ctx,
           new Blob([json], { type: "application/json" })
         );
         contentSize = json.length;
@@ -178,7 +255,8 @@ export const ingestParsedBook = action({
         });
         continue;
       }
-      const storageId = await ctx.storage.store(
+      const storageId = await storeBlob(
+        ctx,
         new Blob([text], { type: "text/plain" })
       );
       sectionsToInsert.push({
@@ -200,47 +278,78 @@ export const ingestParsedBook = action({
       sections: sectionsToInsert,
     });
 
-    await ctx.db.patch(args.bookId, {
+    await ctx.runMutation("ingest:patchBookAfterIngest", {
+      bookId: args.bookId,
       sectionCount: args.sections.length,
-      updatedAt: Date.now(),
     });
 
+    const existingHrefs = new Set(
+      await ctx.runQuery("ingest:listAssetHrefs", {
+        bookId: args.bookId,
+      }),
+    );
+    const assetsToInsert = [];
     for (const image of args.images ?? []) {
       if (!image?.href || !image?.data) {
         continue;
       }
-      const existing = await ctx.db
-        .query("bookAssets")
-        .withIndex("by_book_href", (q) =>
-          q.eq("bookId", args.bookId).eq("href", image.href)
-        )
-        .unique();
-      if (existing) {
+      if (existingHrefs.has(image.href)) {
         continue;
       }
       const buffer = base64ToBytes(image.data);
-      const storageId = await ctx.storage.store(
+      const storageId = await storeBlob(
+        ctx,
         new Blob([buffer], {
           type: image.contentType ?? "application/octet-stream",
         })
       );
-      await ctx.db.insert("bookAssets", {
-        bookId: args.bookId,
+      assetsToInsert.push({
         href: image.href,
         storageId,
         contentType: image.contentType,
         byteSize: buffer.length,
-        createdAt: Date.now(),
+      });
+    }
+    if (assetsToInsert.length > 0) {
+      await ctx.runMutation("ingest:upsertBookAssets", {
+        bookId: args.bookId,
+        assets: assetsToInsert,
       });
     }
   },
 });
 
 const base64ToBytes = (data: string) => {
-  const binary = atob(data);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
+  if (typeof atob === "function") {
+    const binary = atob(data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
   }
-  return bytes;
+  if (typeof Buffer !== "undefined") {
+    return Uint8Array.from(Buffer.from(data, "base64"));
+  }
+  throw new Error("Base64 decoding is not supported in this runtime.");
+};
+
+const storeBlob = async (
+  ctx: Parameters<typeof ingestParsedBook.handler>[0],
+  blob: Blob,
+) => {
+  if (typeof ctx.storage.store === "function") {
+    return await ctx.storage.store(blob);
+  }
+  const uploadUrl = await ctx.runMutation("storage:generateUploadUrl", {});
+  const response = await fetch(uploadUrl, {
+    method: "POST",
+    headers: blob.type ? { "Content-Type": blob.type } : undefined,
+    body: blob,
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body?.storageId) {
+    throw new Error("Failed to upload blob to storage.");
+  }
+  return body.storageId as Id<"_storage">;
 };

@@ -3,12 +3,11 @@ import { v } from "convex/values";
 import {
   getViewerUserId,
   requireBookOwner,
-  resolveImportUserId,
+  requireViewerUserId,
 } from "./authHelpers";
 
 export const createBook = mutation({
   args: {
-    ownerId: v.optional(v.id("users")),
     title: v.string(),
     author: v.optional(v.string()),
     language: v.optional(v.string()),
@@ -31,7 +30,7 @@ export const createBook = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const ownerId = await resolveImportUserId(ctx, args.ownerId);
+    const ownerId = await requireViewerUserId(ctx);
     const now = Date.now();
     return await ctx.db.insert("books", {
       ownerId,
