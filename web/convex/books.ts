@@ -81,6 +81,9 @@ export const deleteBook = mutation({
       if (section.textStorageId) {
         await ctx.storage.delete(section.textStorageId);
       }
+      if (section.contentStorageId) {
+        await ctx.storage.delete(section.contentStorageId);
+      }
       await ctx.db.delete(section._id);
     }
 
@@ -101,6 +104,29 @@ export const deleteBook = mutation({
       .collect();
     for (const entry of userBooks) {
       await ctx.db.delete(entry._id);
+    }
+
+    const bookmarks = await ctx.db
+      .query("bookmarks")
+      .withIndex("by_user_book", (q) =>
+        q.eq("userId", args.userId).eq("bookId", args.bookId),
+      )
+      .collect();
+    for (const bookmark of bookmarks) {
+      await ctx.db.delete(bookmark._id);
+    }
+
+    const assets = await ctx.db
+      .query("bookAssets")
+      .withIndex("by_book", (q) => q.eq("bookId", args.bookId))
+      .collect();
+    for (const asset of assets) {
+      await ctx.storage.delete(asset.storageId);
+      await ctx.db.delete(asset._id);
+    }
+
+    if (book.coverStorageId) {
+      await ctx.storage.delete(book.coverStorageId);
     }
 
     await ctx.db.delete(args.bookId);

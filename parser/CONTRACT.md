@@ -31,6 +31,17 @@ and Convex ingest can rely on.
       "content": "Chunk text..."
     }
   ],
+  "sectionBlocks": [
+    {
+      "sectionOrderIndex": 0,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "inlines": [{ "kind": "text", "text": "Hello" }]
+        }
+      ]
+    }
+  ],
   "metadata": {
     "title": "Book Title",
     "authors": ["Author One"],
@@ -40,6 +51,13 @@ and Convex ingest can rely on.
     "contentType": "image/jpeg",
     "data": "BASE64_BYTES"
   },
+  "images": [
+    {
+      "href": "OEBPS/images/cover.jpg",
+      "contentType": "image/jpeg",
+      "data": "BASE64_BYTES"
+    }
+  ],
   "warnings": [
     { "code": "spine", "message": "missing href", "path": "OEBPS/..." }
   ]
@@ -54,8 +72,10 @@ and Convex ingest can rely on.
 - `message`: `"parsed"` or `"parsed with warnings: ..."`
 - `sections`: ordered TOC/section list (flattened)
 - `chunks`: deterministic content chunks
+- `sectionBlocks`: structured blocks per section (for rich rendering)
 - `metadata`: extracted book metadata
 - `cover`: optional cover image payload (base64)
+- `images`: optional image resources referenced by content
 - `warnings`: non-fatal parse issues
 
 ### `sections[]`
@@ -81,6 +101,27 @@ and Convex ingest can rely on.
 ### `cover`
 - `contentType`: MIME type for the image
 - `data`: base64-encoded image bytes
+
+### `sectionBlocks[]`
+- `sectionOrderIndex`: index into `sections[]`
+- `blocks`: array of block objects with inline content
+
+Block payloads include:
+- `kind`: `paragraph`, `heading`, `list_item`, `blockquote`, `pre`, `hr`, `table`, `figure`
+- `level`: heading level (if heading)
+- `ordered` / `listIndex`: list metadata (if list item)
+- `inlines`: inline array for text, links, images
+- `table` / `figure`: structured table or figure data
+- `anchors`: anchor ids captured for the block
+
+Inline payloads include:
+- `kind`: `text`, `emphasis`, `strong`, `link`, `image`, `code`
+- `text`, `href`, `src`, `alt`
+
+### `images[]`
+- `href`: resolved EPUB resource path for an image
+- `contentType`: MIME type (best-effort)
+- `data`: base64-encoded bytes
 
 ### `warnings[]`
 - `code`: short code (e.g., `spine`, `content`, `opf`)

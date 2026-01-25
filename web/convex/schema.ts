@@ -54,10 +54,23 @@ const sections = defineTable({
   depth: v.number(),
   textStorageId: v.optional(v.id("_storage")),
   textSize: v.optional(v.number()),
+  contentStorageId: v.optional(v.id("_storage")),
+  contentSize: v.optional(v.number()),
   createdAt: v.number(),
 })
   .index("by_book", ["bookId"])
   .index("by_book_order", ["bookId", "orderIndex"]);
+
+const bookAssets = defineTable({
+  bookId: v.id("books"),
+  href: v.string(),
+  storageId: v.id("_storage"),
+  contentType: v.optional(v.string()),
+  byteSize: v.optional(v.number()),
+  createdAt: v.number(),
+})
+  .index("by_book", ["bookId"])
+  .index("by_book_href", ["bookId", "href"]);
 
 const importJobs = defineTable({
   userId: v.id("users"),
@@ -109,6 +122,7 @@ export default defineSchema({
   books,
   bookFiles,
   sections,
+  bookAssets,
   importJobs,
   userBooks,
   userSettings,
