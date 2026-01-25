@@ -6,17 +6,53 @@ type ImportTask = {
   fileName: string
   fileSize: number
   contentType?: string
-  fileData: Uint8Array
+  storageId: string
 }
 
 let processing = false
 const queue: ImportTask[] = []
 
-export const enqueueImport = (task: ImportTask, convexUrl: string, parserUrl: string) => {
+export const enqueueImport = (
+  task: ImportTask,
+  convexUrl: string,
+  parserUrl: string,
+) => {
   queue.push(task)
   if (!processing) {
     void processQueue(convexUrl, parserUrl)
   }
+}
+
+export const enqueueImportByJob = async (
+  importJobId: string,
+  convexUrl: string,
+  parserUrl: string,
+) => {
+  const convex = new ConvexHttpClient(convexUrl)
+  const job = await convex.query('importJobs:getImportJob', {
+    importJobId,
+  })
+  if (!job?.storageId) {
+    await convex.mutation('importJobs:updateImportJobStatus', {
+      importJobId,
+      status: 'failed',
+      errorMessage: 'Missing stored file',
+    })
+    return
+  }
+
+  enqueueImport(
+    {
+      importJobId: job._id,
+      userId: job.userId,
+      fileName: job.fileName,
+      fileSize: job.fileSize,
+      contentType: job.contentType ?? undefined,
+      storageId: job.storageId,
+    },
+    convexUrl,
+    parserUrl,
+  )
 }
 
 const processQueue = async (convexUrl: string, parserUrl: string) => {
@@ -35,8 +71,31 @@ const processQueue = async (convexUrl: string, parserUrl: string) => {
     })
 
     try {
+      const fileUrl = await convex.mutation('storage:getFileUrl', {
+        storageId: task.storageId,
+      })
+      if (!fileUrl) {
+        await convex.mutation('importJobs:updateImportJobStatus', {
+          importJobId: task.importJobId,
+          status: 'failed',
+          errorMessage: 'Missing stored file',
+        })
+        continue
+      }
+
+      const fileResponse = await fetch(fileUrl)
+      if (!fileResponse.ok) {
+        await convex.mutation('importJobs:updateImportJobStatus', {
+          importJobId: task.importJobId,
+          status: 'failed',
+          errorMessage: 'Failed to download stored file',
+        })
+        continue
+      }
+
+      const fileData = await fileResponse.arrayBuffer()
       const formData = new FormData()
-      const blob = new Blob([task.fileData], {
+      const blob = new Blob([fileData], {
         type: task.contentType ?? 'application/epub+zip',
       })
       formData.append('file', blob, task.fileName)

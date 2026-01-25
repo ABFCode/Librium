@@ -14,6 +14,7 @@ import type * as importJobs from "../importJobs.js";
 import type * as ingest from "../ingest.js";
 import type * as sections from "../sections.js";
 import type * as seed from "../seed.js";
+import type * as storage from "../storage.js";
 import type * as userBooks from "../userBooks.js";
 import type * as users from "../users.js";
 
@@ -30,6 +31,7 @@ declare const fullApi: ApiFromModules<{
   ingest: typeof ingest;
   sections: typeof sections;
   seed: typeof seed;
+  storage: typeof storage;
   userBooks: typeof userBooks;
   users: typeof users;
 }>;
