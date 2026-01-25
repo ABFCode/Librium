@@ -1,9 +1,14 @@
 import { action, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import type { Id } from "convex/values";
 
 const sectionSchema = v.object({
   title: v.string(),
   orderIndex: v.number(),
+  depth: v.number(),
+  parentOrderIndex: v.optional(v.number()),
+  href: v.optional(v.string()),
+  anchor: v.optional(v.string()),
 });
 
 const chunkSchema = v.object({
@@ -18,6 +23,10 @@ const chunkSchema = v.object({
 const sectionInsertSchema = v.object({
   title: v.string(),
   orderIndex: v.number(),
+  depth: v.number(),
+  parentOrderIndex: v.optional(v.number()),
+  href: v.optional(v.string()),
+  anchor: v.optional(v.string()),
   textStorageId: v.optional(v.id("_storage")),
   textSize: v.optional(v.number()),
 });
@@ -29,16 +38,25 @@ export const insertSections = mutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+    const idByOrder = new Map<number, Id<"sections">>();
     for (const section of args.sections) {
-      await ctx.db.insert("sections", {
+      const parentId =
+        section.parentOrderIndex !== undefined
+          ? idByOrder.get(section.parentOrderIndex)
+          : undefined;
+      const id = await ctx.db.insert("sections", {
         bookId: args.bookId,
+        parentId: parentId ?? undefined,
         title: section.title,
         orderIndex: section.orderIndex,
-        depth: 0,
+        depth: section.depth,
+        href: section.href,
+        anchor: section.anchor,
         textStorageId: section.textStorageId,
         textSize: section.textSize,
         createdAt: now,
       });
+      idByOrder.set(section.orderIndex, id);
     }
   },
 });
@@ -73,6 +91,10 @@ export const ingestParsedBook = action({
         sectionsToInsert.push({
           title: section.title,
           orderIndex: sectionIndex,
+          depth: section.depth,
+          parentOrderIndex: section.parentOrderIndex,
+          href: section.href,
+          anchor: section.anchor,
         });
         continue;
       }
@@ -82,6 +104,10 @@ export const ingestParsedBook = action({
       sectionsToInsert.push({
         title: section.title,
         orderIndex: sectionIndex,
+        depth: section.depth,
+        parentOrderIndex: section.parentOrderIndex,
+        href: section.href,
+        anchor: section.anchor,
         textStorageId: storageId,
         textSize: text.length,
       });

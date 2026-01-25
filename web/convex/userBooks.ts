@@ -81,3 +81,32 @@ export const updateProgress = mutation({
     });
   },
 });
+
+export const listRecentByUser = query({
+  args: {
+    userId: v.id("users"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 8;
+    const entries = await ctx.db
+      .query("userBooks")
+      .withIndex("by_user_updated", (q) => q.eq("userId", args.userId))
+      .order("desc")
+      .take(limit);
+
+    const results = [];
+    for (const entry of entries) {
+      const book = await ctx.db.get(entry.bookId);
+      if (book) {
+        results.push({
+          entryId: entry._id,
+          book,
+          lastSectionId: entry.lastSectionId,
+          updatedAt: entry.updatedAt,
+        });
+      }
+    }
+    return results;
+  },
+});

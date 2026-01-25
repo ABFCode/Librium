@@ -17,6 +17,10 @@ function Library() {
     api.books.listByOwner,
     userId ? { ownerId: userId } : 'skip',
   )
+  const recent = useQuery(
+    api.userBooks.listRecentByUser,
+    userId ? { userId, limit: 6 } : 'skip',
+  )
   const coverUrls = useQuery(
     api.books.getCoverUrls,
     books ? { bookIds: books.map((book) => book._id) } : 'skip',
@@ -126,6 +130,29 @@ function Library() {
             ) : null}
           </div>
 
+          {recent && recent.length > 0 ? (
+            <div className="surface-soft rounded-2xl p-6">
+              <div className="text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
+                Recently opened
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {recent.map((entry) => (
+                  <Link
+                    key={entry.entryId}
+                    className="rounded-2xl border border-white/10 bg-[rgba(12,15,18,0.6)] p-3 text-sm text-[var(--ink)] hover:border-[rgba(209,161,92,0.4)]"
+                    to="/reader/$bookId"
+                    params={{ bookId: entry.book._id }}
+                  >
+                    <div className="font-semibold">{entry.book.title}</div>
+                    <div className="mt-1 text-xs text-[var(--muted)]">
+                      {entry.book.author ?? 'Unknown author'}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {!books ? (
             <p className="text-sm text-[var(--muted)]">Loading...</p>
           ) : books.length === 0 ? (
@@ -143,12 +170,12 @@ function Library() {
                     to="/reader/$bookId"
                     params={{ bookId: book._id }}
                   >
-                    <div className="relative h-48 overflow-hidden">
+                    <div className="relative h-48 overflow-hidden bg-black/20">
                       {coverUrls?.[book._id] ? (
                         <img
                           src={coverUrls[book._id] ?? undefined}
                           alt={book.title}
-                          className="h-full w-full object-cover"
+                          className="h-full w-full object-contain"
                         />
                       ) : (
                         <div className="h-full w-full bg-[linear-gradient(135deg,rgba(209,161,92,0.22),rgba(143,181,166,0.2))]">
