@@ -91,7 +91,7 @@ function ImportPage() {
             <span className="pill">Import</span>
             <h1 className="mt-3 text-3xl">Queue EPUBs for parsing.</h1>
             <p className="mt-2 text-sm text-[var(--muted)]">
-              Drag and drop files to load them into your account.
+              Drag and drop files to add them to your account.
             </p>
           </div>
           <Link className="btn btn-primary" to="/library">
@@ -101,15 +101,15 @@ function ImportPage() {
 
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <section id="import" className="card p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl">Queue imports</h2>
-                  <p className="mt-2 text-sm text-[var(--muted)]">
-                    EPUB only. Keep the pipeline clean.
-                  </p>
-                </div>
-                <span className="pill">Parser</span>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl">Queue imports</h2>
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  EPUB only.
+                </p>
               </div>
+              <span className="pill">Upload</span>
+            </div>
               <div className="mt-6 flex flex-col gap-4">
                 <div
                   className={`flex min-h-[180px] flex-col items-center justify-center rounded-2xl border border-dashed px-6 py-8 text-center text-sm transition ${
@@ -204,11 +204,11 @@ function ImportPage() {
                 No imports yet.
               </p>
             ) : (
-              <div className="mt-6 space-y-4">
+              <div className="mt-4 space-y-3">
                 {importJobs.map((job) => (
                   <div
                     key={job._id}
-                    className="flex flex-col gap-3 rounded-2xl border border-white/5 bg-[rgba(12,15,18,0.7)] p-4"
+                    className="flex flex-col gap-2 rounded-2xl border border-white/5 bg-[rgba(12,15,18,0.7)] p-3"
                   >
                     <div className="text-sm font-semibold">{job.fileName}</div>
                     <span
@@ -233,7 +233,7 @@ function ImportPage() {
                           to="/reader/$bookId"
                           params={{ bookId: job.bookId }}
                         >
-                          Open reader
+                          Open
                         </Link>
                       ) : job.status === 'failed' ? (
                         <button

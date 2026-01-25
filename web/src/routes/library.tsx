@@ -163,14 +163,14 @@ function Library() {
             </div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredBooks.map((book, index) => (
+              {filteredBooks.map((book) => (
                 <div key={book._id} className="card group">
                   <Link
                     className="block"
                     to="/reader/$bookId"
                     params={{ bookId: book._id }}
                   >
-                    <div className="relative h-48 overflow-hidden bg-black/20">
+                    <div className="book-cover-frame relative h-48 overflow-hidden bg-black/20">
                       {coverUrls?.[book._id] ? (
                         <img
                           src={coverUrls[book._id] ?? undefined}
@@ -182,9 +182,6 @@ function Library() {
                           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.25),transparent_70%)]" />
                         </div>
                       )}
-                      <div className="absolute bottom-4 left-4 rounded-full border border-white/20 bg-black/30 px-3 py-1 text-[10px] uppercase tracking-[0.4em] text-white/80">
-                        Volume {index + 1}
-                      </div>
                     </div>
                     <div className="p-4">
                       <div className="text-lg font-semibold">
@@ -195,18 +192,54 @@ function Library() {
                       </div>
                     </div>
                   </Link>
-                  <div className="flex items-center justify-between border-t border-white/5 px-4 py-3 text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
+                  <div className="flex items-center justify-between border-t border-white/5 px-4 py-3 text-xs text-[var(--muted-2)]">
                     <button
-                      className="hover:text-[var(--accent-2)]"
+                      className="btn btn-ghost text-xs tooltip"
+                      data-tooltip="Download"
                       onClick={() => handleDownload(book._id, book.title)}
                     >
-                      Download
+                      <span className="sr-only">Download</span>
+                      <svg
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <path d="M7 10l5 5 5-5" />
+                        <path d="M12 15V3" />
+                      </svg>
                     </button>
                     <button
-                      className="hover:text-[var(--danger)]"
+                      className="btn btn-ghost text-xs tooltip"
+                      data-tooltip="Delete"
                       onClick={() => handleDelete(book._id)}
                     >
-                      Remove
+                      <span className="sr-only">Delete</span>
+                      <svg
+                        aria-hidden="true"
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                      </svg>
                     </button>
                   </div>
                 </div>
