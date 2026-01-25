@@ -17,7 +17,7 @@ export const createImportJob = mutation({
       fileSize: args.fileSize,
       contentType: args.contentType,
       storageId: args.storageId,
-      status: "pending",
+      status: "queued",
       createdAt: now,
     });
   },

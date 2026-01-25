@@ -1,15 +1,15 @@
-import { ConvexHttpClient } from 'convex/browser'
 import { createFileRoute } from '@tanstack/react-router'
 import { json } from '@tanstack/react-start'
+import { enqueueImport } from '../../server/importQueue'
 
 const parserUrl = process.env.PARSER_URL ?? 'http://localhost:8081/parse'
 const convexUrl = process.env.VITE_CONVEX_URL ?? process.env.CONVEX_URL
 
-const getConvexClient = () => {
+const getConvexUrl = () => {
   if (!convexUrl) {
     throw new Error('Missing Convex URL. Set VITE_CONVEX_URL or CONVEX_URL.')
   }
-  return new ConvexHttpClient(convexUrl)
+  return convexUrl
 }
 
 export const Route = createFileRoute('/api/import')({
@@ -23,7 +23,9 @@ export const Route = createFileRoute('/api/import')({
           return json({ error: 'Missing file' }, { status: 400 })
         }
 
-        const convex = getConvexClient()
+        const convexUrlValue = getConvexUrl()
+        const { ConvexHttpClient } = await import('convex/browser')
+        const convex = new ConvexHttpClient(convexUrlValue)
         const providedUserId = formData.get('userId')
         const userId =
           typeof providedUserId === 'string' && providedUserId.length > 0
@@ -44,74 +46,23 @@ export const Route = createFileRoute('/api/import')({
           },
         )
 
-        await convex.mutation('importJobs:updateImportJobStatus', {
-          importJobId,
-          status: 'in_progress',
-        })
-
-        const parserForm = new FormData()
-        parserForm.append('file', file, file.name)
-
-        const response = await fetch(parserUrl, {
-          method: 'POST',
-          body: parserForm,
-        })
-
-        const body = await response.json()
-        if (response.ok) {
-          const meta = body?.metadata ?? {}
-          const parsedTitle =
-            meta?.title || file.name.replace(/\.epub$/i, '')
-          const authorList = Array.isArray(meta?.authors)
-            ? meta.authors
-            : []
-          const author =
-            authorList.length > 0 ? authorList.join(', ') : undefined
-          const language = meta?.language || undefined
-          const bookId = await convex.mutation('books:createBook', {
-            ownerId: userId,
-            title: parsedTitle,
-            author,
-            language,
-            publisher: meta?.publisher || undefined,
-            publishedAt: meta?.publishedAt || undefined,
-            series: meta?.series || undefined,
-            seriesIndex: meta?.seriesIndex || undefined,
-            subjects: Array.isArray(meta?.subjects) ? meta.subjects : undefined,
-            identifiers: Array.isArray(meta?.identifiers)
-              ? meta.identifiers
-              : undefined,
-          })
-
-          await convex.mutation('userBooks:upsertUserBook', {
+        const fileData = new Uint8Array(await file.arrayBuffer())
+        enqueueImport(
+          {
+            importJobId,
             userId,
-            bookId,
-          })
-
-          if (body?.sections && body?.chunks) {
-            await convex.mutation('ingest:ingestParsedBook', {
-              bookId,
-              sections: body.sections,
-              chunks: body.chunks,
-            })
-          }
-
-          await convex.mutation('importJobs:updateImportJobStatus', {
-            importJobId,
-            status: 'completed',
-            bookId,
-          })
-        } else {
-          await convex.mutation('importJobs:updateImportJobStatus', {
-            importJobId,
-            status: 'failed',
-            errorMessage: body?.error ?? 'Parser error',
-          })
-        }
+            fileName: file.name,
+            fileSize: file.size,
+            contentType: file.type || undefined,
+            fileData,
+          },
+          convexUrlValue,
+          parserUrl,
+        )
 
         return json(
-          { importJobId, userId, parser: body },
-          { status: response.status },
+          { importJobId, userId, status: 'queued', fileName: file.name },
+          { status: 202 },
         )
       },
     },

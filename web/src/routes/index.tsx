@@ -47,13 +47,8 @@ function App() {
         setError(body?.error ?? `Upload failed for ${file.name}`)
         continue
       }
-      const meta = body?.parser?.metadata ?? {}
-      const authorList = Array.isArray(meta?.authors)
-        ? meta.authors
-        : []
-      const author =
-        authorList.length > 0 ? authorList.join(', ') : 'Unknown author'
-      const title = meta?.title || (body?.parser?.fileName ?? file.name)
+      const author = 'Queued for parsing'
+      const title = body?.fileName ?? file.name
       setResult({
         fileName: title,
         fileSize: body?.parser?.fileSize ?? file.size,
@@ -184,8 +179,22 @@ function App() {
                     <div className="text-sm font-semibold text-slate-100">
                       {job.fileName}
                     </div>
-                    <div className="text-xs uppercase tracking-widest text-slate-400">
-                      {job.status}
+                    <div className="mt-1">
+                      <span
+                        className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-widest ${
+                          job.status === 'completed'
+                            ? 'bg-emerald-500/20 text-emerald-200'
+                            : job.status === 'failed'
+                              ? 'bg-rose-500/20 text-rose-200'
+                              : job.status === 'ingesting'
+                                ? 'bg-sky-500/20 text-sky-200'
+                                : job.status === 'parsing'
+                                  ? 'bg-indigo-500/20 text-indigo-200'
+                                  : 'bg-slate-700/40 text-slate-300'
+                        }`}
+                      >
+                        {job.status}
+                      </span>
                     </div>
                   </div>
                   <div>
