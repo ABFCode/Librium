@@ -17,6 +17,10 @@ function Library() {
     api.books.listByOwner,
     userId ? { ownerId: userId } : 'skip',
   )
+  const coverUrls = useQuery(
+    api.books.getCoverUrls,
+    books ? { bookIds: books.map((book) => book._id) } : 'skip',
+  )
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -139,9 +143,19 @@ function Library() {
                     to="/reader/$bookId"
                     params={{ bookId: book._id }}
                   >
-                    <div className="relative h-48 overflow-hidden bg-[linear-gradient(135deg,rgba(209,161,92,0.22),rgba(143,181,166,0.2))]">
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.25),transparent_70%)]" />
-                      <div className="absolute bottom-4 left-4 rounded-full border border-white/20 px-3 py-1 text-[10px] uppercase tracking-[0.4em] text-white/80">
+                    <div className="relative h-48 overflow-hidden">
+                      {coverUrls?.[book._id] ? (
+                        <img
+                          src={coverUrls[book._id] ?? undefined}
+                          alt={book.title}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-[linear-gradient(135deg,rgba(209,161,92,0.22),rgba(143,181,166,0.2))]">
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.25),transparent_70%)]" />
+                        </div>
+                      )}
+                      <div className="absolute bottom-4 left-4 rounded-full border border-white/20 bg-black/30 px-3 py-1 text-[10px] uppercase tracking-[0.4em] text-white/80">
                         Volume {index + 1}
                       </div>
                     </div>

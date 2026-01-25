@@ -121,6 +121,30 @@ const processQueue = async (convexUrl: string, parserUrl: string) => {
       })
 
       const meta = body?.metadata ?? {}
+      const cover = body?.cover
+      let coverStorageId: string | undefined
+      let coverContentType: string | undefined
+      if (cover?.data) {
+        try {
+          const uploadUrl = await convex.mutation(
+            'storage:generateUploadUrl',
+            {},
+          )
+          const coverBinary = Buffer.from(cover.data, 'base64')
+          const coverResponse = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': cover.contentType ?? 'image/jpeg',
+            },
+            body: coverBinary,
+          })
+          const coverBody = await coverResponse.json()
+          coverStorageId = coverBody.storageId
+          coverContentType = cover.contentType ?? undefined
+        } catch (err) {
+          console.warn('Cover upload failed', err)
+        }
+      }
       const parsedTitle =
         meta?.title || task.fileName.replace(/\.epub$/i, '')
       const authorList = Array.isArray(meta?.authors)
@@ -140,6 +164,8 @@ const processQueue = async (convexUrl: string, parserUrl: string) => {
         series: meta?.series || undefined,
         seriesIndex: meta?.seriesIndex || undefined,
         subjects: Array.isArray(meta?.subjects) ? meta.subjects : undefined,
+        coverStorageId: coverStorageId ?? undefined,
+        coverContentType: coverContentType ?? undefined,
         identifiers: Array.isArray(meta?.identifiers)
           ? meta.identifiers
           : undefined,

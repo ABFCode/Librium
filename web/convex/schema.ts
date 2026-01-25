@@ -19,6 +19,8 @@ const books = defineTable({
   series: v.optional(v.string()),
   seriesIndex: v.optional(v.string()),
   subjects: v.optional(v.array(v.string())),
+  coverStorageId: v.optional(v.id("_storage")),
+  coverContentType: v.optional(v.string()),
   identifiers: v.optional(
     v.array(
       v.object({

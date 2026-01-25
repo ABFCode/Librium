@@ -30,8 +30,13 @@ function Reader() {
   const [fontScale, setFontScale] = useState(0)
   const [isTocOpen, setIsTocOpen] = useState(false)
   const parentRef = useRef<HTMLDivElement | null>(null)
+  const activeSectionRef = useRef<string | null>(null)
 
   const sectionId = activeSectionId ?? null
+
+  useEffect(() => {
+    activeSectionRef.current = sectionId
+  }, [sectionId])
 
   const activeSection = useMemo(() => {
     if (!sections || !sectionId) {
@@ -41,6 +46,35 @@ function Reader() {
   }, [sections, sectionId])
 
   const fontSize = 16 + fontScale * 2
+
+  const activeIndex = useMemo(() => {
+    if (!sections || !sectionId) {
+      return -1
+    }
+    return sections.findIndex((section) => section._id === sectionId)
+  }, [sections, sectionId])
+
+  const goToSection = (index: number) => {
+    if (!sections || index < 0 || index >= sections.length) {
+      return
+    }
+    setActiveSectionId(sections[index]._id)
+    setIsTocOpen(false)
+  }
+
+  const goNext = () => {
+    if (activeIndex < 0) {
+      return
+    }
+    goToSection(activeIndex + 1)
+  }
+
+  const goPrev = () => {
+    if (activeIndex < 0) {
+      return
+    }
+    goToSection(activeIndex - 1)
+  }
 
   useEffect(() => {
     if (!sections || sections.length === 0) {
@@ -61,16 +95,19 @@ function Reader() {
     setActiveSectionId(sections[0]._id)
   }, [sections, activeSectionId, userBook])
 
-  const loadSection = async () => {
-    if (!sectionId) {
+  const loadSection = async (targetId: string | null) => {
+    if (!targetId) {
       return
     }
     setIsLoading(true)
-    const { text } = await getSectionText({ sectionId })
+    const { text } = await getSectionText({ sectionId: targetId })
+    if (activeSectionRef.current !== targetId) {
+      return
+    }
     const paragraphs = text.split(/\n{2,}/).filter(Boolean)
     setChunks(
       paragraphs.map((content, index) => ({
-        id: `${sectionId}-${index}`,
+        id: `${targetId}-${index}`,
         content,
       })),
     )
@@ -78,8 +115,7 @@ function Reader() {
   }
 
   useEffect(() => {
-    setChunks([])
-    void loadSection()
+    void loadSection(sectionId)
   }, [sectionId])
 
   useEffect(() => {
@@ -93,6 +129,29 @@ function Reader() {
     })
   }, [userId, bookId, sectionId, updateProgress])
 
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement
+      ) {
+        return
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        goNext()
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        goPrev()
+      }
+    }
+
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [goNext, goPrev])
+
   return (
     <RequireAuth>
       <div className="min-h-screen px-6 pb-16 pt-10">
@@ -104,10 +163,26 @@ function Reader() {
                 {activeSection?.title ?? 'Untitled section'}
               </h1>
               <p className="mt-2 text-sm text-[var(--muted)]">
-                Book ID: {bookId}
+                {activeIndex >= 0 ? `Section ${activeIndex + 1}` : 'Loading'}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  className="btn btn-ghost text-xs"
+                  onClick={goPrev}
+                  disabled={!sections || activeIndex <= 0}
+                >
+                  Prev
+                </button>
+                <button
+                  className="btn btn-ghost text-xs"
+                  onClick={goNext}
+                  disabled={!sections || activeIndex < 0 || activeIndex >= sections.length - 1}
+                >
+                  Next
+                </button>
+              </div>
               <button
                 className="btn btn-ghost text-xs"
                 onClick={() => setIsTocOpen((prev) => !prev)}
@@ -211,7 +286,9 @@ function Reader() {
               >
                 {chunks.length === 0 ? (
                   <p className="text-sm text-[var(--muted)]">
-                    Select a section to begin reading.
+                    {isLoading
+                      ? 'Loading section...'
+                      : 'Select a section to begin reading.'}
                   </p>
                 ) : (
                   chunks.map((chunk) => (

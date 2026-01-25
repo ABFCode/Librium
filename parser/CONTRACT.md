@@ -36,6 +36,10 @@ and Convex ingest can rely on.
     "authors": ["Author One"],
     "language": "en"
   },
+  "cover": {
+    "contentType": "image/jpeg",
+    "data": "BASE64_BYTES"
+  },
   "warnings": [
     { "code": "spine", "message": "missing href", "path": "OEBPS/..." }
   ]
@@ -51,6 +55,7 @@ and Convex ingest can rely on.
 - `sections`: ordered TOC/section list (flattened)
 - `chunks`: deterministic content chunks
 - `metadata`: extracted book metadata
+- `cover`: optional cover image payload (base64)
 - `warnings`: non-fatal parse issues
 
 ### `sections[]`
@@ -68,6 +73,10 @@ and Convex ingest can rely on.
 - `title`: canonical title
 - `authors`: list of authors
 - `language`: primary language code (if available)
+
+### `cover`
+- `contentType`: MIME type for the image
+- `data`: base64-encoded image bytes
 
 ### `warnings[]`
 - `code`: short code (e.g., `spine`, `content`, `opf`)
