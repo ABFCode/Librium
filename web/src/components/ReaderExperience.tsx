@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useAction, useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useLocalUser } from '../hooks/useLocalUser'
@@ -15,6 +15,8 @@ type InlinePayload = {
   href?: string
   src?: string
   alt?: string
+  width?: number
+  height?: number
   emph?: boolean
   strong?: boolean
 }
@@ -80,6 +82,8 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const [isTocOpen, setIsTocOpen] = useState(false)
   const [activeSideTab, setActiveSideTab] = useState<'toc' | 'search' | 'bookmarks'>('toc')
   const [isPrefsOpen, setIsPrefsOpen] = useState(false)
+  const [isRestoringView, setIsRestoringView] = useState(false)
+  const [isHydrated, setIsHydrated] = useState(false)
   const [tocReady, setTocReady] = useState(false)
   const lastSavedPrefsRef = useRef<{
     fontScale: number
@@ -97,7 +101,12 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(false)
   const restoredFromUserBookRef = useRef(false)
   const tocInitRef = useRef(false)
+  const initialProgressRef = useRef(false)
+  const isRestoringRef = useRef(false)
+  const scrollRestoredRef = useRef<string | null>(null)
+  const restoreTokenRef = useRef(0)
   const tocListRef = useRef<HTMLDivElement | null>(null)
+  const fontsReadyRef = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
     if (!userSettings || isPrefsOpen) {
@@ -116,11 +125,15 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   }, [userSettings, isPrefsOpen])
 
   useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+
+  useEffect(() => {
     document.body.dataset.theme = theme
   }, [theme])
 
-  useEffect(() => {
-    if (!userId) {
+useEffect(() => {
+  if (!userId) {
       return
     }
     const payload = { fontScale, lineHeight, contentWidth, theme }
@@ -187,6 +200,33 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     }
     return sections.find((section) => section._id === sectionId) ?? null
   }, [sections, sectionId])
+
+  useLayoutEffect(() => {
+    if (!sectionId) {
+      return
+    }
+    if (scrollRestoredRef.current === sectionId) {
+      return
+    }
+    if (userBook?.lastSectionId !== sectionId) {
+      return
+    }
+    const shouldRestore =
+      (userBook.lastScrollTop ?? 0) > 0 ||
+      (userBook.lastScrollRatio ?? 0) > 0.001 ||
+      (userBook.lastChunkIndex ?? 0) > 0 ||
+      (userBook.lastChunkOffset ?? 0) > 0
+    if (shouldRestore) {
+      setIsRestoringView(true)
+    }
+  }, [
+    sectionId,
+    userBook?.lastSectionId,
+    userBook?.lastScrollTop,
+    userBook?.lastScrollRatio,
+    userBook?.lastChunkIndex,
+    userBook?.lastChunkOffset,
+  ])
 
   const fontSize = 16 + fontScale * 2
   const themeClass =
@@ -328,9 +368,15 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     if (userBook?.lastSectionId && !restoredFromUserBookRef.current) {
       return
     }
+    if (isRestoringRef.current) {
+      return
+    }
     const container = parentRef.current
     const scrollTop = container.scrollTop
+    const maxScroll = Math.max(1, container.scrollHeight - container.clientHeight)
+    const scrollRatio = Math.min(1, Math.max(0, scrollTop / maxScroll))
     let chunkIndex = 0
+    let offsetWithin = 0
     const nodes = Array.from(
       container.querySelectorAll('[data-chunk-index]'),
     )
@@ -338,6 +384,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       const element = node as HTMLElement
       if (element.offsetTop + element.clientHeight > scrollTop) {
         chunkIndex = Number(element.dataset.chunkIndex ?? 0)
+        offsetWithin = Math.max(0, scrollTop - element.offsetTop)
         break
       }
     }
@@ -346,16 +393,26 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       bookId,
       lastSectionId: sectionId,
       lastChunkIndex: chunkIndex,
-      lastChunkOffset: scrollTop,
+      lastChunkOffset: offsetWithin,
+      lastScrollRatio: scrollRatio,
+      lastScrollTop: scrollTop,
+      lastScrollHeight: container.scrollHeight,
+      lastClientHeight: container.clientHeight,
     })
   }
 
-  useEffect(() => {
-    if (!userId || !sectionId) {
-      return
+  const waitForFonts = () => {
+    if (typeof document === 'undefined') {
+      return Promise.resolve()
     }
-    emitProgress()
-  }, [userId, bookId, sectionId])
+    if (!fontsReadyRef.current) {
+      const fonts = (document as Document & { fonts?: FontFaceSet }).fonts
+      fontsReadyRef.current = fonts?.ready
+        ? fonts.ready.then(() => undefined).catch(() => undefined)
+        : Promise.resolve()
+    }
+    return fontsReadyRef.current
+  }
 
   useEffect(() => {
     const container = parentRef.current
@@ -373,6 +430,20 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     container.addEventListener('scroll', handleScroll)
     return () => container.removeEventListener('scroll', handleScroll)
   }, [sectionId, userId])
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        emitProgress()
+      }
+    }
+    window.addEventListener('pagehide', emitProgress)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.removeEventListener('pagehide', emitProgress)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [userId, sectionId, userBook])
 
   useEffect(() => {
     restoredSectionRef.current = null
@@ -397,28 +468,133 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     return () => window.cancelAnimationFrame(id)
   }, [isTocOpen, activeSideTab, sectionId, sections])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = parentRef.current
     if (!container || !sectionId) {
       return
     }
-    if (restoredSectionRef.current === sectionId) {
+    const hasContent = (blocks && blocks.length > 0) || chunks.length > 0
+    if (!hasContent) {
       return
     }
     if (pendingScrollRef.current !== null) {
+      setIsRestoringView(false)
       container.scrollTop = pendingScrollRef.current
       pendingScrollRef.current = null
       restoredSectionRef.current = sectionId
+      scrollRestoredRef.current = sectionId
       return
     }
     if (userBook?.lastSectionId === sectionId) {
-      container.scrollTop = userBook.lastChunkOffset ?? 0
+      if (scrollRestoredRef.current === sectionId) {
+        setIsRestoringView(false)
+        return
+      }
+      const targetIndex = userBook.lastChunkIndex ?? 0
+      const targetOffset = userBook.lastChunkOffset ?? 0
+      const targetRatio = userBook.lastScrollRatio
+      const targetScrollTop = userBook.lastScrollTop
+      const targetScrollHeight = userBook.lastScrollHeight
+      const targetClientHeight = userBook.lastClientHeight
+      const shouldRestore =
+        (targetRatio !== undefined && targetRatio > 0.001) ||
+        targetOffset > 0 ||
+        targetIndex > 0 ||
+        (targetScrollTop !== undefined && targetScrollTop > 0)
+      if (!shouldRestore) {
+        container.scrollTop = 0
+        setIsRestoringView(false)
+        scrollRestoredRef.current = sectionId
+        restoredSectionRef.current = sectionId
+        return
+      }
+      setIsRestoringView(true)
+      const restoreByRatio = () => {
+        if (targetRatio === undefined) {
+          return false
+        }
+        const maxScroll = Math.max(1, container.scrollHeight - container.clientHeight)
+        container.scrollTop = Math.round(targetRatio * maxScroll)
+        return true
+      }
+      const restoreByScrollTop = () => {
+        if (targetScrollTop === undefined) {
+          return false
+        }
+        if (targetClientHeight === undefined || targetScrollHeight === undefined) {
+          container.scrollTop = targetScrollTop
+          return true
+        }
+        const heightDelta = Math.abs(container.clientHeight - targetClientHeight)
+        const scrollDelta = Math.abs(container.scrollHeight - targetScrollHeight)
+        if (heightDelta > 6 || scrollDelta > 24) {
+          return false
+        }
+        container.scrollTop = targetScrollTop
+        return true
+      }
+      const restoreByChunk = () => {
+        const target = container.querySelector(
+          `[data-chunk-index="${targetIndex}"]`,
+        ) as HTMLElement | null
+        if (!target) {
+          return false
+        }
+        container.scrollTop = target.offsetTop + targetOffset
+        return true
+      }
+      const restoredNow = restoreByScrollTop() || restoreByChunk() || restoreByRatio()
+      if (!restoredNow) {
+        container.scrollTop = 0
+        setIsRestoringView(false)
+        scrollRestoredRef.current = sectionId
+        restoredSectionRef.current = sectionId
+        return
+      }
+      scrollRestoredRef.current = sectionId
       restoredSectionRef.current = sectionId
+      isRestoringRef.current = true
+      const restoreToken = ++restoreTokenRef.current
+      const restoreNow = () =>
+        restoreByScrollTop() || restoreByChunk() || restoreByRatio()
+      void waitForFonts().then(() => {
+        if (restoreTokenRef.current !== restoreToken) {
+          return
+        }
+        window.requestAnimationFrame(() => {
+          restoreNow()
+          window.requestAnimationFrame(() => {
+            if (restoreTokenRef.current !== restoreToken) {
+              return
+            }
+            restoreNow()
+            isRestoringRef.current = false
+            setIsRestoringView(false)
+          })
+        })
+      })
       return
     }
+    if (userBook === null && userId && !initialProgressRef.current) {
+      setIsRestoringView(false)
+      initialProgressRef.current = true
+      void updateProgress({
+        userId,
+        bookId,
+        lastSectionId: sectionId,
+        lastChunkIndex: 0,
+        lastChunkOffset: 0,
+        lastScrollRatio: 0,
+        lastScrollTop: 0,
+        lastScrollHeight: 0,
+        lastClientHeight: 0,
+      })
+    }
     container.scrollTop = 0
+    setIsRestoringView(false)
     restoredSectionRef.current = sectionId
-  }, [sectionId, chunks.length, userBook?.lastSectionId, userBook?.lastChunkOffset])
+    scrollRestoredRef.current = null
+  }, [sectionId, chunks.length, blocks?.length, userBook, userId])
 
   const searchMatches = useMemo(() => {
     const source = blocks && blocks.length > 0
@@ -535,11 +711,20 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
           if (!src) {
             return null
           }
+          const width = inline.width && inline.width > 0 ? inline.width : undefined
+          const height = inline.height && inline.height > 0 ? inline.height : undefined
           return (
             <img
               key={key}
               src={src}
               alt={inline.alt ?? ''}
+              width={width}
+              height={height}
+              style={
+                width && height
+                  ? { aspectRatio: `${width}/${height}` }
+                  : undefined
+              }
               className="reader-image"
               loading="lazy"
             />
@@ -893,7 +1078,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const shellWidthClass = isTocOpen ? 'max-w-6xl' : 'max-w-7xl lg:pr-16'
   const contentOrderClass = 'lg:order-1'
   const tocListClass =
-    'mt-4 flex max-h-[55vh] flex-col gap-2 overflow-auto pr-2'
+    'reader-scroll mt-4 flex max-h-[55vh] flex-col gap-2 overflow-auto pr-2'
 
   const tabControls = (
     <div className="mt-4 flex gap-2">
@@ -963,7 +1148,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
               {searchQuery ? 'No matches.' : 'Type to search.'}
             </p>
           ) : (
-            <div className="mt-4 flex max-h-[50vh] flex-col gap-2 overflow-auto">
+            <div className="reader-scroll mt-4 flex max-h-[50vh] flex-col gap-2 overflow-auto">
               {searchMatches.map((match) => (
                 <button
                   key={`${match.index}-${match.snippet}`}
@@ -985,7 +1170,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
           ) : bookmarks.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">No bookmarks yet.</p>
           ) : (
-            <div className="flex max-h-[50vh] flex-col gap-3 overflow-auto">
+            <div className="reader-scroll flex max-h-[50vh] flex-col gap-3 overflow-auto">
               {bookmarks.map((bookmark) => {
                 const sectionTitle =
                   sectionTitleById.get(bookmark.sectionId) ?? 'Untitled chapter'
@@ -1304,47 +1489,73 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
                   Loading user...
                 </p>
               ) : null}
+              {userBook === undefined && sectionId ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                  <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-[var(--reader-muted)]">
+                    Restoring
+                  </div>
+                </div>
+              ) : null}
               {showLoadingOverlay ? (
                 <div className="pointer-events-none absolute right-6 top-6 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[var(--reader-muted)]">
                   Loading chapter
                 </div>
               ) : null}
-              <div
-                ref={parentRef}
-                className="h-[70vh] overflow-auto px-6 py-8 text-left"
-                style={{
-                  fontSize: `${fontSize}px`,
-                  lineHeight: lineHeight,
-                }}
-              >
-                <div className="mb-6">
-                  {!blocks || blocks.length === 0 ? (
-                    <h1 className="text-2xl text-[var(--reader-ink)]">
-                      {activeSection?.title ?? 'Untitled chapter'}
-                    </h1>
-                  ) : null}
+              {!isHydrated || isRestoringView ? (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                  <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-[var(--reader-muted)]">
+                    {isHydrated ? 'Restoring position' : 'Preparing reader'}
+                  </div>
                 </div>
-                <div className="mx-auto" style={{ maxWidth: `${contentWidth}px` }}>
-                  {(blocks && blocks.length > 0 ? false : chunks.length === 0) ? (
-                    <p className="text-sm text-[var(--reader-muted)]">
-                      {sectionId ? 'Loading chapter...' : 'Select a chapter to begin reading.'}
-                    </p>
-                  ) : (
-                    blocks && blocks.length > 0
-                      ? renderBlocks(blocks)
-                      : chunks.map((chunk, index) => (
-                          <div
-                            key={chunk.id}
-                            data-chunk-index={index}
-                            className="py-3 whitespace-pre-wrap text-[var(--reader-ink)]"
-                            style={{ lineHeight }}
-                          >
-                            {chunk.content}
-                          </div>
-                        ))
-                  )}
+              ) : null}
+              {userBook === undefined && sectionId ? (
+                <div className="p-6 text-sm text-[var(--reader-muted)]">
+                  Restoring your place…
                 </div>
-              </div>
+              ) : (
+                <div
+                  className={`reader-scroll-shell ${
+                    !isHydrated || isRestoringView ? 'is-restoring' : ''
+                  }`}
+                >
+                  <div
+                    ref={parentRef}
+                    className="reader-scroll h-full overflow-auto px-6 py-8 text-left"
+                    style={{
+                      fontSize: `${fontSize}px`,
+                      lineHeight: lineHeight,
+                    }}
+                  >
+                    <div className="mb-6">
+                      {!blocks || blocks.length === 0 ? (
+                        <h1 className="text-2xl text-[var(--reader-ink)]">
+                          {activeSection?.title ?? 'Untitled chapter'}
+                        </h1>
+                      ) : null}
+                    </div>
+                    <div className="mx-auto" style={{ maxWidth: `${contentWidth}px` }}>
+                      {(blocks && blocks.length > 0 ? false : chunks.length === 0) ? (
+                        <p className="text-sm text-[var(--reader-muted)]">
+                          {sectionId ? 'Loading chapter...' : 'Select a chapter to begin reading.'}
+                        </p>
+                      ) : (
+                        blocks && blocks.length > 0
+                          ? renderBlocks(blocks)
+                          : chunks.map((chunk, index) => (
+                              <div
+                                key={chunk.id}
+                                data-chunk-index={index}
+                                className="py-3 whitespace-pre-wrap text-[var(--reader-ink)]"
+                                style={{ lineHeight }}
+                              >
+                                {chunk.content}
+                              </div>
+                            ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </section>
           </div>
         </div>

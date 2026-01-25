@@ -25,6 +25,10 @@ export const upsertUserBook = mutation({
       bookId: args.bookId,
       lastChunkIndex: 0,
       lastChunkOffset: 0,
+      lastScrollRatio: 0,
+      lastScrollTop: 0,
+      lastScrollHeight: 0,
+      lastClientHeight: 0,
       updatedAt: now,
     });
   },
@@ -52,6 +56,10 @@ export const updateProgress = mutation({
     lastSectionId: v.optional(v.id("sections")),
     lastChunkIndex: v.optional(v.number()),
     lastChunkOffset: v.optional(v.number()),
+    lastScrollRatio: v.optional(v.number()),
+    lastScrollTop: v.optional(v.number()),
+    lastScrollHeight: v.optional(v.number()),
+    lastClientHeight: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -66,6 +74,13 @@ export const updateProgress = mutation({
       lastSectionId: args.lastSectionId ?? existing?.lastSectionId ?? undefined,
       lastChunkIndex: args.lastChunkIndex ?? existing?.lastChunkIndex ?? 0,
       lastChunkOffset: args.lastChunkOffset ?? existing?.lastChunkOffset ?? 0,
+      lastScrollRatio:
+        args.lastScrollRatio ?? existing?.lastScrollRatio ?? 0,
+      lastScrollTop: args.lastScrollTop ?? existing?.lastScrollTop ?? 0,
+      lastScrollHeight:
+        args.lastScrollHeight ?? existing?.lastScrollHeight ?? 0,
+      lastClientHeight:
+        args.lastClientHeight ?? existing?.lastClientHeight ?? 0,
       updatedAt: now,
     };
 

@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"log"
 	"mime"
@@ -79,6 +84,8 @@ type inlinePayload struct {
 	Href   string `json:"href,omitempty"`
 	Src    string `json:"src,omitempty"`
 	Alt    string `json:"alt,omitempty"`
+	Width  int    `json:"width,omitempty"`
+	Height int    `json:"height,omitempty"`
 	Emph   bool   `json:"emph,omitempty"`
 	Strong bool   `json:"strong,omitempty"`
 }
@@ -128,6 +135,8 @@ type imagePayload struct {
 	Href        string `json:"href"`
 	ContentType string `json:"contentType,omitempty"`
 	Data        string `json:"data"`
+	Width       int    `json:"width,omitempty"`
+	Height      int    `json:"height,omitempty"`
 }
 
 type identifierPayload struct {
@@ -684,6 +693,10 @@ func convertInlines(inlines []spine.Inline, baseHref string, book *spine.Book, i
 			if resolved != "" {
 				payload.Src = resolved
 				ensureImagePayload(book, resolved, images)
+				if meta, ok := images[resolved]; ok {
+					payload.Width = meta.Width
+					payload.Height = meta.Height
+				}
 			}
 		}
 		out = append(out, payload)
@@ -778,11 +791,22 @@ func ensureImagePayload(book *spine.Book, href string, images map[string]imagePa
 	if contentType == "" {
 		contentType = http.DetectContentType(data)
 	}
+	width, height := decodeImageDimensions(data)
 	images[href] = imagePayload{
 		Href:        href,
 		ContentType: contentType,
 		Data:        base64.StdEncoding.EncodeToString(data),
+		Width:       width,
+		Height:      height,
 	}
+}
+
+func decodeImageDimensions(data []byte) (int, int) {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return 0, 0
+	}
+	return cfg.Width, cfg.Height
 }
 
 func countWords(text string) int {

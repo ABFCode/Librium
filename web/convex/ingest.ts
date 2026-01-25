@@ -26,6 +26,8 @@ const inlineSchema = v.object({
   href: v.optional(v.string()),
   src: v.optional(v.string()),
   alt: v.optional(v.string()),
+  width: v.optional(v.number()),
+  height: v.optional(v.number()),
   emph: v.optional(v.boolean()),
   strong: v.optional(v.boolean()),
 });
@@ -68,6 +70,8 @@ const imageSchema = v.object({
   href: v.string(),
   contentType: v.optional(v.string()),
   data: v.string(),
+  width: v.optional(v.number()),
+  height: v.optional(v.number()),
 });
 
 const sectionInsertSchema = v.object({

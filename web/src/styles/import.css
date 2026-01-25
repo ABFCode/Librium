@@ -1,0 +1,65 @@
+@layer components {
+  .upload-control {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(245, 239, 230, 0.16);
+    background: rgba(15, 18, 22, 0.7);
+    padding: 0.5rem 0.75rem 0.5rem 0.6rem;
+    cursor: pointer;
+    transition: border 150ms ease, background 150ms ease, transform 150ms ease;
+  }
+
+  .upload-control:hover {
+    border-color: rgba(209, 161, 92, 0.6);
+    background: rgba(15, 18, 22, 0.85);
+    transform: translateY(-1px);
+  }
+
+  .upload-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .upload-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    border: 1px solid rgba(209, 161, 92, 0.4);
+    background: rgba(209, 161, 92, 0.18);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+  }
+
+  .upload-meta {
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted-2);
+  }
+
+  .upload-input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
+    height: 0;
+  }
+
+  body[data-theme='paper'] .upload-control {
+    background: color-mix(in srgb, var(--surface) 92%, white);
+    border-color: color-mix(in srgb, var(--outline) 70%, transparent);
+  }
+
+  body[data-theme='paper'] .upload-icon {
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    background: color-mix(in srgb, var(--accent) 18%, white);
+  }
+}
