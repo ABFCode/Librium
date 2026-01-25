@@ -12,8 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as LibraryRouteImport } from './routes/library'
-import { Route as Import3RouteImport } from './routes/import3'
-import { Route as Import2RouteImport } from './routes/import2'
 import { Route as ImportRouteImport } from './routes/import'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReaderBookIdRouteImport } from './routes/reader/$bookId'
@@ -33,16 +31,6 @@ const SignInRoute = SignInRouteImport.update({
 const LibraryRoute = LibraryRouteImport.update({
   id: '/library',
   path: '/library',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const Import3Route = Import3RouteImport.update({
-  id: '/import3',
-  path: '/import3',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const Import2Route = Import2RouteImport.update({
-  id: '/import2',
-  path: '/import2',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImportRoute = ImportRouteImport.update({
@@ -74,8 +62,6 @@ const ApiImportRoute = ApiImportRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/import': typeof ImportRoute
-  '/import2': typeof Import2Route
-  '/import3': typeof Import3Route
   '/library': typeof LibraryRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
@@ -86,8 +72,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/import': typeof ImportRoute
-  '/import2': typeof Import2Route
-  '/import3': typeof Import3Route
   '/library': typeof LibraryRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
@@ -99,8 +83,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/import': typeof ImportRoute
-  '/import2': typeof Import2Route
-  '/import3': typeof Import3Route
   '/library': typeof LibraryRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
@@ -113,8 +95,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/import'
-    | '/import2'
-    | '/import3'
     | '/library'
     | '/sign-in'
     | '/sign-up'
@@ -125,8 +105,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/import'
-    | '/import2'
-    | '/import3'
     | '/library'
     | '/sign-in'
     | '/sign-up'
@@ -137,8 +115,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/import'
-    | '/import2'
-    | '/import3'
     | '/library'
     | '/sign-in'
     | '/sign-up'
@@ -150,8 +126,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ImportRoute: typeof ImportRoute
-  Import2Route: typeof Import2Route
-  Import3Route: typeof Import3Route
   LibraryRoute: typeof LibraryRoute
   SignInRoute: typeof SignInRoute
   SignUpRoute: typeof SignUpRoute
@@ -181,20 +155,6 @@ declare module '@tanstack/react-router' {
       path: '/library'
       fullPath: '/library'
       preLoaderRoute: typeof LibraryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/import3': {
-      id: '/import3'
-      path: '/import3'
-      fullPath: '/import3'
-      preLoaderRoute: typeof Import3RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/import2': {
-      id: '/import2'
-      path: '/import2'
-      fullPath: '/import2'
-      preLoaderRoute: typeof Import2RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/import': {
@@ -238,8 +198,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ImportRoute: ImportRoute,
-  Import2Route: Import2Route,
-  Import3Route: Import3Route,
   LibraryRoute: LibraryRoute,
   SignInRoute: SignInRoute,
   SignUpRoute: SignUpRoute,
