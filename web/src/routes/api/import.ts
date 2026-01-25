@@ -36,6 +36,17 @@ export const Route = createFileRoute('/api/import')({
                 name: 'Local Dev',
               })
 
+        const uploadUrl = await convex.mutation(
+          'storage:generateUploadUrl',
+          {},
+        )
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          body: file,
+        })
+        const uploadBody = await uploadResponse.json()
+        const storageId = uploadBody.storageId
+
         const importJobId = await convex.mutation(
           'importJobs:createImportJob',
           {
@@ -43,10 +54,10 @@ export const Route = createFileRoute('/api/import')({
             fileName: file.name,
             fileSize: file.size,
             contentType: file.type || undefined,
+            storageId,
           },
         )
 
-        const fileData = new Uint8Array(await file.arrayBuffer())
         enqueueImport(
           {
             importJobId,
@@ -54,7 +65,7 @@ export const Route = createFileRoute('/api/import')({
             fileName: file.name,
             fileSize: file.size,
             contentType: file.type || undefined,
-            fileData,
+            storageId,
           },
           convexUrlValue,
           parserUrl,

@@ -38,6 +38,15 @@ export const listImportJobs = query({
   },
 });
 
+export const getImportJob = query({
+  args: {
+    importJobId: v.id("importJobs"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.importJobId);
+  },
+});
+
 export const updateImportJobStatus = mutation({
   args: {
     importJobId: v.id("importJobs"),

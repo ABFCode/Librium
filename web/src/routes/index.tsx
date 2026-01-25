@@ -206,6 +206,21 @@ function App() {
                       >
                         Open reader
                       </Link>
+                    ) : job.status === 'failed' ? (
+                      <button
+                        className="text-xs font-semibold uppercase tracking-widest text-rose-200 hover:text-rose-100"
+                        onClick={async () => {
+                          await fetch('/api/import-retry', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              importJobId: job._id,
+                            }),
+                          })
+                        }}
+                      >
+                        Retry
+                      </button>
                     ) : (
                       <span className="text-xs uppercase tracking-widest text-slate-500">
                         No book

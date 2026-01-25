@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReaderBookIdRouteImport } from './routes/reader/$bookId'
+import { Route as ApiImportRetryRouteImport } from './routes/api/import-retry'
 import { Route as ApiImportRouteImport } from './routes/api/import'
 
 const LibraryRoute = LibraryRouteImport.update({
@@ -29,6 +30,11 @@ const ReaderBookIdRoute = ReaderBookIdRouteImport.update({
   path: '/reader/$bookId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiImportRetryRoute = ApiImportRetryRouteImport.update({
+  id: '/api/import-retry',
+  path: '/api/import-retry',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImportRoute = ApiImportRouteImport.update({
   id: '/api/import',
   path: '/api/import',
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
   '/api/import': typeof ApiImportRoute
+  '/api/import-retry': typeof ApiImportRetryRoute
   '/reader/$bookId': typeof ReaderBookIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
   '/api/import': typeof ApiImportRoute
+  '/api/import-retry': typeof ApiImportRetryRoute
   '/reader/$bookId': typeof ReaderBookIdRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,33 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/library': typeof LibraryRoute
   '/api/import': typeof ApiImportRoute
+  '/api/import-retry': typeof ApiImportRetryRoute
   '/reader/$bookId': typeof ReaderBookIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/library' | '/api/import' | '/reader/$bookId'
+  fullPaths:
+    | '/'
+    | '/library'
+    | '/api/import'
+    | '/api/import-retry'
+    | '/reader/$bookId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/library' | '/api/import' | '/reader/$bookId'
-  id: '__root__' | '/' | '/library' | '/api/import' | '/reader/$bookId'
+  to: '/' | '/library' | '/api/import' | '/api/import-retry' | '/reader/$bookId'
+  id:
+    | '__root__'
+    | '/'
+    | '/library'
+    | '/api/import'
+    | '/api/import-retry'
+    | '/reader/$bookId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LibraryRoute: typeof LibraryRoute
   ApiImportRoute: typeof ApiImportRoute
+  ApiImportRetryRoute: typeof ApiImportRetryRoute
   ReaderBookIdRoute: typeof ReaderBookIdRoute
 }
 
@@ -92,6 +113,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReaderBookIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/import-retry': {
+      id: '/api/import-retry'
+      path: '/api/import-retry'
+      fullPath: '/api/import-retry'
+      preLoaderRoute: typeof ApiImportRetryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/import': {
       id: '/api/import'
       path: '/api/import'
@@ -106,6 +134,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LibraryRoute: LibraryRoute,
   ApiImportRoute: ApiImportRoute,
+  ApiImportRetryRoute: ApiImportRetryRoute,
   ReaderBookIdRoute: ReaderBookIdRoute,
 }
 export const routeTree = rootRouteImport
