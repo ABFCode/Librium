@@ -20,7 +20,11 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'TanStack Start Starter',
+        title: 'Librium',
+      },
+      {
+        name: 'description',
+        content: 'Your personal library, reimagined for focus and flow.',
       },
     ],
     links: [
@@ -40,7 +44,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body className="min-h-screen text-[var(--ink)]">
         <ConvexBetterAuthProvider client={convexClient} authClient={authClient}>
           <Header />
           {children}

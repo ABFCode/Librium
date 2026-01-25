@@ -1,10 +1,178 @@
 
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;400;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root {
+    color-scheme: dark;
+    --font-display: 'Fraunces', 'Times New Roman', serif;
+    --font-body: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+    --bg: #0b0d0f;
+    --bg-2: #101418;
+    --surface: #15181c;
+    --surface-2: #1c2026;
+    --surface-3: #222830;
+    --ink: #f5efe6;
+    --muted: #c2b9aa;
+    --muted-2: #9d9488;
+    --accent: #d1a15c;
+    --accent-2: #8fb5a6;
+    --accent-3: #7aa1d8;
+    --danger: #d46a6a;
+    --outline: #2b323a;
+    --shadow-soft: 0 18px 60px rgba(6, 8, 12, 0.55);
+    --shadow-strong: 0 30px 120px rgba(6, 8, 12, 0.7);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
   body {
-    @apply bg-slate-950 text-slate-100 antialiased;
+    min-height: 100vh;
+    font-family: var(--font-body);
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 900px at 10% -10%, rgba(209, 161, 92, 0.28), transparent 60%),
+      radial-gradient(900px 700px at 100% 0%, rgba(143, 181, 166, 0.18), transparent 55%),
+      linear-gradient(180deg, #0b0d0f, #11161d 40%, #0c0f14);
+    background-color: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.08;
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: 0.01em;
+  }
+
+  a {
+    color: inherit;
+  }
+}
+
+@layer components {
+  .surface {
+    background: linear-gradient(145deg, rgba(24, 28, 33, 0.92), rgba(16, 20, 24, 0.95));
+    border: 1px solid var(--outline);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .surface-soft {
+    background: rgba(20, 24, 29, 0.6);
+    border: 1px solid rgba(43, 50, 58, 0.7);
+  }
+
+  .text-muted {
+    color: var(--muted);
+  }
+
+  .text-muted-2 {
+    color: var(--muted-2);
+  }
+
+  .pill {
+    border-radius: 999px;
+    border: 1px solid rgba(209, 161, 92, 0.35);
+    padding: 0.35rem 0.75rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 999px;
+    padding: 0.65rem 1.4rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: 200ms ease;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, rgba(209, 161, 92, 0.95), rgba(234, 196, 128, 0.95));
+    color: #1a1208;
+    box-shadow: 0 10px 30px rgba(209, 161, 92, 0.25);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+  }
+
+  .btn-ghost {
+    border: 1px solid rgba(245, 239, 230, 0.12);
+    color: var(--ink);
+    background: rgba(20, 24, 29, 0.4);
+  }
+
+  .btn-outline {
+    border: 1px solid rgba(143, 181, 166, 0.5);
+    color: var(--accent-2);
+    background: transparent;
+  }
+
+  .input {
+    width: 100%;
+    border-radius: 16px;
+    border: 1px solid rgba(43, 50, 58, 0.8);
+    background: rgba(11, 13, 16, 0.7);
+    padding: 0.75rem 1rem;
+    font-size: 0.95rem;
+    color: var(--ink);
+    transition: border 150ms ease;
+  }
+
+  .input:focus {
+    outline: none;
+    border-color: rgba(209, 161, 92, 0.6);
+    box-shadow: 0 0 0 3px rgba(209, 161, 92, 0.15);
+  }
+
+  .card {
+    border-radius: 20px;
+    border: 1px solid rgba(43, 50, 58, 0.7);
+    background: rgba(18, 22, 27, 0.88);
+    box-shadow: var(--shadow-soft);
+    overflow: hidden;
+  }
+
+  .card:hover {
+    border-color: rgba(209, 161, 92, 0.4);
+    box-shadow: var(--shadow-strong);
+  }
+
+  .fade-in {
+    animation: fadeInUp 0.6s ease both;
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }

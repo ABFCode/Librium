@@ -7,43 +7,52 @@ export default function Header() {
   const allowLocalAuth =
     import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
   return (
-    <header className="border-b border-slate-800 bg-slate-950/80 px-4 py-3 backdrop-blur">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between gap-4 text-sm font-semibold">
+    <header className="sticky top-0 z-40 border-b border-white/5 bg-[rgba(10,12,15,0.88)] px-4 py-4 backdrop-blur">
+      <nav className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link className="text-slate-100 hover:text-sky-300" to="/">
-            Home
+          <Link className="flex items-center gap-3" to="/">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(209,161,92,0.4)] bg-[rgba(209,161,92,0.12)] text-lg font-semibold text-[var(--accent)]">
+              L
+            </div>
+            <div className="leading-tight">
+              <div className="text-lg font-semibold tracking-wide">
+                Librium
+              </div>
+              <div className="text-xs uppercase tracking-[0.4em] text-[var(--muted-2)]">
+                Reading Room
+              </div>
+            </div>
           </Link>
-          <Link className="text-slate-100 hover:text-sky-300" to="/library">
-            Library
-          </Link>
+          <div className="hidden items-center gap-3 text-sm font-semibold text-[var(--muted)] md:flex">
+            <Link className="hover:text-[var(--ink)]" to="/">
+              Import
+            </Link>
+            <Link className="hover:text-[var(--ink)]" to="/library">
+              Library
+            </Link>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {user ? (
             <>
-              <span className="text-xs text-slate-400">
+              <span className="hidden rounded-full border border-white/10 px-3 py-1 text-xs text-[var(--muted)] md:inline-flex">
                 {user.email ?? user.name ?? 'Signed in'}
               </span>
               <button
-                className="text-xs font-semibold text-slate-200 hover:text-sky-300"
+                className="btn btn-ghost text-xs"
                 onClick={() => authClient.signOut()}
               >
                 Sign out
               </button>
             </>
           ) : allowLocalAuth ? (
-            <span className="text-xs text-slate-400">Local auth</span>
+            <span className="text-xs text-[var(--muted)]">Local auth</span>
           ) : (
             <>
-              <Link
-                className="text-xs font-semibold text-slate-200 hover:text-sky-300"
-                to="/sign-in"
-              >
+              <Link className="btn btn-ghost text-xs" to="/sign-in">
                 Sign in
               </Link>
-              <Link
-                className="text-xs font-semibold text-sky-300 hover:text-sky-200"
-                to="/sign-up"
-              >
+              <Link className="btn btn-primary text-xs" to="/sign-up">
                 Sign up
               </Link>
             </>

@@ -41,39 +41,70 @@ function SignIn() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 px-6 py-10">
-      <div className="mx-auto w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
-        <h1 className="text-2xl font-semibold text-white">
-          Sign in
-        </h1>
-        <p className="mt-2 text-sm text-slate-300">
-          Use your email and password.
-        </p>
-        <div className="mt-6 space-y-4">
-          <input
-            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-200"
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-          <input
-            className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-200"
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-          <button
-            className="w-full rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300"
-            onClick={submit}
-            disabled={isLoading || !email || !password}
-          >
-            {isLoading ? 'Signing in...' : 'Sign in'}
-          </button>
-          {error ? (
-            <p className="text-sm text-rose-400">{error}</p>
-          ) : null}
+    <div className="min-h-screen px-6 py-12">
+      <div className="mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="surface flex flex-col justify-between rounded-[28px] p-8">
+          <div>
+            <span className="pill">Member Access</span>
+            <h1 className="mt-6 text-4xl leading-tight">
+              Step into your private reading lounge.
+            </h1>
+            <p className="mt-4 text-sm text-[var(--muted)]">
+              Librium keeps your personal library synchronized, beautiful, and
+              fast. Sign in to continue where you left off.
+            </p>
+          </div>
+          <div className="mt-10 grid gap-4 text-sm text-[var(--muted)]">
+            <div className="surface-soft rounded-2xl p-4">
+              <div className="text-xs uppercase tracking-[0.3em] text-[var(--accent)]">
+                Focus Mode
+              </div>
+              <div className="mt-2 text-base text-[var(--ink)]">
+                Distraction-free layouts tuned for long reading sessions.
+              </div>
+            </div>
+            <div className="surface-soft rounded-2xl p-4">
+              <div className="text-xs uppercase tracking-[0.3em] text-[var(--accent-2)]">
+                Sync & Resume
+              </div>
+              <div className="mt-2 text-base text-[var(--ink)]">
+                Your progress stays with you across every device.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="surface flex flex-col justify-center rounded-[28px] p-8">
+          <h2 className="text-2xl">Sign in</h2>
+          <p className="mt-2 text-sm text-[var(--muted)]">
+            Use the email tied to your Librium account.
+          </p>
+          <div className="mt-6 space-y-4">
+            <input
+              className="input"
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+            <input
+              className="input"
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <button
+              className="btn btn-primary w-full"
+              onClick={submit}
+              disabled={isLoading || !email || !password}
+            >
+              {isLoading ? 'Signing in...' : 'Enter Librium'}
+            </button>
+            {error ? (
+              <p className="text-sm text-[var(--danger)]">{error}</p>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { useAction, useQuery } from 'convex/react'
+import { useAction, useMutation, useQuery } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
 import { useLocalUser } from '../../hooks/useLocalUser'
 import { RequireAuth } from '../../components/RequireAuth'
@@ -19,19 +19,47 @@ function Reader() {
   const userId = useLocalUser()
   const sections = useQuery(api.sections.listSections, { bookId })
   const getSectionText = useAction(api.reader.getSectionText)
+  const updateProgress = useMutation(api.userBooks.updateProgress)
+  const userBook = useQuery(
+    api.userBooks.getUserBook,
+    userId ? { userId, bookId } : 'skip',
+  )
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [chunks, setChunks] = useState<ReaderChunk[]>([])
-  const [nextIndex, setNextIndex] = useState<number | null>(0)
   const [isLoading, setIsLoading] = useState(false)
+  const [fontScale, setFontScale] = useState(0)
+  const [isTocOpen, setIsTocOpen] = useState(false)
   const parentRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => {
-    if (sections && sections.length > 0 && !activeSectionId) {
-      setActiveSectionId(sections[0]._id)
-    }
-  }, [sections, activeSectionId])
-
   const sectionId = activeSectionId ?? null
+
+  const activeSection = useMemo(() => {
+    if (!sections || !sectionId) {
+      return null
+    }
+    return sections.find((section) => section._id === sectionId) ?? null
+  }, [sections, sectionId])
+
+  const fontSize = 16 + fontScale * 2
+
+  useEffect(() => {
+    if (!sections || sections.length === 0) {
+      return
+    }
+    if (activeSectionId) {
+      return
+    }
+    if (userBook?.lastSectionId) {
+      const match = sections.find(
+        (section) => section._id === userBook.lastSectionId,
+      )
+      if (match) {
+        setActiveSectionId(match._id)
+        return
+      }
+    }
+    setActiveSectionId(sections[0]._id)
+  }, [sections, activeSectionId, userBook])
 
   const loadSection = async () => {
     if (!sectionId) {
@@ -46,77 +74,157 @@ function Reader() {
         content,
       })),
     )
-    setNextIndex(null)
     setIsLoading(false)
   }
 
   useEffect(() => {
     setChunks([])
-    setNextIndex(0)
     void loadSection()
   }, [sectionId])
 
+  useEffect(() => {
+    if (!userId || !sectionId) {
+      return
+    }
+    void updateProgress({
+      userId,
+      bookId,
+      lastSectionId: sectionId,
+    })
+  }, [userId, bookId, sectionId, updateProgress])
+
   return (
     <RequireAuth>
-      <div className="min-h-screen bg-slate-950 px-6 py-10">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
-            <h1 className="text-2xl font-semibold text-white">Reader</h1>
-            <p className="mt-2 text-sm text-slate-400">Book: {bookId}</p>
-            {!userId ? (
-              <p className="mt-4 text-sm text-slate-400">
-                Loading user...
-              </p>
-            ) : null}
-            {!sections ? (
-              <p className="mt-4 text-sm text-slate-400">
-                Loading sections...
-              </p>
-            ) : null}
-            {sections && sections.length === 0 ? (
-              <p className="mt-4 text-sm text-slate-400">
-                No sections yet. Parser output not loaded.
-              </p>
-            ) : null}
-            {sections && sections.length > 0 ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {sections.map((section) => (
-                  <button
-                    key={section._id}
-                    className="rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-sky-400 hover:text-sky-200 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500"
-                    onClick={() => setActiveSectionId(section._id)}
-                    disabled={section._id === sectionId}
-                  >
-                    {section.title}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
-            <div
-              ref={parentRef}
-              className="h-[60vh] overflow-auto rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-left text-sm text-slate-200"
-            >
-              {chunks.map((chunk) => (
-                <div
-                  key={chunk.id}
-                  className="py-3 leading-relaxed whitespace-pre-wrap break-words"
-                >
-                  {chunk.content}
-                </div>
-              ))}
-            </div>
+      <div className="min-h-screen px-6 pb-16 pt-10">
+        <div className="mx-auto w-full max-w-6xl">
+          <div className="surface flex flex-col gap-4 rounded-[28px] p-6 md:flex-row md:items-center md:justify-between">
             <div>
+              <span className="pill">Reader</span>
+              <h1 className="mt-3 text-3xl">
+                {activeSection?.title ?? 'Untitled section'}
+              </h1>
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                Book ID: {bookId}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
               <button
-                className="mt-4 inline-flex items-center justify-center rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-300"
+                className="btn btn-ghost text-xs"
+                onClick={() => setIsTocOpen((prev) => !prev)}
+              >
+                {isTocOpen ? 'Hide contents' : 'Show contents'}
+              </button>
+              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-[rgba(12,15,18,0.7)] px-3 py-2 text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
+                <span>Text</span>
+                <button
+                  className="text-[var(--accent)]"
+                  onClick={() => setFontScale((prev) => Math.max(prev - 1, -1))}
+                >
+                  A-
+                </button>
+                <button
+                  className="text-[var(--accent)]"
+                  onClick={() => setFontScale((prev) => Math.min(prev + 1, 2))}
+                >
+                  A+
+                </button>
+              </div>
+              <button
+                className="btn btn-outline text-xs"
                 onClick={loadSection}
                 disabled={isLoading || !sectionId}
               >
-                {isLoading ? 'Loading...' : 'Reload section'}
+                {isLoading ? 'Refreshing...' : 'Reload'}
               </button>
             </div>
+          </div>
+
+          <div className="relative mt-8 grid gap-6 lg:grid-cols-[0.34fr_0.66fr]">
+            <div
+              className={`fixed inset-0 z-30 bg-black/40 transition-opacity lg:hidden ${
+                isTocOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+              }`}
+              onClick={() => setIsTocOpen(false)}
+            />
+            <aside
+              className={`surface fixed right-6 top-28 z-40 h-[70vh] w-[80vw] max-w-sm overflow-hidden rounded-[24px] p-5 transition-transform lg:static lg:top-auto lg:h-auto lg:w-auto lg:translate-x-0 ${
+                isTocOpen ? 'translate-x-0' : 'translate-x-[120%]'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-sm uppercase tracking-[0.4em] text-[var(--muted-2)]">
+                  Contents
+                </div>
+                <button
+                  className="text-xs text-[var(--muted)] lg:hidden"
+                  onClick={() => setIsTocOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+              {!sections ? (
+                <p className="mt-4 text-sm text-[var(--muted)]">
+                  Loading sections...
+                </p>
+              ) : sections.length === 0 ? (
+                <p className="mt-4 text-sm text-[var(--muted)]">
+                  No sections yet. Parser output not loaded.
+                </p>
+              ) : (
+                <div className="mt-4 flex max-h-[55vh] flex-col gap-2 overflow-auto pr-2">
+                  {sections.map((section) => (
+                    <button
+                      key={section._id}
+                      className={`rounded-2xl border px-3 py-3 text-left text-sm transition ${
+                        section._id === sectionId
+                          ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--ink)]'
+                          : 'border-white/10 bg-[rgba(12,15,18,0.6)] text-[var(--muted)] hover:border-white/30'
+                      }`}
+                      onClick={() => {
+                        setActiveSectionId(section._id)
+                        setIsTocOpen(false)
+                      }}
+                      disabled={section._id === sectionId}
+                    >
+                      <div className="text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
+                        Section
+                      </div>
+                      <div className="mt-1 text-base text-[var(--ink)]">
+                        {section.title}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </aside>
+
+            <section className="card overflow-hidden">
+              {!userId ? (
+                <p className="p-6 text-sm text-[var(--muted)]">
+                  Loading user...
+                </p>
+              ) : null}
+              <div
+                ref={parentRef}
+                className="h-[65vh] overflow-auto px-6 py-8 text-left"
+                style={{ fontSize: `${fontSize}px` }}
+              >
+                {chunks.length === 0 ? (
+                  <p className="text-sm text-[var(--muted)]">
+                    Select a section to begin reading.
+                  </p>
+                ) : (
+                  chunks.map((chunk) => (
+                    <div
+                      key={chunk.id}
+                      className="py-3 leading-relaxed whitespace-pre-wrap text-[var(--ink)]"
+                    >
+                      {chunk.content}
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
           </div>
         </div>
       </div>
