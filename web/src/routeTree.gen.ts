@@ -15,8 +15,6 @@ import { Route as LibraryRouteImport } from './routes/library'
 import { Route as ImportRouteImport } from './routes/import'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReaderBookIdRouteImport } from './routes/reader/$bookId'
-import { Route as ApiImportRetryRouteImport } from './routes/api/import-retry'
-import { Route as ApiImportRouteImport } from './routes/api/import'
 
 const SignUpRoute = SignUpRouteImport.update({
   id: '/sign-up',
@@ -48,16 +46,6 @@ const ReaderBookIdRoute = ReaderBookIdRouteImport.update({
   path: '/reader/$bookId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiImportRetryRoute = ApiImportRetryRouteImport.update({
-  id: '/api/import-retry',
-  path: '/api/import-retry',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiImportRoute = ApiImportRouteImport.update({
-  id: '/api/import',
-  path: '/api/import',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -65,8 +53,6 @@ export interface FileRoutesByFullPath {
   '/library': typeof LibraryRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
-  '/api/import': typeof ApiImportRoute
-  '/api/import-retry': typeof ApiImportRetryRoute
   '/reader/$bookId': typeof ReaderBookIdRoute
 }
 export interface FileRoutesByTo {
@@ -75,8 +61,6 @@ export interface FileRoutesByTo {
   '/library': typeof LibraryRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
-  '/api/import': typeof ApiImportRoute
-  '/api/import-retry': typeof ApiImportRetryRoute
   '/reader/$bookId': typeof ReaderBookIdRoute
 }
 export interface FileRoutesById {
@@ -86,8 +70,6 @@ export interface FileRoutesById {
   '/library': typeof LibraryRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
-  '/api/import': typeof ApiImportRoute
-  '/api/import-retry': typeof ApiImportRetryRoute
   '/reader/$bookId': typeof ReaderBookIdRoute
 }
 export interface FileRouteTypes {
@@ -98,19 +80,9 @@ export interface FileRouteTypes {
     | '/library'
     | '/sign-in'
     | '/sign-up'
-    | '/api/import'
-    | '/api/import-retry'
     | '/reader/$bookId'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/import'
-    | '/library'
-    | '/sign-in'
-    | '/sign-up'
-    | '/api/import'
-    | '/api/import-retry'
-    | '/reader/$bookId'
+  to: '/' | '/import' | '/library' | '/sign-in' | '/sign-up' | '/reader/$bookId'
   id:
     | '__root__'
     | '/'
@@ -118,8 +90,6 @@ export interface FileRouteTypes {
     | '/library'
     | '/sign-in'
     | '/sign-up'
-    | '/api/import'
-    | '/api/import-retry'
     | '/reader/$bookId'
   fileRoutesById: FileRoutesById
 }
@@ -129,8 +99,6 @@ export interface RootRouteChildren {
   LibraryRoute: typeof LibraryRoute
   SignInRoute: typeof SignInRoute
   SignUpRoute: typeof SignUpRoute
-  ApiImportRoute: typeof ApiImportRoute
-  ApiImportRetryRoute: typeof ApiImportRetryRoute
   ReaderBookIdRoute: typeof ReaderBookIdRoute
 }
 
@@ -178,20 +146,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReaderBookIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/import-retry': {
-      id: '/api/import-retry'
-      path: '/api/import-retry'
-      fullPath: '/api/import-retry'
-      preLoaderRoute: typeof ApiImportRetryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/import': {
-      id: '/api/import'
-      path: '/api/import'
-      fullPath: '/api/import'
-      preLoaderRoute: typeof ApiImportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -201,8 +155,6 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryRoute: LibraryRoute,
   SignInRoute: SignInRoute,
   SignUpRoute: SignUpRoute,
-  ApiImportRoute: ApiImportRoute,
-  ApiImportRetryRoute: ApiImportRetryRoute,
   ReaderBookIdRoute: ReaderBookIdRoute,
 }
 export const routeTree = rootRouteImport

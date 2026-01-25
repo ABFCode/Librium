@@ -1,13 +1,8 @@
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import {
-  getViewerUserId,
-  requireImportJobOwnerOrImporter,
-  requireViewerUserId,
-  resolveImportUserId,
-} from "./authHelpers";
+import { getViewerUserId } from "./authHelpers";
 
-export const createImportJob = mutation({
+export const createImportJobInternal = internalMutation({
   args: {
     userId: v.id("users"),
     fileName: v.string(),
@@ -16,10 +11,9 @@ export const createImportJob = mutation({
     storageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
-    const userId = await resolveImportUserId(ctx, args.userId);
     const now = Date.now();
     return await ctx.db.insert("importJobs", {
-      userId,
+      userId: args.userId,
       fileName: args.fileName,
       fileSize: args.fileSize,
       contentType: args.contentType,
@@ -53,12 +47,19 @@ export const getImportJob = query({
     importJobId: v.id("importJobs"),
   },
   handler: async (ctx, args) => {
-    const { job } = await requireImportJobOwnerOrImporter(ctx, args.importJobId);
+    const userId = await getViewerUserId(ctx);
+    if (!userId) {
+      return null;
+    }
+    const job = await ctx.db.get(args.importJobId);
+    if (!job || job.userId !== userId) {
+      return null;
+    }
     return job;
   },
 });
 
-export const updateImportJobStatus = mutation({
+export const updateImportJobStatusInternal = internalMutation({
   args: {
     importJobId: v.id("importJobs"),
     status: v.string(),
@@ -66,7 +67,6 @@ export const updateImportJobStatus = mutation({
     bookId: v.optional(v.id("books")),
   },
   handler: async (ctx, args) => {
-    await requireImportJobOwnerOrImporter(ctx, args.importJobId);
     const now = Date.now();
     const update: Record<string, unknown> = {
       status: args.status,

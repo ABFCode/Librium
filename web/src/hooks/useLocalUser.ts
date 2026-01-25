@@ -15,7 +15,13 @@ export const useLocalUser = () => {
   useEffect(() => {
     if (authUser) {
       const externalId =
-        authUser.id ?? authUser.userId ?? authUser.sub ?? 'unknown'
+        authUser.id ??
+        authUser.userId ??
+        authUser.sub ??
+        (authUser as { user?: { id?: string } }).user?.id ??
+        authUser.email ??
+        (authUser as { user?: { email?: string } }).user?.email ??
+        'unknown'
       upsertUser({
         authProvider: 'better-auth',
         externalId,

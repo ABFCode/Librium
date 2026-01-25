@@ -9,6 +9,7 @@ export default function Header() {
   const user = session?.user
   const { isAuthenticated } = useConvexAuth()
   const saveSettings = useMutation(api.userSettings.upsert)
+  const ensureViewer = useMutation(api.users.ensureViewer)
   const allowLocalAuth =
     import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
   const showNav = Boolean(user) || allowLocalAuth
@@ -33,6 +34,12 @@ export default function Header() {
     }
     document.body.dataset.theme = theme
   }, [theme])
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      void ensureViewer({})
+    }
+  }, [isAuthenticated, ensureViewer])
   const toggleTheme = async () => {
     const next = theme === 'paper' ? 'night' : 'paper'
     setTheme(next)
