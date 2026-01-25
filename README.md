@@ -29,7 +29,7 @@ go run ./main.go
 2) Start Convex:
 ```
 cd web
-pnpm dlx convex dev
+pnpm convex dev
 ```
 
 3) Start the web app:

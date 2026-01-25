@@ -1,16 +1,26 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import {
+  getViewerUserId,
+  requireBookOwner,
+  requireSectionOwner,
+  requireViewerUserId,
+} from "./authHelpers";
 
 export const listByUserBook = query({
   args: {
-    userId: v.id("users"),
     bookId: v.id("books"),
   },
   handler: async (ctx, args) => {
+    const userId = await getViewerUserId(ctx);
+    if (!userId) {
+      return [];
+    }
+    await requireBookOwner(ctx, args.bookId);
     return await ctx.db
       .query("bookmarks")
       .withIndex("by_user_book", (q) =>
-        q.eq("userId", args.userId).eq("bookId", args.bookId),
+        q.eq("userId", userId).eq("bookId", args.bookId),
       )
       .collect();
   },
@@ -18,7 +28,6 @@ export const listByUserBook = query({
 
 export const createBookmark = mutation({
   args: {
-    userId: v.id("users"),
     bookId: v.id("books"),
     sectionId: v.id("sections"),
     chunkIndex: v.number(),
@@ -26,9 +35,15 @@ export const createBookmark = mutation({
     label: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const userId = await requireViewerUserId(ctx);
+    await requireBookOwner(ctx, args.bookId);
+    const { section } = await requireSectionOwner(ctx, args.sectionId);
+    if (section.bookId !== args.bookId) {
+      throw new Error("Section does not belong to this book.");
+    }
     const now = Date.now();
     return await ctx.db.insert("bookmarks", {
-      userId: args.userId,
+      userId,
       bookId: args.bookId,
       sectionId: args.sectionId,
       chunkIndex: args.chunkIndex,
@@ -42,14 +57,14 @@ export const createBookmark = mutation({
 export const deleteBookmark = mutation({
   args: {
     bookmarkId: v.id("bookmarks"),
-    userId: v.id("users"),
   },
   handler: async (ctx, args) => {
+    const userId = await requireViewerUserId(ctx);
     const bookmark = await ctx.db.get(args.bookmarkId);
     if (!bookmark) {
       return;
     }
-    if (bookmark.userId !== args.userId) {
+    if (bookmark.userId !== userId) {
       throw new Error("Not authorized to delete this bookmark.");
     }
     await ctx.db.delete(args.bookmarkId);

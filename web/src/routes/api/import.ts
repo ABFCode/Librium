@@ -4,6 +4,12 @@ import { enqueueImport } from '../../server/importQueue'
 
 const parserUrl = process.env.PARSER_URL ?? 'http://localhost:8081/parse'
 const convexUrl = process.env.VITE_CONVEX_URL ?? process.env.CONVEX_URL
+const allowLocalAuth =
+  process.env.VITE_ALLOW_LOCAL_AUTH === 'true' ||
+  process.env.ALLOW_LOCAL_AUTH === 'true'
+const allowServerImports =
+  process.env.ALLOW_SERVER_IMPORTS === 'true' ||
+  process.env.NODE_ENV !== 'production'
 
 const getConvexUrl = () => {
   if (!convexUrl) {
@@ -27,14 +33,20 @@ export const Route = createFileRoute('/api/import')({
         const { ConvexHttpClient } = await import('convex/browser')
         const convex = new ConvexHttpClient(convexUrlValue)
         const providedUserId = formData.get('userId')
-        const userId =
+        let userId =
           typeof providedUserId === 'string' && providedUserId.length > 0
             ? providedUserId
-            : await convex.mutation('users:upsertUser', {
-                authProvider: 'local',
-                externalId: 'local-dev',
-                name: 'Local Dev',
-              })
+            : null
+        if (!userId) {
+          if (!allowLocalAuth && !allowServerImports) {
+            return json({ error: 'Unauthenticated' }, { status: 401 })
+          }
+          userId = await convex.mutation('users:upsertUser', {
+            authProvider: 'local',
+            externalId: 'local-dev',
+            name: 'Local Dev',
+          })
+        }
 
         const uploadUrl = await convex.mutation(
           'storage:generateUploadUrl',

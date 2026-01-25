@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useConvex, useMutation, useQuery } from 'convex/react'
+import { useConvex, useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
-import { useLocalUser } from '../hooks/useLocalUser'
 import { RequireAuth } from '../components/RequireAuth'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -10,24 +9,24 @@ export const Route = createFileRoute('/library')({
 })
 
 function Library() {
-  const userId = useLocalUser()
   const convex = useConvex()
+  const { isAuthenticated } = useConvexAuth()
+  const allowLocalAuth =
+    import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
+  const canQuery = isAuthenticated || allowLocalAuth
   const deleteBook = useMutation(api.books.deleteBook)
-  const books = useQuery(
-    api.books.listByOwner,
-    userId ? { ownerId: userId } : 'skip',
-  )
+  const books = useQuery(api.books.listByOwner, canQuery ? {} : 'skip')
   const progressEntries = useQuery(
     api.userBooks.listByUser,
-    userId ? { userId } : 'skip',
+    canQuery ? {} : 'skip',
   )
   const recentEntries = useQuery(
     api.userBooks.listRecentByUser,
-    userId ? { userId, limit: books?.length ?? 200 } : 'skip',
+    canQuery ? { limit: books?.length ?? 200 } : 'skip',
   )
   const coverUrls = useQuery(
     api.books.getCoverUrls,
-    books ? { bookIds: books.map((book) => book._id) } : 'skip',
+    canQuery && books ? { bookIds: books.map((book) => book._id) } : 'skip',
   )
   const [query, setQuery] = useState('')
   const [sortBy, setSortBy] = useState<'recent' | 'title' | 'author' | 'progress'>('recent')
@@ -122,9 +121,6 @@ function Library() {
   }, [filteredBooks, progressByBookId, recentOrder, sortBy])
 
   const handleDelete = async (bookId: string) => {
-    if (!userId) {
-      return
-    }
     const confirmDelete = window.confirm(
       'Delete this book and its stored files?',
     )
@@ -133,7 +129,7 @@ function Library() {
     }
     try {
       setError(null)
-      await deleteBook({ userId, bookId })
+      await deleteBook({ bookId })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete book')
     }
@@ -142,14 +138,7 @@ function Library() {
   const handleDownload = async (bookId: string, fileName: string) => {
     try {
       setError(null)
-      const file = await convex.query('bookFiles:getByBook', { bookId })
-      if (!file) {
-        setError('No file stored for this book yet.')
-        return
-      }
-      const url = await convex.mutation('storage:getFileUrl', {
-        storageId: file.storageId,
-      })
+      const url = await convex.mutation('bookFiles:getDownloadUrl', { bookId })
       if (!url) {
         setError('Unable to generate download link.')
         return

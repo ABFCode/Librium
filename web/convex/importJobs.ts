@@ -1,5 +1,11 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import {
+  getViewerUserId,
+  requireImportJobOwnerOrImporter,
+  requireViewerUserId,
+  resolveImportUserId,
+} from "./authHelpers";
 
 export const createImportJob = mutation({
   args: {
@@ -10,9 +16,10 @@ export const createImportJob = mutation({
     storageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
+    const userId = await resolveImportUserId(ctx, args.userId);
     const now = Date.now();
     return await ctx.db.insert("importJobs", {
-      userId: args.userId,
+      userId,
       fileName: args.fileName,
       fileSize: args.fileSize,
       contentType: args.contentType,
@@ -25,14 +32,17 @@ export const createImportJob = mutation({
 
 export const listImportJobs = query({
   args: {
-    userId: v.id("users"),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const userId = await getViewerUserId(ctx);
+    if (!userId) {
+      return [];
+    }
     const limit = args.limit ?? 50;
     return await ctx.db
       .query("importJobs")
-      .withIndex("by_user_created", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user_created", (q) => q.eq("userId", userId))
       .order("desc")
       .take(limit);
   },
@@ -43,7 +53,8 @@ export const getImportJob = query({
     importJobId: v.id("importJobs"),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.importJobId);
+    const { job } = await requireImportJobOwnerOrImporter(ctx, args.importJobId);
+    return job;
   },
 });
 
@@ -55,6 +66,7 @@ export const updateImportJobStatus = mutation({
     bookId: v.optional(v.id("books")),
   },
   handler: async (ctx, args) => {
+    await requireImportJobOwnerOrImporter(ctx, args.importJobId);
     const now = Date.now();
     const update: Record<string, unknown> = {
       status: args.status,
@@ -65,7 +77,7 @@ export const updateImportJobStatus = mutation({
     if (args.errorMessage) {
       update.errorMessage = args.errorMessage;
     }
-    if (args.status === "in_progress") {
+    if (args.status === "parsing" || args.status === "ingesting") {
       update.startedAt = now;
     }
     if (args.status === "completed" || args.status === "failed") {
@@ -76,13 +88,15 @@ export const updateImportJobStatus = mutation({
 });
 
 export const clearImportJobs = mutation({
-  args: {
-    userId: v.id("users"),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getViewerUserId(ctx);
+    if (!userId) {
+      return;
+    }
     const jobs = await ctx.db
       .query("importJobs")
-      .withIndex("by_user_created", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user_created", (q) => q.eq("userId", userId))
       .collect();
     for (const job of jobs) {
       await ctx.db.delete(job._id);

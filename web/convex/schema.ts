@@ -31,6 +31,7 @@ const books = defineTable({
       }),
     ),
   ),
+  sectionCount: v.optional(v.number()),
   createdAt: v.number(),
   updatedAt: v.number(),
 }).index("by_owner", ["ownerId", "updatedAt"]);
@@ -90,6 +91,7 @@ const userBooks = defineTable({
   userId: v.id("users"),
   bookId: v.id("books"),
   lastSectionId: v.optional(v.id("sections")),
+  lastSectionIndex: v.number(),
   lastChunkIndex: v.number(),
   lastChunkOffset: v.number(),
   lastScrollRatio: v.optional(v.number()),

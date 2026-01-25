@@ -1,16 +1,23 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import {
+  getViewerUserId,
+  requireBookOwner,
+  requireViewerUserId,
+  resolveImportUserId,
+} from "./authHelpers";
 
 export const upsertUserBook = mutation({
   args: {
-    userId: v.id("users"),
     bookId: v.id("books"),
   },
   handler: async (ctx, args) => {
+    const userId = await requireViewerUserId(ctx);
+    await requireBookOwner(ctx, args.bookId);
     const existing = await ctx.db
       .query("userBooks")
       .withIndex("by_user_book", (q) =>
-        q.eq("userId", args.userId).eq("bookId", args.bookId),
+        q.eq("userId", userId).eq("bookId", args.bookId),
       )
       .first();
 
@@ -21,8 +28,51 @@ export const upsertUserBook = mutation({
     }
 
     return await ctx.db.insert("userBooks", {
-      userId: args.userId,
+      userId,
       bookId: args.bookId,
+      lastSectionIndex: 0,
+      lastChunkIndex: 0,
+      lastChunkOffset: 0,
+      lastScrollRatio: 0,
+      lastScrollTop: 0,
+      lastScrollHeight: 0,
+      lastClientHeight: 0,
+      updatedAt: now,
+    });
+  },
+});
+
+export const upsertUserBookForUser = mutation({
+  args: {
+    userId: v.id("users"),
+    bookId: v.id("books"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await resolveImportUserId(ctx, args.userId);
+    const book = await ctx.db.get(args.bookId);
+    if (!book) {
+      throw new Error("Book not found.");
+    }
+    if (book.ownerId !== userId) {
+      throw new Error("Not authorized to link this book.");
+    }
+    const existing = await ctx.db
+      .query("userBooks")
+      .withIndex("by_user_book", (q) =>
+        q.eq("userId", userId).eq("bookId", args.bookId),
+      )
+      .first();
+
+    const now = Date.now();
+    if (existing) {
+      await ctx.db.patch(existing._id, { updatedAt: now });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("userBooks", {
+      userId,
+      bookId: args.bookId,
+      lastSectionIndex: 0,
       lastChunkIndex: 0,
       lastChunkOffset: 0,
       lastScrollRatio: 0,
@@ -36,14 +86,18 @@ export const upsertUserBook = mutation({
 
 export const getUserBook = query({
   args: {
-    userId: v.id("users"),
     bookId: v.id("books"),
   },
   handler: async (ctx, args) => {
+    const userId = await getViewerUserId(ctx);
+    if (!userId) {
+      return null;
+    }
+    await requireBookOwner(ctx, args.bookId);
     return await ctx.db
       .query("userBooks")
       .withIndex("by_user_book", (q) =>
-        q.eq("userId", args.userId).eq("bookId", args.bookId),
+        q.eq("userId", userId).eq("bookId", args.bookId),
       )
       .first();
   },
@@ -51,9 +105,9 @@ export const getUserBook = query({
 
 export const updateProgress = mutation({
   args: {
-    userId: v.id("users"),
     bookId: v.id("books"),
     lastSectionId: v.optional(v.id("sections")),
+    lastSectionIndex: v.optional(v.number()),
     lastChunkIndex: v.optional(v.number()),
     lastChunkOffset: v.optional(v.number()),
     lastScrollRatio: v.optional(v.number()),
@@ -62,16 +116,20 @@ export const updateProgress = mutation({
     lastClientHeight: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const userId = await requireViewerUserId(ctx);
+    await requireBookOwner(ctx, args.bookId);
     const existing = await ctx.db
       .query("userBooks")
       .withIndex("by_user_book", (q) =>
-        q.eq("userId", args.userId).eq("bookId", args.bookId),
+        q.eq("userId", userId).eq("bookId", args.bookId),
       )
       .first();
 
     const now = Date.now();
     const patch = {
       lastSectionId: args.lastSectionId ?? existing?.lastSectionId ?? undefined,
+      lastSectionIndex:
+        args.lastSectionIndex ?? existing?.lastSectionIndex ?? 0,
       lastChunkIndex: args.lastChunkIndex ?? existing?.lastChunkIndex ?? 0,
       lastChunkOffset: args.lastChunkOffset ?? existing?.lastChunkOffset ?? 0,
       lastScrollRatio:
@@ -90,7 +148,7 @@ export const updateProgress = mutation({
     }
 
     return await ctx.db.insert("userBooks", {
-      userId: args.userId,
+      userId,
       bookId: args.bookId,
       ...patch,
     });
@@ -99,21 +157,24 @@ export const updateProgress = mutation({
 
 export const listRecentByUser = query({
   args: {
-    userId: v.id("users"),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const userId = await getViewerUserId(ctx);
+    if (!userId) {
+      return [];
+    }
     const limit = args.limit ?? 8;
     const entries = await ctx.db
       .query("userBooks")
-      .withIndex("by_user_updated", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user_updated", (q) => q.eq("userId", userId))
       .order("desc")
       .take(limit);
 
     const results = [];
     for (const entry of entries) {
       const book = await ctx.db.get(entry.bookId);
-      if (book) {
+      if (book && book.ownerId === userId) {
         results.push({
           entryId: entry._id,
           book,
@@ -127,32 +188,31 @@ export const listRecentByUser = query({
 });
 
 export const listByUser = query({
-  args: {
-    userId: v.id("users"),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getViewerUserId(ctx);
+    if (!userId) {
+      return [];
+    }
     const entries = await ctx.db
       .query("userBooks")
-      .withIndex("by_user_book", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user_book", (q) => q.eq("userId", userId))
       .collect();
 
     const results = [];
     for (const entry of entries) {
-      const sections = await ctx.db
-        .query("sections")
-        .withIndex("by_book", (q) => q.eq("bookId", entry.bookId))
-        .collect();
-      const totalSections = sections.length;
-      const lastSection = entry.lastSectionId
-        ? sections.find((section) => section._id === entry.lastSectionId)
-        : undefined;
-      const lastIndex = lastSection?.orderIndex ?? 0;
+      const book = await ctx.db.get(entry.bookId);
+      if (!book || book.ownerId !== userId) {
+        continue;
+      }
+      const totalSections = book.sectionCount ?? 0;
+      const lastIndex = entry.lastSectionIndex ?? 0;
       const progress =
         totalSections > 0 ? (lastIndex + 1) / totalSections : 0;
       results.push({
         bookId: entry.bookId,
         lastSectionId: entry.lastSectionId,
-        lastSectionTitle: lastSection?.title ?? null,
+        lastSectionTitle: null,
         lastSectionIndex: lastIndex,
         totalSections,
         progress,

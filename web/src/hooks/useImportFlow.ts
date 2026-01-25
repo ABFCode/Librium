@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { useQuery } from 'convex/react'
+import { useConvexAuth, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { useLocalUser } from './useLocalUser'
 
 export const useImportFlow = () => {
+  const { isAuthenticated } = useConvexAuth()
   const userId = useLocalUser()
   const [files, setFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
@@ -14,12 +15,12 @@ export const useImportFlow = () => {
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
-  const importJobs = useQuery(
-    api.importJobs.listImportJobs,
-    userId ? { userId } : 'skip',
-  )
   const allowLocalAuth =
     import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
+  const importJobs = useQuery(
+    api.importJobs.listImportJobs,
+    isAuthenticated || allowLocalAuth ? {} : 'skip',
+  )
 
   const statusLabel = (status: string) => {
     switch (status) {
@@ -41,7 +42,7 @@ export const useImportFlow = () => {
       setError('Select at least one EPUB file.')
       return
     }
-    if (!userId) {
+    if (!isAuthenticated && !allowLocalAuth) {
       setError('Please sign in to upload books.')
       return
     }
@@ -51,7 +52,9 @@ export const useImportFlow = () => {
     for (const file of files) {
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('userId', userId)
+      if (userId) {
+        formData.append('userId', userId)
+      }
       const response = await fetch('/api/import', {
         method: 'POST',
         body: formData,
@@ -84,7 +87,6 @@ export const useImportFlow = () => {
   }
 
   return {
-    userId,
     files,
     setFiles,
     isDragging,
@@ -94,6 +96,7 @@ export const useImportFlow = () => {
     setError,
     isUploading,
     importJobs,
+    isAuthenticated,
     allowLocalAuth,
     statusLabel,
     submit,

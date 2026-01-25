@@ -17,6 +17,15 @@ export const upsertUser = mutation({
       .first();
 
     if (existing) {
+      if (
+        (args.email && args.email !== existing.email) ||
+        (args.name && args.name !== existing.name)
+      ) {
+        await ctx.db.patch(existing._id, {
+          email: args.email ?? existing.email,
+          name: args.name ?? existing.name,
+        });
+      }
       return existing._id;
     }
 

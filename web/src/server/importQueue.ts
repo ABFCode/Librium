@@ -179,7 +179,7 @@ const processQueue = async (convexUrl: string, parserUrl: string) => {
         contentType: task.contentType ?? undefined,
       })
 
-      await convex.mutation('userBooks:upsertUserBook', {
+      await convex.mutation('userBooks:upsertUserBookForUser', {
         userId: task.userId,
         bookId,
       })
