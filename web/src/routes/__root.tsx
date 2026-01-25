@@ -1,10 +1,11 @@
 import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
-import { ConvexProvider } from 'convex/react'
+import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react'
 
 import Header from '../components/Header'
 import { convexClient } from '../convexClient'
+import { authClient } from '../lib/auth-client'
 
 import appCss from '../styles.css?url'
 
@@ -40,10 +41,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <ConvexProvider client={convexClient}>
+        <ConvexBetterAuthProvider client={convexClient} authClient={authClient}>
           <Header />
           {children}
-        </ConvexProvider>
+        </ConvexBetterAuthProvider>
         <TanStackDevtools
           config={{
             position: 'bottom-right',
