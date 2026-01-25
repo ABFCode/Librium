@@ -156,38 +156,33 @@ function Reader() {
     <RequireAuth>
       <div className="min-h-screen px-6 pb-16 pt-10">
         <div className="mx-auto w-full max-w-6xl">
-          <div className="surface flex flex-col gap-4 rounded-[28px] p-6 md:flex-row md:items-center md:justify-between">
-            <div>
+          <div className="surface flex flex-wrap items-center justify-between gap-4 rounded-[22px] px-5 py-3">
+            <div className="flex items-center gap-3">
               <span className="pill">Reader</span>
-              <h1 className="mt-3 text-3xl">
-                {activeSection?.title ?? 'Untitled section'}
-              </h1>
-              <p className="mt-2 text-sm text-[var(--muted)]">
+              <span className="text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
                 {activeIndex >= 0 ? `Section ${activeIndex + 1}` : 'Loading'}
-              </p>
+              </span>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <button
-                  className="btn btn-ghost text-xs"
-                  onClick={goPrev}
-                  disabled={!sections || activeIndex <= 0}
-                >
-                  Prev
-                </button>
-                <button
-                  className="btn btn-ghost text-xs"
-                  onClick={goNext}
-                  disabled={!sections || activeIndex < 0 || activeIndex >= sections.length - 1}
-                >
-                  Next
-                </button>
-              </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className="btn btn-ghost text-xs"
+                onClick={goPrev}
+                disabled={!sections || activeIndex <= 0}
+              >
+                Prev
+              </button>
+              <button
+                className="btn btn-ghost text-xs"
+                onClick={goNext}
+                disabled={!sections || activeIndex < 0 || activeIndex >= sections.length - 1}
+              >
+                Next
+              </button>
               <button
                 className="btn btn-ghost text-xs"
                 onClick={() => setIsTocOpen((prev) => !prev)}
               >
-                {isTocOpen ? 'Hide contents' : 'Show contents'}
+                {isTocOpen ? 'Hide contents' : 'Contents'}
               </button>
               <div className="flex items-center gap-2 rounded-full border border-white/10 bg-[rgba(12,15,18,0.7)] px-3 py-2 text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
                 <span>Text</span>
@@ -204,13 +199,6 @@ function Reader() {
                   A+
                 </button>
               </div>
-              <button
-                className="btn btn-outline text-xs"
-                onClick={loadSection}
-                disabled={isLoading || !sectionId}
-              >
-                {isLoading ? 'Refreshing...' : 'Reload'}
-              </button>
             </div>
           </div>
 
@@ -281,9 +269,14 @@ function Reader() {
               ) : null}
               <div
                 ref={parentRef}
-                className="h-[65vh] overflow-auto px-6 py-8 text-left"
+                className="h-[70vh] overflow-auto px-6 py-8 text-left"
                 style={{ fontSize: `${fontSize}px` }}
               >
+                <div className="mb-6">
+                  <h1 className="text-2xl">
+                    {activeSection?.title ?? 'Untitled section'}
+                  </h1>
+                </div>
                 {chunks.length === 0 ? (
                   <p className="text-sm text-[var(--muted)]">
                     {isLoading

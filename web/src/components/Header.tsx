@@ -6,6 +6,7 @@ export default function Header() {
   const user = session?.user
   const allowLocalAuth =
     import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
+  const showNav = Boolean(user) || allowLocalAuth
   return (
     <header className="sticky top-0 z-40 border-b border-white/5 bg-[rgba(8,10,12,0.9)] px-4 py-4 backdrop-blur">
       <nav className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
@@ -18,14 +19,16 @@ export default function Header() {
               Librium
             </div>
           </Link>
-          <div className="hidden items-center gap-4 text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted-2)] md:flex">
-            <Link className="hover:text-[var(--ink)]" to="/library">
-              Library
-            </Link>
-            <Link className="hover:text-[var(--ink)]" to="/">
-              Import
-            </Link>
-          </div>
+          {showNav ? (
+            <div className="hidden items-center gap-4 text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted-2)] md:flex">
+              <Link className="hover:text-[var(--ink)]" to="/library">
+                Library
+              </Link>
+              <Link className="hover:text-[var(--ink)]" to="/import">
+                Import
+              </Link>
+            </div>
+          ) : null}
         </div>
         <div className="flex items-center gap-3">
           {user ? (
