@@ -1,5 +1,6 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
+import { z } from "zod";
 const parserUrl = process.env.PARSER_URL ?? "http://localhost:8081/parse";
 
 export const importBook = action({
@@ -51,14 +52,25 @@ export const importBook = action({
       throw new Error(body?.error ?? "Parser error");
     }
 
+    const parsedResponse = ParserResponseSchema.safeParse(body);
+    if (!parsedResponse.success) {
+      await ctx.runMutation("importJobs:updateImportJobStatusInternal", {
+        importJobId,
+        status: "failed",
+        errorMessage: "Parser response invalid",
+      });
+      throw new Error("Parser response invalid");
+    }
+    const parsed = parsedResponse.data;
+
     await ctx.runMutation("importJobs:updateImportJobStatusInternal", {
       importJobId,
       status: "ingesting",
     });
 
     try {
-      const meta = body?.metadata ?? {};
-      const cover = body?.cover;
+      const meta = parsed.metadata ?? {};
+      const cover = parsed.cover;
       let coverStorageId: string | undefined;
       let coverContentType: string | undefined;
 
@@ -75,26 +87,23 @@ export const importBook = action({
         }
       }
 
-      const parsedTitle =
-        meta?.title || args.fileName.replace(/\.epub$/i, "");
-      const authorList = Array.isArray(meta?.authors) ? meta.authors : [];
+      const parsedTitle = meta.title || args.fileName.replace(/\.epub$/i, "");
+      const authorList = meta.authors ?? [];
       const author = authorList.length > 0 ? authorList.join(", ") : undefined;
-      const language = meta?.language || undefined;
+      const language = meta.language || undefined;
 
       const bookId = await ctx.runMutation("books:createBook", {
         title: parsedTitle,
         author,
         language,
-        publisher: meta?.publisher || undefined,
-        publishedAt: meta?.publishedAt || undefined,
-        series: meta?.series || undefined,
-        seriesIndex: meta?.seriesIndex || undefined,
-        subjects: Array.isArray(meta?.subjects) ? meta.subjects : undefined,
+        publisher: meta.publisher || undefined,
+        publishedAt: meta.publishedAt || undefined,
+        series: meta.series || undefined,
+        seriesIndex: meta.seriesIndex || undefined,
+        subjects: meta.subjects ?? undefined,
         coverStorageId: coverStorageId ?? undefined,
         coverContentType: coverContentType ?? undefined,
-        identifiers: Array.isArray(meta?.identifiers)
-          ? meta.identifiers
-          : undefined,
+        identifiers: meta.identifiers ?? undefined,
       });
 
       await ctx.runMutation("bookFiles:createBookFile", {
@@ -107,15 +116,13 @@ export const importBook = action({
 
       await ctx.runMutation("userBooks:upsertUserBook", { bookId });
 
-      if (body?.sections && body?.chunks) {
+      if (parsed.sections && parsed.chunks) {
         await ctx.runAction("ingest:ingestParsedBook", {
           bookId,
-          sections: body.sections,
-          chunks: body.chunks,
-          sectionBlocks: Array.isArray(body.sectionBlocks)
-            ? body.sectionBlocks
-            : undefined,
-          images: Array.isArray(body.images) ? body.images : undefined,
+          sections: parsed.sections,
+          chunks: parsed.chunks,
+          sectionBlocks: parsed.sectionBlocks ?? undefined,
+          images: parsed.images ?? undefined,
         });
       }
 
@@ -194,3 +201,110 @@ const base64ToBytes = (data: string) => {
   }
   throw new Error("Base64 decoding is not supported in this runtime.");
 };
+
+const IdentifierSchema = z.object({
+  id: z.string(),
+  scheme: z.string(),
+  value: z.string(),
+  type: z.string(),
+});
+
+const MetadataSchema = z
+  .object({
+    title: z.string().optional(),
+    authors: z.array(z.string()).optional(),
+    language: z.string().optional(),
+    publisher: z.string().optional(),
+    publishedAt: z.string().optional(),
+    series: z.string().optional(),
+    seriesIndex: z.string().optional(),
+    subjects: z.array(z.string()).optional(),
+    identifiers: z.array(IdentifierSchema).optional(),
+  })
+  .optional();
+
+const SectionSchema = z.object({
+  title: z.string(),
+  orderIndex: z.number(),
+  depth: z.number(),
+  parentOrderIndex: z.number().optional(),
+  href: z.string().optional(),
+  anchor: z.string().optional(),
+});
+
+const ChunkSchema = z.object({
+  sectionOrderIndex: z.number(),
+  chunkIndex: z.number(),
+  startOffset: z.number(),
+  endOffset: z.number(),
+  wordCount: z.number(),
+  content: z.string(),
+});
+
+const InlineSchema = z.object({
+  kind: z.string(),
+  text: z.string().optional(),
+  href: z.string().optional(),
+  src: z.string().optional(),
+  alt: z.string().optional(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  emph: z.boolean().optional(),
+  strong: z.boolean().optional(),
+});
+
+const TableCellSchema = z.object({
+  inlines: z.array(InlineSchema),
+  header: z.boolean().optional(),
+});
+
+const TableSchema = z.object({
+  rows: z.array(z.object({ cells: z.array(TableCellSchema) })),
+});
+
+const FigureSchema = z.object({
+  images: z.array(InlineSchema),
+  caption: z.array(InlineSchema),
+});
+
+const BlockSchema = z.object({
+  kind: z.string(),
+  level: z.number().optional(),
+  ordered: z.boolean().optional(),
+  listIndex: z.number().optional(),
+  inlines: z.array(InlineSchema).optional(),
+  table: TableSchema.optional(),
+  figure: FigureSchema.optional(),
+  anchors: z.array(z.string()).optional(),
+});
+
+const SectionBlocksSchema = z.object({
+  sectionOrderIndex: z.number(),
+  blocks: z.array(BlockSchema),
+});
+
+const ImageSchema = z.object({
+  href: z.string(),
+  contentType: z.string().optional(),
+  data: z.string(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+});
+
+const CoverSchema = z
+  .object({
+    data: z.string(),
+    contentType: z.string().optional(),
+  })
+  .optional();
+
+const ParserResponseSchema = z
+  .object({
+    metadata: MetadataSchema,
+    cover: CoverSchema,
+    sections: z.array(SectionSchema).optional(),
+    chunks: z.array(ChunkSchema).optional(),
+    sectionBlocks: z.array(SectionBlocksSchema).optional(),
+    images: z.array(ImageSchema).optional(),
+  })
+  .passthrough();

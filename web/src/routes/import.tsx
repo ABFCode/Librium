@@ -18,8 +18,6 @@ function ImportPage() {
     isUploading,
     importJobs,
     isAuthenticated,
-    allowLocalAuth,
-    canUpload,
     statusLabel,
     submit,
     addFiles,
@@ -116,7 +114,7 @@ function ImportPage() {
                     disabled={
                       isUploading ||
                       files.length === 0 ||
-                      (!isAuthenticated && !allowLocalAuth)
+                      !isAuthenticated
                     }
                   >
                     {isUploading ? `Uploading ${files.length} file(s)...` : 'Upload'}
@@ -146,7 +144,7 @@ function ImportPage() {
                     </ul>
                   </div>
                 ) : null}
-                {!isAuthenticated && !allowLocalAuth ? (
+                {!isAuthenticated ? (
                   <p className="mt-2 text-xs text-[var(--muted)]">
                     Sign in to upload and sync your library.
                   </p>
@@ -166,7 +164,7 @@ function ImportPage() {
                   <div className="text-xs uppercase tracking-[0.35em] text-[var(--accent-3)]">
                     Recent
                   </div>
-                  {isAuthenticated || allowLocalAuth ? (
+                  {isAuthenticated ? (
                     <button
                       className="text-[10px] uppercase tracking-[0.3em] text-[var(--muted-2)] hover:text-[var(--ink)]"
                       onClick={() => clearJobs({})}

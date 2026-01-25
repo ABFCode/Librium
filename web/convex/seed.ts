@@ -1,4 +1,4 @@
-import { action, internalAction } from "./_generated/server";
+import { internalMutation, action } from "./_generated/server";
 import { v } from "convex/values";
 
 const deploymentName = process.env.CONVEX_DEPLOYMENT ?? "";
@@ -13,15 +13,32 @@ const isLocalConvex =
 const allowSeed =
   process.env.ALLOW_SEED === "true" || isLocalDeployment || isLocalConvex;
 
-export const seedBookContentInternal = internalAction({
+const createDemoBookInternal = internalMutation({
   args: {
-    bookId: v.id("books"),
+    userId: v.id("users"),
+    title: v.optional(v.string()),
+    author: v.optional(v.string()),
     sectionCount: v.optional(v.number()),
     chunksPerSection: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const sectionCount = args.sectionCount ?? 3;
-    const chunksPerSection = args.chunksPerSection ?? 40;
+    const ownerId = args.userId;
+    const existing = await ctx.db.get(ownerId);
+    if (!existing) {
+      throw new Error("Seed user not found.");
+    }
+    const now = Date.now();
+    const bookId = await ctx.db.insert("books", {
+      ownerId,
+      title: args.title ?? "Demo Book",
+      author: args.author ?? "Librium",
+      sectionCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const sectionCount = Math.max(1, args.sectionCount ?? 6);
+    const chunksPerSection = Math.max(1, args.chunksPerSection ?? 24);
     const sectionsToInsert = [];
 
     for (let s = 0; s < sectionCount; s += 1) {
@@ -34,48 +51,51 @@ export const seedBookContentInternal = internalAction({
         );
       }
       const text = paragraphs.join("\n\n");
-      const storageId = await storeBlob(
-        ctx,
+      const storageId = await ctx.storage.store(
         new Blob([text], { type: "text/plain" }),
       );
       sectionsToInsert.push({
         title: `Section ${s + 1}`,
         orderIndex: s,
+        depth: 0,
+        bookId,
         textStorageId: storageId,
         textSize: text.length,
+        createdAt: now,
       });
     }
 
-    await ctx.runMutation("ingest:insertSections", {
-      bookId: args.bookId,
-      sections: sectionsToInsert,
+    for (const section of sectionsToInsert) {
+      await ctx.db.insert("sections", section);
+    }
+
+    await ctx.db.patch(bookId, {
+      sectionCount: sectionCount,
+      updatedAt: Date.now(),
     });
+
+    await ctx.db.insert("userBooks", {
+      userId: ownerId,
+      bookId,
+      lastSectionIndex: 0,
+      lastChunkIndex: 0,
+      lastChunkOffset: 0,
+      lastScrollRatio: 0,
+      lastScrollTop: 0,
+      lastScrollHeight: 0,
+      lastClientHeight: 0,
+      updatedAt: Date.now(),
+    });
+
+    return { bookId, ownerId, sectionCount };
   },
 });
 
-const storeBlob = async (
-  ctx: Parameters<typeof seedBookContentInternal.handler>[0],
-  blob: Blob,
-) => {
-  if (typeof ctx.storage.store === "function") {
-    return await ctx.storage.store(blob);
-  }
-  const uploadUrl = await ctx.runMutation("storage:generateUploadUrl", {});
-  const response = await fetch(uploadUrl, {
-    method: "POST",
-    headers: blob.type ? { "Content-Type": blob.type } : undefined,
-    body: blob,
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || !body?.storageId) {
-    throw new Error("Failed to upload blob to storage.");
-  }
-  return body.storageId as string;
-};
-
-export const seedBookContent = action({
+export const createDemoBook = action({
   args: {
-    bookId: v.id("books"),
+    userId: v.id("users"),
+    title: v.optional(v.string()),
+    author: v.optional(v.string()),
     sectionCount: v.optional(v.number()),
     chunksPerSection: v.optional(v.number()),
   },
@@ -83,6 +103,6 @@ export const seedBookContent = action({
     if (!allowSeed) {
       throw new Error("Seeding is disabled in this environment.");
     }
-    return await ctx.runAction("seed:seedBookContentInternal", args);
+    return await ctx.runMutation("seed:createDemoBookInternal", args);
   },
 });

@@ -20,8 +20,7 @@ const defaults: UserSettingsState = {
 
 export const useUserSettings = (options?: { pauseSync?: boolean }) => {
   const { isAuthenticated } = useConvexAuth()
-  const allowLocalAuth = import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
-  const canQuery = isAuthenticated || allowLocalAuth
+  const canQuery = isAuthenticated
   const settings = useQuery(
     api.userSettings.getByUser,
     canQuery ? {} : 'skip',
