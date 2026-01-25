@@ -21,12 +21,24 @@ function Library() {
     api.userBooks.listRecentByUser,
     userId ? { userId, limit: 6 } : 'skip',
   )
+  const progressEntries = useQuery(
+    api.userBooks.listByUser,
+    userId ? { userId } : 'skip',
+  )
   const coverUrls = useQuery(
     api.books.getCoverUrls,
     books ? { bookIds: books.map((book) => book._id) } : 'skip',
   )
   const [query, setQuery] = useState('')
+  const [sortBy, setSortBy] = useState<'recent' | 'title' | 'author' | 'progress'>('recent')
   const [error, setError] = useState<string | null>(null)
+
+  const progressByBookId = useMemo(() => {
+    if (!progressEntries) {
+      return new Map<string, (typeof progressEntries)[number]>()
+    }
+    return new Map(progressEntries.map((entry) => [entry.bookId, entry]))
+  }, [progressEntries])
 
   const filteredBooks = useMemo(() => {
     if (!books) {
@@ -43,6 +55,22 @@ function Library() {
       )
     })
   }, [books, query])
+
+  const sortedBooks = useMemo(() => {
+    const next = [...filteredBooks]
+    if (sortBy === 'title') {
+      next.sort((a, b) => a.title.localeCompare(b.title))
+    } else if (sortBy === 'author') {
+      next.sort((a, b) => (a.author ?? '').localeCompare(b.author ?? ''))
+    } else if (sortBy === 'progress') {
+      next.sort((a, b) => {
+        const aProgress = progressByBookId.get(a._id)?.progress ?? 0
+        const bProgress = progressByBookId.get(b._id)?.progress ?? 0
+        return bProgress - aProgress
+      })
+    }
+    return next
+  }, [filteredBooks, progressByBookId, sortBy])
 
   const handleDelete = async (bookId: string) => {
     if (!userId) {
@@ -156,7 +184,7 @@ function Library() {
                 </p>
               </div>
               <Link className="btn btn-primary" to="/import">
-                Import new
+                Upload books
               </Link>
             </div>
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -166,16 +194,25 @@ function Library() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
-              <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
-                <span className="rounded-full border border-white/10 px-3 py-1">
-                  Recently added
-                </span>
-                <span className="rounded-full border border-white/10 px-3 py-1">
-                  Author
-                </span>
-                <span className="rounded-full border border-white/10 px-3 py-1">
-                  Progress
-                </span>
+              <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.3em] text-[var(--muted-2)]">
+                {[
+                  { key: 'recent', label: 'Recent' },
+                  { key: 'title', label: 'Title' },
+                  { key: 'author', label: 'Author' },
+                  { key: 'progress', label: 'Progress' },
+                ].map((option) => (
+                  <button
+                    key={option.key}
+                    className={`rounded-full border px-3 py-1 transition ${
+                      sortBy === option.key
+                        ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--accent)]'
+                        : 'border-white/10 text-[var(--muted-2)]'
+                    }`}
+                    onClick={() => setSortBy(option.key as typeof sortBy)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
             </div>
             {error ? (
@@ -216,12 +253,18 @@ function Library() {
             </div>
           ) : (
             <div className="grid justify-items-center gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {filteredBooks.map((book) => {
+              {sortedBooks.map((book) => {
                 const coverUrl = coverUrls?.[book._id]
+                const progress = progressByBookId.get(book._id)
+                const progressPercent = progress
+                  ? Math.round(progress.progress * 100)
+                  : null
+                const showProgressBadge =
+                  progressPercent !== null && progressPercent > 0
                 return (
                   <div
                     key={book._id}
-                    className="card book-card group flex w-full max-w-[190px] flex-col overflow-hidden"
+                    className="card book-card group flex w-full max-w-[180px] flex-col overflow-hidden sm:max-w-[190px]"
                   >
                     <Link
                       className="block"
@@ -241,6 +284,11 @@ function Library() {
                               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.25),transparent_70%)]" />
                             </div>
                           )}
+                          {showProgressBadge ? (
+                            <div className="progress-badge">
+                              {`${progressPercent}%`}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                       <div className="flex flex-1 flex-col px-4 py-3">

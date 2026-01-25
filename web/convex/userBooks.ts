@@ -110,3 +110,40 @@ export const listRecentByUser = query({
     return results;
   },
 });
+
+export const listByUser = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const entries = await ctx.db
+      .query("userBooks")
+      .withIndex("by_user_book", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    const results = [];
+    for (const entry of entries) {
+      const sections = await ctx.db
+        .query("sections")
+        .withIndex("by_book", (q) => q.eq("bookId", entry.bookId))
+        .collect();
+      const totalSections = sections.length;
+      const lastSection = entry.lastSectionId
+        ? sections.find((section) => section._id === entry.lastSectionId)
+        : undefined;
+      const lastIndex = lastSection?.orderIndex ?? 0;
+      const progress =
+        totalSections > 0 ? (lastIndex + 1) / totalSections : 0;
+      results.push({
+        bookId: entry.bookId,
+        lastSectionId: entry.lastSectionId,
+        lastSectionTitle: lastSection?.title ?? null,
+        lastSectionIndex: lastIndex,
+        totalSections,
+        progress,
+        updatedAt: entry.updatedAt,
+      });
+    }
+    return results;
+  },
+});

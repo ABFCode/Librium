@@ -74,3 +74,18 @@ export const updateImportJobStatus = mutation({
     await ctx.db.patch(args.importJobId, update);
   },
 });
+
+export const clearImportJobs = mutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const jobs = await ctx.db
+      .query("importJobs")
+      .withIndex("by_user_created", (q) => q.eq("userId", args.userId))
+      .collect();
+    for (const job of jobs) {
+      await ctx.db.delete(job._id);
+    }
+  },
+});

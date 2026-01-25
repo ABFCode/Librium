@@ -4,11 +4,11 @@ import { useImportFlow } from '../hooks/useImportFlow'
 import { useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 
-export const Route = createFileRoute('/import')({
-  component: ImportPage,
+export const Route = createFileRoute('/import3')({
+  component: ImportVariantThree,
 })
 
-function ImportPage() {
+function ImportVariantThree() {
   const {
     userId,
     files,
@@ -33,8 +33,11 @@ function ImportPage() {
             <div>
               <h1 className="text-3xl">Add books</h1>
               <p className="mt-2 text-sm text-[var(--muted)]">
-                Drop EPUBs or choose files.
+                Focused upload with a richer log.
               </p>
+            </div>
+            <div className="text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
+              Upload log variants
             </div>
           </div>
 
@@ -121,7 +124,6 @@ function ImportPage() {
                     {isUploading ? `Uploading ${files.length} file(s)...` : 'Upload'}
                   </button>
                 </div>
-
                 {error ? (
                   <p className="mt-3 text-sm text-[var(--danger)]">{error}</p>
                 ) : null}
@@ -143,7 +145,7 @@ function ImportPage() {
               <div className="surface-soft rounded-2xl p-5">
                 <div className="flex items-center justify-between">
                   <div className="text-xs uppercase tracking-[0.35em] text-[var(--accent-3)]">
-                    Recent
+                    Upload log (stacked)
                   </div>
                   {userId ? (
                     <button
@@ -159,30 +161,30 @@ function ImportPage() {
                 ) : importJobs.length === 0 ? (
                   <p className="mt-3 text-sm text-[var(--muted)]">No uploads yet.</p>
                 ) : (
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-3 space-y-3">
                     {importJobs.map((job) => (
                       <div
                         key={job._id}
-                        className="flex items-center justify-between gap-4 rounded-2xl border border-white/5 bg-[rgba(12,15,18,0.6)] px-3 py-2 text-xs"
+                        className="rounded-2xl border border-white/5 bg-[rgba(12,15,18,0.6)] px-3 py-3 text-xs"
                       >
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate font-semibold">{job.fileName}</div>
+                        <div className="truncate font-semibold">{job.fileName}</div>
+                        <div className="mt-2 flex items-center justify-end">
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.25em] ${
+                              job.status === 'completed'
+                                ? 'bg-emerald-500/20 text-emerald-200'
+                                : job.status === 'failed'
+                                  ? 'bg-rose-500/20 text-rose-200'
+                                  : job.status === 'ingesting'
+                                    ? 'bg-[rgba(143,181,166,0.2)] text-[var(--accent-2)]'
+                                    : job.status === 'parsing'
+                                      ? 'bg-indigo-500/20 text-indigo-200'
+                                      : 'bg-white/5 text-[var(--muted)]'
+                            }`}
+                          >
+                            {statusLabel(job.status)}
+                          </span>
                         </div>
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.25em] ${
-                            job.status === 'completed'
-                              ? 'bg-emerald-500/20 text-emerald-200'
-                              : job.status === 'failed'
-                                ? 'bg-rose-500/20 text-rose-200'
-                                : job.status === 'ingesting'
-                                  ? 'bg-[rgba(143,181,166,0.2)] text-[var(--accent-2)]'
-                                  : job.status === 'parsing'
-                                    ? 'bg-indigo-500/20 text-indigo-200'
-                                    : 'bg-white/5 text-[var(--muted)]'
-                          }`}
-                        >
-                          {statusLabel(job.status)}
-                        </span>
                       </div>
                     ))}
                   </div>
