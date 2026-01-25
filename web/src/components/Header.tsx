@@ -82,6 +82,7 @@ export default function Header() {
           <button
             className="btn btn-ghost text-xs tooltip"
             data-tooltip="Toggle theme"
+            data-tooltip-position="bottom"
             onClick={toggleTheme}
           >
             <span className="sr-only">Toggle theme</span>

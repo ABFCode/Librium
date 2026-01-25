@@ -191,6 +191,16 @@
     color: var(--accent-2);
   }
 
+  body[data-theme='paper'] .app-header {
+    background: color-mix(in srgb, var(--surface) 92%, white);
+    border-bottom-color: var(--outline);
+  }
+
+  body[data-theme='paper'] .tooltip::after {
+    background: color-mix(in srgb, var(--surface-3) 80%, white);
+    border-color: color-mix(in srgb, var(--outline) 70%, transparent);
+  }
+
   .tooltip {
     position: relative;
   }
@@ -213,11 +223,45 @@
     opacity: 0;
     pointer-events: none;
     transition: opacity 150ms ease, transform 150ms ease;
+    z-index: 30;
+  }
+
+  .tooltip[data-tooltip-position='bottom']::after {
+    top: calc(100% + 8px);
+    bottom: auto;
+  }
+
+  .tooltip[data-tooltip-position='left']::after {
+    top: 50%;
+    left: auto;
+    right: calc(100% + 8px);
+    bottom: auto;
+    transform: translateY(-50%);
+  }
+
+  .tooltip[data-tooltip-position='right']::after {
+    top: 50%;
+    left: calc(100% + 8px);
+    right: auto;
+    bottom: auto;
+    transform: translateY(-50%);
   }
 
   .tooltip:hover::after {
     opacity: 1;
     transform: translate(-50%, -2px);
+  }
+
+  .tooltip[data-tooltip-position='bottom']:hover::after {
+    transform: translate(-50%, 2px);
+  }
+
+  .tooltip[data-tooltip-position='left']:hover::after {
+    transform: translateY(-50%) translateX(-2px);
+  }
+
+  .tooltip[data-tooltip-position='right']:hover::after {
+    transform: translateY(-50%) translateX(2px);
   }
 
   .input {
@@ -237,6 +281,12 @@
     box-shadow: 0 0 0 3px rgba(209, 161, 92, 0.15);
   }
 
+  body[data-theme='paper'] .input {
+    background: color-mix(in srgb, var(--surface) 90%, white);
+    border-color: color-mix(in srgb, var(--outline) 90%, transparent);
+    color: var(--ink);
+  }
+
   .card {
     border-radius: 20px;
     border: 1px solid rgba(43, 50, 58, 0.7);
@@ -244,6 +294,99 @@
     box-shadow: var(--shadow-soft);
     overflow: hidden;
   }
+
+  .book-card {
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--surface) 92%, transparent),
+      color-mix(in srgb, var(--surface-2) 88%, transparent)
+    );
+  }
+
+  .book-cover-frame {
+    background: color-mix(in srgb, var(--surface-3) 55%, transparent);
+  }
+
+  .toc-rail-shell {
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+    color: var(--muted-2);
+    box-shadow: var(--shadow-soft);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 10px 6px;
+    transition: color 150ms ease, border-color 150ms ease;
+  }
+
+  .toc-rail-shell.is-closed {
+    position: fixed;
+    right: 0.4rem;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 45;
+    width: 44px;
+    border-radius: 999px;
+  }
+
+  .toc-rail-shell.is-open {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 36px;
+    border-radius: 24px 0 0 24px;
+    border-right: 1px solid color-mix(in srgb, var(--outline) 70%, transparent);
+  }
+
+  .toc-rail-shell:hover {
+    color: var(--ink);
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+
+  .toc-rail-chevron {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink);
+  }
+
+  .toc-rail-divider {
+    width: 2px;
+    height: 30px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+
+  .toc-rail-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    color: var(--muted-2);
+    transition: 150ms ease;
+    background: transparent;
+  }
+
+  .toc-rail-btn:hover {
+    color: var(--ink);
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+
+  .toc-rail-btn.is-active {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+
 
   .reader-theme-night {
     background: rgba(12, 15, 18, 0.95);
@@ -276,6 +419,21 @@
   body[data-theme='paper'] .book-cover-frame {
     background: color-mix(in srgb, var(--surface-3) 60%, white);
   }
+
+  body[data-theme='paper'] .recent-card {
+    background: color-mix(in srgb, var(--surface) 92%, white);
+    border-color: color-mix(in srgb, var(--outline) 70%, transparent);
+    color: var(--ink);
+  }
+
+  body[data-theme='paper'] .book-card {
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--surface) 94%, white),
+      color-mix(in srgb, var(--surface-2) 90%, white)
+    );
+  }
+
 
   .card:hover {
     border-color: rgba(209, 161, 92, 0.4);

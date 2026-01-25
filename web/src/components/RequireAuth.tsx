@@ -20,8 +20,13 @@ export const RequireAuth = ({ children }: RequireAuthProps) => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 px-6 py-10 text-slate-200">
-        <div className="mx-auto w-full max-w-5xl">Loading...</div>
+      <div className="min-h-screen px-6 py-10">
+        <div className="mx-auto w-full max-w-5xl">
+          <div className="surface-soft animate-pulse rounded-2xl p-6">
+            <div className="h-3 w-32 rounded-full bg-white/10" />
+            <div className="mt-3 h-3 w-48 rounded-full bg-white/5" />
+          </div>
+        </div>
       </div>
     )
   }
