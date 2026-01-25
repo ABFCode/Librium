@@ -2,6 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { RequireAuth } from './RequireAuth'
+import { useUserSettings } from '../hooks/useUserSettings'
+import { ReaderPreferencesModal } from './ReaderPreferencesModal'
 
 type ReaderChunk = {
   id: string
@@ -64,11 +66,6 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     api.userBooks.getUserBook,
     canQuery ? { bookId } : 'skip',
   )
-  const userSettings = useQuery(
-    api.userSettings.getByUser,
-    canQuery ? {} : 'skip',
-  )
-  const saveSettings = useMutation(api.userSettings.upsert)
   const bookmarks = useQuery(
     api.bookmarks.listByUserBook,
     canQuery ? { bookId } : 'skip',
@@ -79,22 +76,12 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const [chunks, setChunks] = useState<ReaderChunk[]>([])
   const [blocks, setBlocks] = useState<BlockPayload[] | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [fontScale, setFontScale] = useState(0)
-  const [lineHeight, setLineHeight] = useState(1.7)
-  const [contentWidth, setContentWidth] = useState(720)
-  const [theme, setTheme] = useState('night')
   const [isTocOpen, setIsTocOpen] = useState(false)
   const [activeSideTab, setActiveSideTab] = useState<'toc' | 'search' | 'bookmarks'>('toc')
   const [isPrefsOpen, setIsPrefsOpen] = useState(false)
   const [isRestoringView, setIsRestoringView] = useState(false)
   const [isHydrated, setIsHydrated] = useState(false)
   const [tocReady, setTocReady] = useState(false)
-  const lastSavedPrefsRef = useRef<{
-    fontScale: number
-    lineHeight: number
-    contentWidth: number
-    theme: string
-  } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const parentRef = useRef<HTMLDivElement | null>(null)
   const activeSectionRef = useRef<string | null>(null)
@@ -111,52 +98,20 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const restoreTokenRef = useRef(0)
   const tocListRef = useRef<HTMLDivElement | null>(null)
   const fontsReadyRef = useRef<Promise<void> | null>(null)
-
-  useEffect(() => {
-    if (!userSettings || isPrefsOpen) {
-      return
-    }
-    setFontScale(userSettings.fontScale ?? 0)
-    setLineHeight(userSettings.lineHeight ?? 1.7)
-    setContentWidth(userSettings.contentWidth ?? 720)
-    setTheme(userSettings.theme ?? 'night')
-    lastSavedPrefsRef.current = {
-      fontScale: userSettings.fontScale ?? 0,
-      lineHeight: userSettings.lineHeight ?? 1.7,
-      contentWidth: userSettings.contentWidth ?? 720,
-      theme: userSettings.theme ?? 'night',
-    }
-  }, [userSettings, isPrefsOpen])
+  const {
+    fontScale,
+    lineHeight,
+    contentWidth,
+    theme,
+    setFontScale,
+    setLineHeight,
+    setContentWidth,
+    setTheme,
+  } = useUserSettings({ pauseSync: isPrefsOpen })
 
   useEffect(() => {
     setIsHydrated(true)
   }, [])
-
-  useEffect(() => {
-    document.body.dataset.theme = theme
-  }, [theme])
-
-  useEffect(() => {
-    if (!canQuery) {
-      return
-    }
-    const payload = { fontScale, lineHeight, contentWidth, theme }
-    const last = lastSavedPrefsRef.current
-    const changed =
-      !last ||
-      last.fontScale !== fontScale ||
-      last.lineHeight !== lineHeight ||
-      last.contentWidth !== contentWidth ||
-      last.theme !== theme
-    if (!changed) {
-      return
-    }
-    const timeout = window.setTimeout(() => {
-      void saveSettings(payload)
-      lastSavedPrefsRef.current = payload
-    }, 250)
-    return () => window.clearTimeout(timeout)
-  }, [fontScale, lineHeight, contentWidth, theme, saveSettings])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -1597,101 +1552,18 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         </div>
       </div>
 
-      {isPrefsOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6">
-          <div className="surface w-full max-w-lg rounded-[24px] p-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl">Reader Preferences</h2>
-              <button
-                className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]"
-                onClick={() => setIsPrefsOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-            <div className="mt-6 space-y-5 text-sm text-[var(--muted)]">
-              <div>
-                <div className="text-xs uppercase tracking-[0.3em]">Font size</div>
-                <div className="mt-2 flex items-center gap-3">
-                  <button
-                    className="btn btn-ghost text-xs"
-                    onClick={() => setFontScale((prev) => Math.max(prev - 1, -1))}
-                  >
-                    A-
-                  </button>
-                  <div className="text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
-                    {fontSize}px
-                  </div>
-                  <button
-                    className="btn btn-ghost text-xs"
-                    onClick={() => setFontScale((prev) => Math.min(prev + 1, 3))}
-                  >
-                    A+
-                  </button>
-                </div>
-              </div>
-              <div>
-                <div className="text-xs uppercase tracking-[0.3em]">Line height</div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {[1.5, 1.7, 1.9, 2.1].map((value) => (
-                    <button
-                      key={value}
-                      className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
-                        lineHeight === value
-                          ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--accent)]'
-                          : 'border-white/10 text-[var(--muted-2)]'
-                      }`}
-                      onClick={() => setLineHeight(value)}
-                    >
-                      {value.toFixed(1)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs uppercase tracking-[0.3em]">Content width</div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {[
-                    { label: 'Narrow', value: 560 },
-                    { label: 'Comfort', value: 720 },
-                    { label: 'Wide', value: 880 },
-                  ].map((option) => (
-                    <button
-                      key={option.label}
-                      className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
-                        contentWidth === option.value
-                          ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--accent)]'
-                          : 'border-white/10 text-[var(--muted-2)]'
-                      }`}
-                      onClick={() => setContentWidth(option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs uppercase tracking-[0.3em]">Theme</div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {['night', 'sepia', 'paper'].map((option) => (
-                    <button
-                      key={option}
-                      className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
-                        theme === option
-                          ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--accent)]'
-                          : 'border-white/10 text-[var(--muted-2)]'
-                      }`}
-                      onClick={() => setTheme(option)}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <ReaderPreferencesModal
+        isOpen={isPrefsOpen}
+        onClose={() => setIsPrefsOpen(false)}
+        fontSize={fontSize}
+        setFontScale={setFontScale}
+        lineHeight={lineHeight}
+        setLineHeight={setLineHeight}
+        contentWidth={contentWidth}
+        setContentWidth={setContentWidth}
+        theme={theme}
+        setTheme={setTheme}
+      />
     </RequireAuth>
   )
 }

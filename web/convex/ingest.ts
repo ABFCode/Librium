@@ -1,4 +1,4 @@
-import { action, mutation, query } from "./_generated/server";
+import { action, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "convex/values";
 import { requireBookOwner } from "./authHelpers";
@@ -88,7 +88,7 @@ const sectionInsertSchema = v.object({
   contentSize: v.optional(v.number()),
 });
 
-export const insertSections = mutation({
+export const insertSections = internalMutation({
   args: {
     bookId: v.id("books"),
     sections: v.array(sectionInsertSchema),
@@ -121,7 +121,7 @@ export const insertSections = mutation({
   },
 });
 
-export const authorizeBookForIngest = query({
+export const authorizeBookForIngest = internalQuery({
   args: {
     bookId: v.id("books"),
   },
@@ -131,7 +131,7 @@ export const authorizeBookForIngest = query({
   },
 });
 
-export const listAssetHrefs = query({
+export const listAssetHrefs = internalQuery({
   args: {
     bookId: v.id("books"),
   },
@@ -145,7 +145,7 @@ export const listAssetHrefs = query({
   },
 });
 
-export const upsertBookAssets = mutation({
+export const upsertBookAssets = internalMutation({
   args: {
     bookId: v.id("books"),
     assets: v.array(
@@ -181,7 +181,7 @@ export const upsertBookAssets = mutation({
   },
 });
 
-export const patchBookAfterIngest = mutation({
+export const patchBookAfterIngest = internalMutation({
   args: {
     bookId: v.id("books"),
     sectionCount: v.number(),

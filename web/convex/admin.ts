@@ -1,15 +1,21 @@
-import { mutation } from "./_generated/server";
+import { internalMutation, mutation } from "./_generated/server";
 import { v } from "convex/values";
 
-export const resetAllData = mutation({
-  args: {
-    confirm: v.string(),
-  },
-  handler: async (ctx, args) => {
-    if (args.confirm !== "RESET") {
-      throw new Error("Confirmation required.");
-    }
+const deploymentName = process.env.CONVEX_DEPLOYMENT ?? "";
+const convexUrl = process.env.CONVEX_URL ?? process.env.CONVEX_SITE_URL ?? "";
+const isLocalDeployment =
+  deploymentName.startsWith("local") ||
+  deploymentName.startsWith("anonymous") ||
+  deploymentName.includes("local") ||
+  deploymentName.includes("anonymous");
+const isLocalConvex =
+  convexUrl.includes("127.0.0.1") || convexUrl.includes("localhost");
+const allowAdminReset =
+  process.env.ALLOW_ADMIN_RESET === "true" || isLocalDeployment || isLocalConvex;
 
+export const resetAllDataInternal = internalMutation({
+  args: {},
+  handler: async (ctx) => {
     const bookAssets = await ctx.db.query("bookAssets").collect();
     for (const asset of bookAssets) {
       await ctx.storage.delete(asset.storageId);
@@ -67,5 +73,20 @@ export const resetAllData = mutation({
     }
 
     return { ok: true };
+  },
+});
+
+export const resetAllData = mutation({
+  args: {
+    confirm: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (args.confirm !== "RESET") {
+      throw new Error("Confirmation required.");
+    }
+    if (!allowAdminReset) {
+      throw new Error("Reset is disabled in this environment.");
+    }
+    return await ctx.runMutation("admin:resetAllDataInternal", {});
   },
 });

@@ -1,7 +1,19 @@
-import { action } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import { v } from "convex/values";
 
-export const seedBookContent = action({
+const deploymentName = process.env.CONVEX_DEPLOYMENT ?? "";
+const convexUrl = process.env.CONVEX_URL ?? process.env.CONVEX_SITE_URL ?? "";
+const isLocalDeployment =
+  deploymentName.startsWith("local") ||
+  deploymentName.startsWith("anonymous") ||
+  deploymentName.includes("local") ||
+  deploymentName.includes("anonymous");
+const isLocalConvex =
+  convexUrl.includes("127.0.0.1") || convexUrl.includes("localhost");
+const allowSeed =
+  process.env.ALLOW_SEED === "true" || isLocalDeployment || isLocalConvex;
+
+export const seedBookContentInternal = internalAction({
   args: {
     bookId: v.id("books"),
     sectionCount: v.optional(v.number()),
@@ -22,7 +34,8 @@ export const seedBookContent = action({
         );
       }
       const text = paragraphs.join("\n\n");
-      const storageId = await ctx.storage.store(
+      const storageId = await storeBlob(
+        ctx,
         new Blob([text], { type: "text/plain" }),
       );
       sectionsToInsert.push({
@@ -37,5 +50,39 @@ export const seedBookContent = action({
       bookId: args.bookId,
       sections: sectionsToInsert,
     });
+  },
+});
+
+const storeBlob = async (
+  ctx: Parameters<typeof seedBookContentInternal.handler>[0],
+  blob: Blob,
+) => {
+  if (typeof ctx.storage.store === "function") {
+    return await ctx.storage.store(blob);
+  }
+  const uploadUrl = await ctx.runMutation("storage:generateUploadUrl", {});
+  const response = await fetch(uploadUrl, {
+    method: "POST",
+    headers: blob.type ? { "Content-Type": blob.type } : undefined,
+    body: blob,
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body?.storageId) {
+    throw new Error("Failed to upload blob to storage.");
+  }
+  return body.storageId as string;
+};
+
+export const seedBookContent = action({
+  args: {
+    bookId: v.id("books"),
+    sectionCount: v.optional(v.number()),
+    chunksPerSection: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    if (!allowSeed) {
+      throw new Error("Seeding is disabled in this environment.");
+    }
+    return await ctx.runAction("seed:seedBookContentInternal", args);
   },
 });
