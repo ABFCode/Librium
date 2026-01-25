@@ -78,7 +78,9 @@ const userBooks = defineTable({
   lastChunkIndex: v.number(),
   lastChunkOffset: v.number(),
   updatedAt: v.number(),
-}).index("by_user_book", ["userId", "bookId"]);
+})
+  .index("by_user_book", ["userId", "bookId"])
+  .index("by_book", ["bookId"]);
 
 export default defineSchema({
   users,

@@ -145,6 +145,14 @@ const processQueue = async (convexUrl: string, parserUrl: string) => {
           : undefined,
       })
 
+      await convex.mutation('bookFiles:createBookFile', {
+        bookId,
+        storageId: task.storageId,
+        fileName: task.fileName,
+        fileSize: task.fileSize,
+        contentType: task.contentType ?? undefined,
+      })
+
       await convex.mutation('userBooks:upsertUserBook', {
         userId: task.userId,
         bookId,

@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as bookFiles from "../bookFiles.js";
 import type * as books from "../books.js";
 import type * as http from "../http.js";
 import type * as importJobs from "../importJobs.js";
@@ -28,6 +29,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  bookFiles: typeof bookFiles;
   books: typeof books;
   http: typeof http;
   importJobs: typeof importJobs;
