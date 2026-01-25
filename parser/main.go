@@ -36,6 +36,10 @@ type parseResponse struct {
 type sectionPayload struct {
 	Title      string `json:"title"`
 	OrderIndex int    `json:"orderIndex"`
+	Depth      int    `json:"depth"`
+	ParentOrderIndex *int   `json:"parentOrderIndex,omitempty"`
+	Href       string `json:"href,omitempty"`
+	Anchor     string `json:"anchor,omitempty"`
 }
 
 type chunkPayload struct {
@@ -166,6 +170,10 @@ func handleParse(w http.ResponseWriter, r *http.Request) {
 		sections = append(sections, sectionPayload{
 			Title:      section.Title,
 			OrderIndex: section.OrderIndex,
+			Depth:      section.Depth,
+			ParentOrderIndex: section.ParentOrderIndex,
+			Href:       section.Href,
+			Anchor:     section.Anchor,
 		})
 	}
 
@@ -195,6 +203,10 @@ type sectionInfo struct {
 	Title      string
 	OrderIndex int
 	AnchorHref string
+	Depth      int
+	ParentOrderIndex *int
+	Href       string
+	Anchor     string
 }
 
 type sectionAnchor struct {
@@ -208,7 +220,7 @@ func buildSections(book *spine.Book) []sectionInfo {
 	}
 	sections := []sectionInfo{}
 	if len(book.TOC) > 0 {
-		flattenTOC(book.TOC, &sections)
+		flattenTOC(book.TOC, &sections, 0, nil)
 	}
 	if len(sections) == 0 {
 		for i, item := range book.Spine {
@@ -220,6 +232,8 @@ func buildSections(book *spine.Book) []sectionInfo {
 				Title:      label,
 				OrderIndex: i,
 				AnchorHref: item.Href,
+				Depth:      0,
+				Href:       item.Href,
 			})
 		}
 	}
@@ -228,23 +242,50 @@ func buildSections(book *spine.Book) []sectionInfo {
 		if sections[i].Title == "" {
 			sections[i].Title = "Section " + itoa(i+1)
 		}
+		if sections[i].AnchorHref != "" {
+			href, anchor := splitHrefAnchor(sections[i].AnchorHref)
+			sections[i].Href = href
+			sections[i].Anchor = anchor
+		}
 	}
 	return sections
 }
 
-func flattenTOC(items []spine.TOCItem, out *[]sectionInfo) {
+func splitHrefAnchor(href string) (string, string) {
+	if href == "" {
+		return "", ""
+	}
+	for i := 0; i < len(href); i++ {
+		if href[i] == '#' {
+			if i+1 < len(href) {
+				return href[:i], href[i+1:]
+			}
+			return href[:i], ""
+		}
+	}
+	return href, ""
+}
+
+func flattenTOC(items []spine.TOCItem, out *[]sectionInfo, depth int, parentOrderIndex *int) {
 	for _, item := range items {
 		href := item.Href
 		if href == "" && item.Target != nil {
 			href = item.Target.Href
 		}
+		hrefOnly, anchor := splitHrefAnchor(href)
 		*out = append(*out, sectionInfo{
 			Title:      item.Label,
 			OrderIndex: len(*out),
 			AnchorHref: href,
+			Depth:      depth,
+			ParentOrderIndex: parentOrderIndex,
+			Href:       hrefOnly,
+			Anchor:     anchor,
 		})
 		if len(item.Children) > 0 {
-			flattenTOC(item.Children, out)
+			currentIndex := len(*out) - 1
+			parentIndex := currentIndex
+			flattenTOC(item.Children, out, depth+1, &parentIndex)
 		}
 	}
 }

@@ -127,12 +127,12 @@ function ImportPage() {
                       to="/reader/$bookId"
                       params={{ bookId: book._id }}
                     >
-                      <div className="relative mb-3 h-28 overflow-hidden rounded-xl">
+                      <div className="relative mb-3 h-28 overflow-hidden rounded-xl bg-black/20">
                         {coverUrls?.[book._id] ? (
                           <img
                             src={coverUrls[book._id] ?? undefined}
                             alt={book.title}
-                            className="h-full w-full object-cover"
+                            className="h-full w-full object-contain"
                           />
                         ) : (
                           <div className="h-full w-full bg-[linear-gradient(135deg,rgba(209,161,92,0.2),rgba(143,181,166,0.2))]" />

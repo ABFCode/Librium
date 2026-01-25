@@ -82,7 +82,27 @@ const userBooks = defineTable({
   updatedAt: v.number(),
 })
   .index("by_user_book", ["userId", "bookId"])
+  .index("by_user_updated", ["userId", "updatedAt"])
   .index("by_book", ["bookId"]);
+
+const userSettings = defineTable({
+  userId: v.id("users"),
+  fontScale: v.number(),
+  lineHeight: v.number(),
+  contentWidth: v.number(),
+  theme: v.string(),
+  updatedAt: v.number(),
+}).index("by_user", ["userId"]);
+
+const bookmarks = defineTable({
+  userId: v.id("users"),
+  bookId: v.id("books"),
+  sectionId: v.id("sections"),
+  chunkIndex: v.number(),
+  offset: v.number(),
+  label: v.optional(v.string()),
+  createdAt: v.number(),
+}).index("by_user_book", ["userId", "bookId"]);
 
 export default defineSchema({
   users,
@@ -91,4 +111,6 @@ export default defineSchema({
   sections,
   importJobs,
   userBooks,
+  userSettings,
+  bookmarks,
 });

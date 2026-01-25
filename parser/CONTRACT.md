@@ -19,7 +19,7 @@ and Convex ingest can rely on.
   "fileSize": 123456,
   "message": "parsed",
   "sections": [
-    { "title": "Chapter 1", "orderIndex": 0 }
+    { "title": "Chapter 1", "orderIndex": 0, "depth": 0 }
   ],
   "chunks": [
     {
@@ -61,6 +61,10 @@ and Convex ingest can rely on.
 ### `sections[]`
 - `title`: display title
 - `orderIndex`: stable ordering
+- `depth`: nesting depth in the TOC
+- `parentOrderIndex`: optional parent section index
+- `href`: original href without anchor
+- `anchor`: anchor fragment within the href
 
 ### `chunks[]`
 - `sectionOrderIndex`: index into `sections[]`

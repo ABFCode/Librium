@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as bookFiles from "../bookFiles.js";
+import type * as bookmarks from "../bookmarks.js";
 import type * as books from "../books.js";
 import type * as http from "../http.js";
 import type * as importJobs from "../importJobs.js";
@@ -19,6 +20,7 @@ import type * as sections from "../sections.js";
 import type * as seed from "../seed.js";
 import type * as storage from "../storage.js";
 import type * as userBooks from "../userBooks.js";
+import type * as userSettings from "../userSettings.js";
 import type * as users from "../users.js";
 
 import type {
@@ -30,6 +32,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   bookFiles: typeof bookFiles;
+  bookmarks: typeof bookmarks;
   books: typeof books;
   http: typeof http;
   importJobs: typeof importJobs;
@@ -39,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   seed: typeof seed;
   storage: typeof storage;
   userBooks: typeof userBooks;
+  userSettings: typeof userSettings;
   users: typeof users;
 }>;
 

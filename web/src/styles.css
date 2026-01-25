@@ -156,6 +156,24 @@
     overflow: hidden;
   }
 
+  .reader-theme-night {
+    background: rgba(12, 15, 18, 0.95);
+    --reader-ink: var(--ink);
+    --reader-muted: var(--muted-2);
+  }
+
+  .reader-theme-sepia {
+    background: linear-gradient(180deg, #1d1610, #241c14);
+    --reader-ink: #f2e6d2;
+    --reader-muted: #c6b79f;
+  }
+
+  .reader-theme-paper {
+    background: linear-gradient(180deg, #f3efe6, #e7dfd2);
+    --reader-ink: #1f1a14;
+    --reader-muted: #6f6559;
+  }
+
   .card:hover {
     border-color: rgba(209, 161, 92, 0.4);
     box-shadow: var(--shadow-strong);
