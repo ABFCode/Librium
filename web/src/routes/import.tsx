@@ -10,7 +10,6 @@ export const Route = createFileRoute('/import')({
 
 function ImportPage() {
   const {
-    userId,
     files,
     isDragging,
     setIsDragging,
@@ -18,6 +17,7 @@ function ImportPage() {
     error,
     isUploading,
     importJobs,
+    isAuthenticated,
     allowLocalAuth,
     statusLabel,
     submit,
@@ -115,7 +115,7 @@ function ImportPage() {
                     disabled={
                       isUploading ||
                       files.length === 0 ||
-                      (!userId && !allowLocalAuth)
+                      (!isAuthenticated && !allowLocalAuth)
                     }
                   >
                     {isUploading ? `Uploading ${files.length} file(s)...` : 'Upload'}
@@ -125,7 +125,7 @@ function ImportPage() {
                 {error ? (
                   <p className="mt-3 text-sm text-[var(--danger)]">{error}</p>
                 ) : null}
-                {!userId && !allowLocalAuth ? (
+                {!isAuthenticated && !allowLocalAuth ? (
                   <p className="mt-2 text-xs text-[var(--muted)]">
                     Sign in to upload and sync your library.
                   </p>
@@ -145,10 +145,10 @@ function ImportPage() {
                   <div className="text-xs uppercase tracking-[0.35em] text-[var(--accent-3)]">
                     Recent
                   </div>
-                  {userId ? (
+                  {isAuthenticated || allowLocalAuth ? (
                     <button
                       className="text-[10px] uppercase tracking-[0.3em] text-[var(--muted-2)] hover:text-[var(--ink)]"
-                      onClick={() => clearJobs({ userId })}
+                      onClick={() => clearJobs({})}
                     >
                       Clear
                     </button>

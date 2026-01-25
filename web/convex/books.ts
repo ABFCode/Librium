@@ -1,9 +1,14 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import {
+  getViewerUserId,
+  requireBookOwner,
+  resolveImportUserId,
+} from "./authHelpers";
 
 export const createBook = mutation({
   args: {
-    ownerId: v.id("users"),
+    ownerId: v.optional(v.id("users")),
     title: v.string(),
     author: v.optional(v.string()),
     language: v.optional(v.string()),
@@ -26,9 +31,10 @@ export const createBook = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    const ownerId = await resolveImportUserId(ctx, args.ownerId);
     const now = Date.now();
     return await ctx.db.insert("books", {
-      ownerId: args.ownerId,
+      ownerId,
       title: args.title,
       author: args.author,
       language: args.language,
@@ -40,6 +46,7 @@ export const createBook = mutation({
       coverStorageId: args.coverStorageId,
       coverContentType: args.coverContentType,
       identifiers: args.identifiers,
+      sectionCount: 0,
       createdAt: now,
       updatedAt: now,
     });
@@ -47,13 +54,15 @@ export const createBook = mutation({
 });
 
 export const listByOwner = query({
-  args: {
-    ownerId: v.id("users"),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const ownerId = await getViewerUserId(ctx);
+    if (!ownerId) {
+      return [];
+    }
     return await ctx.db
       .query("books")
-      .withIndex("by_owner", (q) => q.eq("ownerId", args.ownerId))
+      .withIndex("by_owner", (q) => q.eq("ownerId", ownerId))
       .order("desc")
       .collect();
   },
@@ -61,17 +70,10 @@ export const listByOwner = query({
 
 export const deleteBook = mutation({
   args: {
-    userId: v.id("users"),
     bookId: v.id("books"),
   },
   handler: async (ctx, args) => {
-    const book = await ctx.db.get(args.bookId);
-    if (!book) {
-      return;
-    }
-    if (book.ownerId !== args.userId) {
-      throw new Error("Not authorized to delete this book.");
-    }
+    const { viewerId, book } = await requireBookOwner(ctx, args.bookId);
 
     const sections = await ctx.db
       .query("sections")
@@ -99,7 +101,7 @@ export const deleteBook = mutation({
     const userBooks = await ctx.db
       .query("userBooks")
       .withIndex("by_user_book", (q) =>
-        q.eq("userId", args.userId).eq("bookId", args.bookId),
+        q.eq("userId", viewerId).eq("bookId", args.bookId),
       )
       .collect();
     for (const entry of userBooks) {
@@ -109,7 +111,7 @@ export const deleteBook = mutation({
     const bookmarks = await ctx.db
       .query("bookmarks")
       .withIndex("by_user_book", (q) =>
-        q.eq("userId", args.userId).eq("bookId", args.bookId),
+        q.eq("userId", viewerId).eq("bookId", args.bookId),
       )
       .collect();
     for (const bookmark of bookmarks) {
@@ -138,10 +140,18 @@ export const getCoverUrls = query({
     bookIds: v.array(v.id("books")),
   },
   handler: async (ctx, args) => {
+    const viewerId = await getViewerUserId(ctx);
+    if (!viewerId) {
+      return {};
+    }
     const result: Record<string, string | null> = {};
     for (const bookId of args.bookIds) {
       const book = await ctx.db.get(bookId);
-      if (!book?.coverStorageId) {
+      if (!book || book.ownerId !== viewerId) {
+        result[bookId] = null;
+        continue;
+      }
+      if (!book.coverStorageId) {
         result[bookId] = null;
         continue;
       }

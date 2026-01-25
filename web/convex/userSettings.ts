@@ -1,35 +1,38 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { getViewerUserId, requireViewerUserId } from "./authHelpers";
 
 export const getByUser = query({
-  args: {
-    userId: v.id("users"),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getViewerUserId(ctx);
+    if (!userId) {
+      return null;
+    }
     return await ctx.db
       .query("userSettings")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
   },
 });
 
 export const upsert = mutation({
   args: {
-    userId: v.id("users"),
     fontScale: v.number(),
     lineHeight: v.number(),
     contentWidth: v.number(),
     theme: v.string(),
   },
   handler: async (ctx, args) => {
+    const userId = await requireViewerUserId(ctx);
     const existing = await ctx.db
       .query("userSettings")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
 
     const now = Date.now();
     const payload = {
-      userId: args.userId,
+      userId,
       fontScale: args.fontScale,
       lineHeight: args.lineHeight,
       contentWidth: args.contentWidth,

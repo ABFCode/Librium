@@ -312,8 +312,10 @@ func buildSections(book *spine.Book) []sectionInfo {
 		}
 		if sections[i].AnchorHref != "" {
 			href, anchor := splitHrefAnchor(sections[i].AnchorHref)
-			sections[i].Href = href
-			sections[i].Anchor = anchor
+			sections[i].Href = normalizeHrefPath(href)
+			sections[i].Anchor = strings.TrimSpace(anchor)
+		} else {
+			sections[i].Href = normalizeHrefPath(sections[i].Href)
 		}
 	}
 	return sections
@@ -516,7 +518,9 @@ func buildSectionBlocks(book *spine.Book, sections []sectionInfo) ([]sectionBloc
 
 	spineIndexByHref := map[string]int{}
 	for i, item := range book.Spine {
-		spineIndexByHref[item.Href] = i
+		if normalized := normalizeHrefPath(item.Href); normalized != "" {
+			spineIndexByHref[normalized] = i
+		}
 	}
 
 	targets := []sectionTarget{}
@@ -531,18 +535,18 @@ func buildSectionBlocks(book *spine.Book, sections []sectionInfo) ([]sectionBloc
 					SectionIndex: section.OrderIndex,
 					SpineIndex:   ref.SpineIndex,
 					BlockIndex:   ref.BlockIndex,
-					BaseHref:     baseHref,
+					BaseHref:     normalizeHrefPath(baseHref),
 				})
 				continue
 			}
 		}
 		if section.Href != "" {
-			if idx, ok := spineIndexByHref[section.Href]; ok {
+			if idx, ok := spineIndexByHref[normalizeHrefPath(section.Href)]; ok {
 				targets = append(targets, sectionTarget{
 					SectionIndex: section.OrderIndex,
 					SpineIndex:   idx,
 					BlockIndex:   0,
-					BaseHref:     section.Href,
+					BaseHref:     normalizeHrefPath(section.Href),
 				})
 			}
 		}
@@ -768,6 +772,32 @@ func resolveResourceHref(baseHref, src string) string {
 		clean = path.Join(baseDir, clean)
 	}
 	clean = path.Clean(clean)
+	if clean == "." {
+		return ""
+	}
+	return clean
+}
+
+func normalizeHrefPath(href string) string {
+	if href == "" {
+		return ""
+	}
+	clean := strings.TrimSpace(href)
+	if clean == "" {
+		return ""
+	}
+	if strings.Contains(clean, "#") {
+		clean = strings.SplitN(clean, "#", 2)[0]
+	}
+	if strings.Contains(clean, "?") {
+		clean = strings.SplitN(clean, "?", 2)[0]
+	}
+	clean = strings.TrimPrefix(clean, "./")
+	clean = strings.TrimPrefix(clean, "/")
+	clean = path.Clean(clean)
+	if clean == "." {
+		return ""
+	}
 	return clean
 }
 

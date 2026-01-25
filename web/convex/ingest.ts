@@ -1,6 +1,7 @@
 import { action, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "convex/values";
+import { requireBookOwnerOrImporter } from "./authHelpers";
 
 const sectionSchema = v.object({
   title: v.string(),
@@ -93,6 +94,7 @@ export const insertSections = mutation({
     sections: v.array(sectionInsertSchema),
   },
   handler: async (ctx, args) => {
+    await requireBookOwnerOrImporter(ctx, args.bookId);
     const now = Date.now();
     const idByOrder = new Map<number, Id<"sections">>();
     for (const section of args.sections) {
@@ -128,6 +130,7 @@ export const ingestParsedBook = action({
     images: v.optional(v.array(imageSchema)),
   },
   handler: async (ctx, args) => {
+    await requireBookOwnerOrImporter(ctx, args.bookId);
     const sectionTexts = new Map<number, string[]>();
     const sectionBlocks = new Map<number, unknown[]>();
 
@@ -195,6 +198,11 @@ export const ingestParsedBook = action({
     await ctx.runMutation("ingest:insertSections", {
       bookId: args.bookId,
       sections: sectionsToInsert,
+    });
+
+    await ctx.db.patch(args.bookId, {
+      sectionCount: args.sections.length,
+      updatedAt: Date.now(),
     });
 
     for (const image of args.images ?? []) {

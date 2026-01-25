@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useAction, useMutation, useQuery } from 'convex/react'
+import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
-import { useLocalUser } from '../hooks/useLocalUser'
 import { RequireAuth } from './RequireAuth'
 
 type ReaderChunk = {
@@ -51,24 +50,29 @@ type ReaderExperienceProps = {
 }
 
 export function ReaderExperience({ bookId }: ReaderExperienceProps) {
-  const userId = useLocalUser()
-  const sections = useQuery(api.sections.listSections, { bookId })
+  const { isAuthenticated } = useConvexAuth()
+  const allowLocalAuth =
+    import.meta.env.VITE_ALLOW_LOCAL_AUTH === 'true'
+  const canQuery = isAuthenticated || allowLocalAuth
+  const sections = useQuery(
+    api.sections.listSections,
+    canQuery ? { bookId } : 'skip',
+  )
   const getSectionContent = useAction(api.reader.getSectionContent)
   const updateProgress = useMutation(api.userBooks.updateProgress)
   const userBook = useQuery(
     api.userBooks.getUserBook,
-    userId ? { userId, bookId } : 'skip',
+    canQuery ? { bookId } : 'skip',
   )
   const userSettings = useQuery(
     api.userSettings.getByUser,
-    userId ? { userId } : 'skip',
+    canQuery ? {} : 'skip',
   )
   const saveSettings = useMutation(api.userSettings.upsert)
   const bookmarks = useQuery(
     api.bookmarks.listByUserBook,
-    userId ? { userId, bookId } : 'skip',
+    canQuery ? { bookId } : 'skip',
   )
-  const imageUrls = useQuery(api.bookAssets.getUrlsByBook, { bookId })
   const createBookmark = useMutation(api.bookmarks.createBookmark)
   const deleteBookmark = useMutation(api.bookmarks.deleteBookmark)
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
@@ -132,8 +136,8 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     document.body.dataset.theme = theme
   }, [theme])
 
-useEffect(() => {
-  if (!userId) {
+  useEffect(() => {
+    if (!canQuery) {
       return
     }
     const payload = { fontScale, lineHeight, contentWidth, theme }
@@ -148,11 +152,11 @@ useEffect(() => {
       return
     }
     const timeout = window.setTimeout(() => {
-      void saveSettings({ userId, ...payload })
+      void saveSettings(payload)
       lastSavedPrefsRef.current = payload
     }, 250)
     return () => window.clearTimeout(timeout)
-  }, [userId, fontScale, lineHeight, contentWidth, theme, saveSettings])
+  }, [fontScale, lineHeight, contentWidth, theme, saveSettings])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -271,6 +275,45 @@ useEffect(() => {
     return map
   }, [sections])
 
+  const imageHrefs = useMemo(() => {
+    if (!blocks || blocks.length === 0) {
+      return []
+    }
+    const set = new Set<string>()
+    const collectInlines = (inlines?: InlinePayload[]) => {
+      if (!inlines) {
+        return
+      }
+      for (const inline of inlines) {
+        if (inline.kind === 'image' && inline.src) {
+          set.add(inline.src)
+        }
+      }
+    }
+    for (const block of blocks) {
+      collectInlines(block.inlines)
+      if (block.figure) {
+        collectInlines(block.figure.images)
+        collectInlines(block.figure.caption)
+      }
+      if (block.table) {
+        for (const row of block.table.rows) {
+          for (const cell of row.cells) {
+            collectInlines(cell.inlines)
+          }
+        }
+      }
+    }
+    return Array.from(set)
+  }, [blocks])
+
+  const imageUrls = useQuery(
+    api.bookAssets.getUrlsByBook,
+    canQuery && imageHrefs.length > 0
+      ? { bookId, hrefs: imageHrefs }
+      : 'skip',
+  )
+
   const goToSection = (index: number) => {
     if (!sections || index < 0 || index >= sections.length) {
       return
@@ -313,7 +356,7 @@ useEffect(() => {
   }, [sections, activeSectionId, userBook?.lastSectionId])
 
   const loadSection = async (targetId: string | null) => {
-    if (!targetId) {
+    if (!targetId || !canQuery) {
       return
     }
     loadingSectionRef.current = targetId
@@ -359,7 +402,7 @@ useEffect(() => {
   }, [isLoading])
 
   const emitProgress = () => {
-    if (!userId || !sectionId || !parentRef.current) {
+    if (!canQuery || !sectionId || !parentRef.current) {
       return
     }
     if (userBook === undefined) {
@@ -389,9 +432,9 @@ useEffect(() => {
       }
     }
     void updateProgress({
-      userId,
       bookId,
       lastSectionId: sectionId,
+      lastSectionIndex: activeIndex >= 0 ? activeIndex : 0,
       lastChunkIndex: chunkIndex,
       lastChunkOffset: offsetWithin,
       lastScrollRatio: scrollRatio,
@@ -429,7 +472,7 @@ useEffect(() => {
     }
     container.addEventListener('scroll', handleScroll)
     return () => container.removeEventListener('scroll', handleScroll)
-  }, [sectionId, userId])
+  }, [sectionId])
 
   useEffect(() => {
     const handleVisibility = () => {
@@ -443,7 +486,7 @@ useEffect(() => {
       window.removeEventListener('pagehide', emitProgress)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [userId, sectionId, userBook])
+  }, [sectionId, userBook])
 
   useEffect(() => {
     restoredSectionRef.current = null
@@ -575,13 +618,13 @@ useEffect(() => {
       })
       return
     }
-    if (userBook === null && userId && !initialProgressRef.current) {
+    if (userBook === null && !initialProgressRef.current) {
       setIsRestoringView(false)
       initialProgressRef.current = true
       void updateProgress({
-        userId,
         bookId,
         lastSectionId: sectionId,
+        lastSectionIndex: activeIndex >= 0 ? activeIndex : 0,
         lastChunkIndex: 0,
         lastChunkOffset: 0,
         lastScrollRatio: 0,
@@ -594,7 +637,7 @@ useEffect(() => {
     setIsRestoringView(false)
     restoredSectionRef.current = sectionId
     scrollRestoredRef.current = null
-  }, [sectionId, chunks.length, blocks?.length, userBook, userId])
+  }, [sectionId, chunks.length, blocks?.length, userBook, activeIndex])
 
   const searchMatches = useMemo(() => {
     const source = blocks && blocks.length > 0
@@ -954,7 +997,7 @@ useEffect(() => {
   }
 
   const handleCreateBookmark = async () => {
-    if (!userId || !sectionId || !parentRef.current) {
+    if (!sectionId || !parentRef.current) {
       return
     }
     const container = parentRef.current
@@ -972,7 +1015,6 @@ useEffect(() => {
     }
     const label = window.prompt('Bookmark label (optional)') ?? undefined
     await createBookmark({
-      userId,
       bookId,
       sectionId,
       chunkIndex,
@@ -1232,7 +1274,6 @@ useEffect(() => {
                         event.stopPropagation()
                         void deleteBookmark({
                           bookmarkId: bookmark._id,
-                          userId: userId!,
                         })
                       }}
                     >
@@ -1484,11 +1525,6 @@ useEffect(() => {
             <section
               className={`card relative overflow-hidden ${themeClass} text-[var(--reader-ink)] ${contentOrderClass}`}
             >
-              {!userId ? (
-                <p className="p-6 text-sm text-[var(--muted)]">
-                  Loading user...
-                </p>
-              ) : null}
               {userBook === undefined && sectionId ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                   <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-[var(--reader-muted)]">

@@ -10,6 +10,7 @@
 
 import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
+import type * as authHelpers from "../authHelpers.js";
 import type * as bookAssets from "../bookAssets.js";
 import type * as bookFiles from "../bookFiles.js";
 import type * as bookmarks from "../bookmarks.js";
@@ -34,6 +35,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   auth: typeof auth;
+  authHelpers: typeof authHelpers;
   bookAssets: typeof bookAssets;
   bookFiles: typeof bookFiles;
   bookmarks: typeof bookmarks;
