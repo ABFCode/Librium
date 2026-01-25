@@ -86,74 +86,21 @@ function ImportPage() {
     <RequireAuth>
       <div className="min-h-screen px-6 pb-16 pt-10">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
-          <div className="surface flex flex-wrap items-center justify-between gap-6 rounded-[28px] p-6">
-            <div>
-              <span className="pill">Library</span>
-              <h1 className="mt-3 text-3xl">Your shelves come first.</h1>
-              <p className="mt-2 text-sm text-[var(--muted)]">
-                Browse your collection, then queue new EPUBs when you need.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link className="btn btn-ghost" to="/library">
-                Open Library
-              </Link>
-              <a className="btn btn-primary" href="#import">
-                Add EPUBs
-              </a>
-            </div>
+        <div className="surface flex flex-wrap items-center justify-between gap-6 rounded-[28px] p-6">
+          <div>
+            <span className="pill">Import</span>
+            <h1 className="mt-3 text-3xl">Queue EPUBs for parsing.</h1>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              Drag and drop files to load them into your account.
+            </p>
           </div>
+          <Link className="btn btn-primary" to="/library">
+            Back to Library
+          </Link>
+        </div>
 
-          <div className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-            <section className="card p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl">Library focus</h2>
-                <span className="pill">Collection</span>
-              </div>
-              {!books ? (
-                <p className="mt-6 text-sm text-[var(--muted)]">
-                  Loading library...
-                </p>
-              ) : books.length === 0 ? (
-                <div className="mt-6 rounded-2xl border border-white/10 bg-[rgba(12,15,18,0.6)] p-6 text-sm text-[var(--muted)]">
-                  Your library is empty. Import your first EPUB on the right.
-                </div>
-              ) : (
-                <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {books.slice(0, 6).map((book, index) => (
-                    <Link
-                      key={book._id}
-                      className="rounded-2xl border border-white/5 bg-[rgba(12,15,18,0.7)] p-4 transition hover:border-[rgba(209,161,92,0.5)]"
-                      to="/reader/$bookId"
-                      params={{ bookId: book._id }}
-                    >
-                      <div className="relative mb-3 h-28 overflow-hidden rounded-xl bg-black/20">
-                        {coverUrls?.[book._id] ? (
-                          <img
-                            src={coverUrls[book._id] ?? undefined}
-                            alt={book.title}
-                            className="h-full w-full object-contain"
-                          />
-                        ) : (
-                          <div className="h-full w-full bg-[linear-gradient(135deg,rgba(209,161,92,0.2),rgba(143,181,166,0.2))]" />
-                        )}
-                        <div className="absolute bottom-2 left-2 rounded-full border border-white/20 bg-black/30 px-2 py-1 text-[9px] uppercase tracking-[0.3em] text-white/80">
-                          Volume {index + 1}
-                        </div>
-                      </div>
-                      <div className="mt-2 text-base font-semibold">
-                        {book.title}
-                      </div>
-                      <div className="mt-1 text-xs text-[var(--muted)]">
-                        {book.author ?? 'Unknown author'}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section id="import" className="card p-6">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <section id="import" className="card p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl">Queue imports</h2>
@@ -242,17 +189,11 @@ function ImportPage() {
                   </div>
                 </div>
               ) : null}
-            </section>
-          </div>
+          </section>
 
           <section className="surface-soft rounded-2xl p-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="text-xs uppercase tracking-[0.35em] text-[var(--accent-3)]">
-                Recent imports
-              </div>
-              <Link className="btn btn-outline text-xs" to="/library">
-                View Library
-              </Link>
+            <div className="text-xs uppercase tracking-[0.35em] text-[var(--accent-3)]">
+              Recent imports
             </div>
             {!importJobs ? (
               <p className="mt-4 text-sm text-[var(--muted)]">
@@ -263,7 +204,7 @@ function ImportPage() {
                 No imports yet.
               </p>
             ) : (
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <div className="mt-6 space-y-4">
                 {importJobs.map((job) => (
                   <div
                     key={job._id}
@@ -320,6 +261,7 @@ function ImportPage() {
               </div>
             )}
           </section>
+        </div>
         </div>
       </div>
     </RequireAuth>

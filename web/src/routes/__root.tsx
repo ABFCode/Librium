@@ -4,6 +4,7 @@ import { TanStackDevtools } from '@tanstack/react-devtools'
 import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react'
 
 import Header from '../components/Header'
+import { ThemeSync } from '../components/ThemeSync'
 import { convexClient } from '../convexClient'
 import { authClient } from '../lib/auth-client'
 
@@ -46,6 +47,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="min-h-screen text-[var(--ink)]">
         <ConvexBetterAuthProvider client={convexClient} authClient={authClient}>
+          <ThemeSync />
           <Header />
           {children}
         </ConvexBetterAuthProvider>

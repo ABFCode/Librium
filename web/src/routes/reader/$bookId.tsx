@@ -51,6 +51,8 @@ function Reader() {
   const lastProgressAtRef = useRef<number>(0)
   const restoredSectionRef = useRef<string | null>(null)
   const pendingScrollRef = useRef<number | null>(null)
+  const loadingSectionRef = useRef<string | null>(null)
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(false)
 
   useEffect(() => {
     if (!userSettings || isPrefsOpen) {
@@ -61,6 +63,21 @@ function Reader() {
     setContentWidth(userSettings.contentWidth ?? 720)
     setTheme(userSettings.theme ?? 'night')
   }, [userSettings, isPrefsOpen])
+
+  useEffect(() => {
+    document.body.dataset.theme = theme
+  }, [theme])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+    const media = window.matchMedia('(min-width: 1024px)')
+    setIsTocOpen(media.matches)
+    const handleChange = () => setIsTocOpen(media.matches)
+    media.addEventListener('change', handleChange)
+    return () => media.removeEventListener('change', handleChange)
+  }, [])
 
   const sectionId = activeSectionId ?? null
 
@@ -89,6 +106,13 @@ function Reader() {
     }
     return sections.findIndex((section) => section._id === sectionId)
   }, [sections, sectionId])
+
+  const sectionTitleById = useMemo(() => {
+    if (!sections) {
+      return new Map<string, string>()
+    }
+    return new Map(sections.map((section) => [section._id, section.title]))
+  }, [sections])
 
   const goToSection = (index: number) => {
     if (!sections || index < 0 || index >= sections.length) {
@@ -135,9 +159,13 @@ function Reader() {
     if (!targetId) {
       return
     }
+    loadingSectionRef.current = targetId
     setIsLoading(true)
     const { text } = await getSectionText({ sectionId: targetId })
     if (activeSectionRef.current !== targetId) {
+      if (loadingSectionRef.current === targetId) {
+        setIsLoading(false)
+      }
       return
     }
     const paragraphs = text.split(/\n{2,}/).filter(Boolean)
@@ -147,12 +175,30 @@ function Reader() {
         content,
       })),
     )
-    setIsLoading(false)
+    if (loadingSectionRef.current === targetId) {
+      setIsLoading(false)
+    }
   }
 
   useEffect(() => {
     void loadSection(sectionId)
   }, [sectionId])
+
+  useEffect(() => {
+    let timeout: number | undefined
+    if (isLoading) {
+      timeout = window.setTimeout(() => {
+        setShowLoadingOverlay(true)
+      }, 250)
+    } else {
+      setShowLoadingOverlay(false)
+    }
+    return () => {
+      if (timeout) {
+        window.clearTimeout(timeout)
+      }
+    }
+  }, [isLoading])
 
   const emitProgress = () => {
     if (!userId || !sectionId || !parentRef.current) {
@@ -324,57 +370,120 @@ function Reader() {
             <div className="flex items-center gap-3">
               <span className="pill">Reader</span>
               <span className="text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
-                {activeIndex >= 0 ? `Section ${activeIndex + 1}` : 'Loading'}
+                {activeIndex >= 0 ? `Chapter ${activeIndex + 1}` : 'Loading'}
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
-                className="btn btn-ghost text-xs"
+                className="btn btn-ghost text-xs tooltip"
+                data-tooltip="Bookmark"
                 onClick={handleCreateBookmark}
                 disabled={!sectionId}
               >
-                Bookmark
+                <span className="sr-only">Bookmark</span>
+                <svg
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                </svg>
               </button>
               <button
-                className="btn btn-ghost text-xs"
+                className="btn btn-ghost text-xs tooltip"
+                data-tooltip="Previous chapter"
                 onClick={goPrev}
                 disabled={!sections || activeIndex <= 0}
               >
-                Prev
+                <span className="sr-only">Previous chapter</span>
+                <svg
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
               </button>
               <button
-                className="btn btn-ghost text-xs"
+                className="btn btn-ghost text-xs tooltip"
+                data-tooltip="Next chapter"
                 onClick={goNext}
                 disabled={!sections || activeIndex < 0 || activeIndex >= sections.length - 1}
               >
-                Next
+                <span className="sr-only">Next chapter</span>
+                <svg
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
               </button>
               <button
-                className="btn btn-ghost text-xs"
+                className="btn btn-ghost text-xs tooltip"
+                data-tooltip="Chapters"
                 onClick={() => setIsTocOpen((prev) => !prev)}
               >
-                {isTocOpen ? 'Hide contents' : 'Contents'}
+                <span className="sr-only">Chapters</span>
+                <svg
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M4 6h16" />
+                  <path d="M4 12h16" />
+                  <path d="M4 18h16" />
+                </svg>
               </button>
-              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-[rgba(12,15,18,0.7)] px-3 py-2 text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
-                <span>Text</span>
-                <button
-                  className="text-[var(--accent)]"
-                  onClick={() => setFontScale((prev) => Math.max(prev - 1, -1))}
-                >
-                  A-
-                </button>
-                <button
-                  className="text-[var(--accent)]"
-                  onClick={() => setFontScale((prev) => Math.min(prev + 1, 2))}
-                >
-                  A+
-                </button>
-              </div>
               <button
-                className="btn btn-outline text-xs"
+                className="btn btn-outline text-xs tooltip"
+                data-tooltip="Reader prefs"
                 onClick={() => setIsPrefsOpen(true)}
               >
-                Reader prefs
+                <span className="sr-only">Reader preferences</span>
+                <svg
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.08A1.65 1.65 0 0 0 9 4.09V4a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08A1.65 1.65 0 0 0 19.91 11H20a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
               </button>
             </div>
           </div>
@@ -393,7 +502,7 @@ function Reader() {
             >
               <div className="flex items-center justify-between">
                 <div className="text-sm uppercase tracking-[0.4em] text-[var(--muted-2)]">
-                  Navigator
+                  Chapters
                 </div>
                 <button
                   className="text-xs text-[var(--muted)] lg:hidden"
@@ -403,8 +512,8 @@ function Reader() {
                 </button>
               </div>
               <div className="mt-4 flex gap-2">
-                {([
-                  { key: 'toc', label: 'Contents' },
+                  {([
+                  { key: 'toc', label: 'Chapters' },
                   { key: 'search', label: 'Search' },
                   { key: 'bookmarks', label: 'Bookmarks' },
                 ] as const).map((tab) => (
@@ -450,9 +559,9 @@ function Reader() {
                         }}
                         disabled={section._id === sectionId}
                       >
-                        <div className="text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
-                          Section
-                        </div>
+                      <div className="text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
+                        Chapter
+                      </div>
                         <div className="mt-1 text-base text-[var(--ink)]">
                           {section.title}
                         </div>
@@ -466,7 +575,7 @@ function Reader() {
                 <div className="mt-4">
                   <input
                     className="input"
-                    placeholder="Search this section..."
+                    placeholder="Search this chapter..."
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                   />
@@ -510,6 +619,24 @@ function Reader() {
                           <div className="text-[var(--ink)]">
                             {bookmark.label ?? 'Bookmark'}
                           </div>
+                          {(() => {
+                            const chapterIndex = sections
+                              ? sections.findIndex(
+                                  (section) => section._id === bookmark.sectionId,
+                                )
+                              : -1
+                            return (
+                              <div className="mt-1 text-[10px] uppercase tracking-[0.3em] text-[var(--muted-2)]">
+                                {chapterIndex >= 0
+                                  ? `Chapter ${chapterIndex + 1}`
+                                  : 'Chapter'}
+                              </div>
+                            )
+                          })()}
+                          <div className="mt-1 text-sm text-[var(--muted)]">
+                            {sectionTitleById.get(bookmark.sectionId) ??
+                              'Untitled chapter'}
+                          </div>
                           <div className="mt-2 flex items-center justify-between">
                             <button
                               className="text-[var(--accent)]"
@@ -549,11 +676,16 @@ function Reader() {
               ) : null}
             </aside>
 
-            <section className={`card overflow-hidden ${themeClass} text-[var(--reader-ink)]`}>
+            <section className={`card relative overflow-hidden ${themeClass} text-[var(--reader-ink)]`}>
               {!userId ? (
                 <p className="p-6 text-sm text-[var(--muted)]">
                   Loading user...
                 </p>
+              ) : null}
+              {showLoadingOverlay ? (
+                <div className="pointer-events-none absolute right-6 top-6 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-[var(--reader-muted)]">
+                  Loading chapter
+                </div>
               ) : null}
               <div
                 ref={parentRef}
@@ -565,7 +697,7 @@ function Reader() {
               >
                 <div className="mb-6">
                   <h1 className="text-2xl text-[var(--reader-ink)]">
-                    {activeSection?.title ?? 'Untitled section'}
+                    {activeSection?.title ?? 'Untitled chapter'}
                   </h1>
                 </div>
                 <div
@@ -575,15 +707,15 @@ function Reader() {
                   {chunks.length === 0 ? (
                     <p className="text-sm text-[var(--reader-muted)]">
                       {isLoading
-                        ? 'Loading section...'
-                        : 'Select a section to begin reading.'}
+                        ? 'Loading chapter...'
+                        : 'Select a chapter to begin reading.'}
                     </p>
                   ) : (
                     chunks.map((chunk, index) => (
                       <div
                         key={chunk.id}
                         data-chunk-index={index}
-                        className="py-3 leading-relaxed whitespace-pre-wrap text-[var(--reader-ink)]"
+                        className="py-3 whitespace-pre-wrap text-[var(--reader-ink)]"
                       >
                         {chunk.content}
                       </div>
@@ -611,39 +743,63 @@ function Reader() {
             <div className="mt-6 space-y-5 text-sm text-[var(--muted)]">
               <div>
                 <div className="text-xs uppercase tracking-[0.3em]">Font size</div>
-                <input
-                  className="mt-2 w-full"
-                  type="range"
-                  min={-1}
-                  max={3}
-                  step={1}
-                  value={fontScale}
-                  onChange={(event) => setFontScale(Number(event.target.value))}
-                />
+                <div className="mt-2 flex items-center gap-3">
+                  <button
+                    className="btn btn-ghost text-xs"
+                    onClick={() => setFontScale((prev) => Math.max(prev - 1, -1))}
+                  >
+                    A-
+                  </button>
+                  <div className="text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
+                    {fontSize}px
+                  </div>
+                  <button
+                    className="btn btn-ghost text-xs"
+                    onClick={() => setFontScale((prev) => Math.min(prev + 1, 3))}
+                  >
+                    A+
+                  </button>
+                </div>
               </div>
               <div>
                 <div className="text-xs uppercase tracking-[0.3em]">Line height</div>
-                <input
-                  className="mt-2 w-full"
-                  type="range"
-                  min={1.4}
-                  max={2.2}
-                  step={0.1}
-                  value={lineHeight}
-                  onChange={(event) => setLineHeight(Number(event.target.value))}
-                />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {[1.5, 1.7, 1.9, 2.1].map((value) => (
+                    <button
+                      key={value}
+                      className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
+                        lineHeight === value
+                          ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--accent)]'
+                          : 'border-white/10 text-[var(--muted-2)]'
+                      }`}
+                      onClick={() => setLineHeight(value)}
+                    >
+                      {value.toFixed(1)}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
                 <div className="text-xs uppercase tracking-[0.3em]">Content width</div>
-                <input
-                  className="mt-2 w-full"
-                  type="range"
-                  min={520}
-                  max={900}
-                  step={20}
-                  value={contentWidth}
-                  onChange={(event) => setContentWidth(Number(event.target.value))}
-                />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {[
+                    { label: 'Narrow', value: 560 },
+                    { label: 'Comfort', value: 720 },
+                    { label: 'Wide', value: 880 },
+                  ].map((option) => (
+                    <button
+                      key={option.label}
+                      className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
+                        contentWidth === option.value
+                          ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--accent)]'
+                          : 'border-white/10 text-[var(--muted-2)]'
+                      }`}
+                      onClick={() => setContentWidth(option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
                 <div className="text-xs uppercase tracking-[0.3em]">Theme</div>
