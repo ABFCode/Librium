@@ -98,7 +98,7 @@ function Library() {
                   or archive.
                 </p>
               </div>
-              <Link className="btn btn-primary" to="/">
+              <Link className="btn btn-primary" to="/import">
                 Import new
               </Link>
             </div>
