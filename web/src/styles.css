@@ -406,6 +406,92 @@
     --reader-muted: #6f6559;
   }
 
+  .reader-paragraph {
+    margin: 0 0 1rem;
+  }
+
+  .reader-heading {
+    margin: 1.6rem 0 0.8rem;
+  }
+
+  .reader-list {
+    margin: 0.8rem 0 1rem;
+    padding-left: 1.5rem;
+    list-style-position: outside;
+  }
+
+  .reader-list li {
+    margin: 0.4rem 0;
+  }
+
+  .reader-quote {
+    margin: 1rem 0;
+    padding-left: 1rem;
+    border-left: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    color: var(--reader-muted);
+  }
+
+  .reader-pre {
+    margin: 1rem 0;
+    padding: 0.9rem 1rem;
+    border-radius: 14px;
+    background: rgba(12, 15, 18, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: auto;
+  }
+
+  .reader-hr {
+    margin: 1.6rem 0;
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .reader-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: block;
+  }
+
+  .reader-figure {
+    margin: 1.4rem 0;
+  }
+
+  .reader-figure-images {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .reader-figure-caption {
+    margin-top: 0.6rem;
+    font-size: 0.85em;
+    color: var(--reader-muted);
+  }
+
+  .reader-table {
+    margin: 1rem 0;
+    overflow-x: auto;
+  }
+
+  .reader-table table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .reader-table th,
+  .reader-table td {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .reader-link {
+    color: var(--accent-3);
+    text-decoration: underline;
+  }
+
   body[data-theme='paper'] .card {
     background: color-mix(in srgb, var(--surface) 92%, white);
     border-color: var(--outline);
@@ -424,6 +510,24 @@
     background: color-mix(in srgb, var(--surface) 92%, white);
     border-color: color-mix(in srgb, var(--outline) 70%, transparent);
     color: var(--ink);
+  }
+
+  body[data-theme='paper'] .reader-pre {
+    background: color-mix(in srgb, var(--surface-2) 90%, white);
+    border-color: color-mix(in srgb, var(--outline) 70%, transparent);
+  }
+
+  body[data-theme='paper'] .reader-hr {
+    border-top-color: color-mix(in srgb, var(--outline) 60%, transparent);
+  }
+
+  body[data-theme='paper'] .reader-table th,
+  body[data-theme='paper'] .reader-table td {
+    border-color: color-mix(in srgb, var(--outline) 60%, transparent);
+  }
+
+  body[data-theme='paper'] .reader-image {
+    border-color: color-mix(in srgb, var(--outline) 60%, transparent);
   }
 
   body[data-theme='paper'] .book-card {

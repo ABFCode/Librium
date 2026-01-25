@@ -20,6 +20,56 @@ const chunkSchema = v.object({
   content: v.string(),
 });
 
+const inlineSchema = v.object({
+  kind: v.string(),
+  text: v.optional(v.string()),
+  href: v.optional(v.string()),
+  src: v.optional(v.string()),
+  alt: v.optional(v.string()),
+  emph: v.optional(v.boolean()),
+  strong: v.optional(v.boolean()),
+});
+
+const tableCellSchema = v.object({
+  inlines: v.array(inlineSchema),
+  header: v.optional(v.boolean()),
+});
+
+const tableSchema = v.object({
+  rows: v.array(
+    v.object({
+      cells: v.array(tableCellSchema),
+    })
+  ),
+});
+
+const figureSchema = v.object({
+  images: v.array(inlineSchema),
+  caption: v.array(inlineSchema),
+});
+
+const blockSchema = v.object({
+  kind: v.string(),
+  level: v.optional(v.number()),
+  ordered: v.optional(v.boolean()),
+  listIndex: v.optional(v.number()),
+  inlines: v.optional(v.array(inlineSchema)),
+  table: v.optional(tableSchema),
+  figure: v.optional(figureSchema),
+  anchors: v.optional(v.array(v.string())),
+});
+
+const sectionBlocksSchema = v.object({
+  sectionOrderIndex: v.number(),
+  blocks: v.array(blockSchema),
+});
+
+const imageSchema = v.object({
+  href: v.string(),
+  contentType: v.optional(v.string()),
+  data: v.string(),
+});
+
 const sectionInsertSchema = v.object({
   title: v.string(),
   orderIndex: v.number(),
@@ -29,6 +79,8 @@ const sectionInsertSchema = v.object({
   anchor: v.optional(v.string()),
   textStorageId: v.optional(v.id("_storage")),
   textSize: v.optional(v.number()),
+  contentStorageId: v.optional(v.id("_storage")),
+  contentSize: v.optional(v.number()),
 });
 
 export const insertSections = mutation({
@@ -54,6 +106,8 @@ export const insertSections = mutation({
         anchor: section.anchor,
         textStorageId: section.textStorageId,
         textSize: section.textSize,
+        contentStorageId: section.contentStorageId,
+        contentSize: section.contentSize,
         createdAt: now,
       });
       idByOrder.set(section.orderIndex, id);
@@ -66,9 +120,16 @@ export const ingestParsedBook = action({
     bookId: v.id("books"),
     sections: v.array(sectionSchema),
     chunks: v.array(chunkSchema),
+    sectionBlocks: v.optional(v.array(sectionBlocksSchema)),
+    images: v.optional(v.array(imageSchema)),
   },
   handler: async (ctx, args) => {
     const sectionTexts = new Map<number, string[]>();
+    const sectionBlocks = new Map<number, unknown[]>();
+
+    for (const entry of args.sectionBlocks ?? []) {
+      sectionBlocks.set(entry.sectionOrderIndex, entry.blocks);
+    }
 
     for (const section of args.sections) {
       sectionTexts.set(section.orderIndex, []);
@@ -87,6 +148,16 @@ export const ingestParsedBook = action({
       const sectionIndex = section.orderIndex;
       const parts = sectionTexts.get(sectionIndex) ?? [];
       const text = parts.join("\n\n");
+      let contentStorageId: Id<"_storage"> | undefined;
+      let contentSize: number | undefined;
+      const blocks = sectionBlocks.get(sectionIndex) ?? [];
+      if (blocks.length > 0) {
+        const json = JSON.stringify(blocks);
+        contentStorageId = await ctx.storage.store(
+          new Blob([json], { type: "application/json" })
+        );
+        contentSize = json.length;
+      }
       if (text.length === 0) {
         sectionsToInsert.push({
           title: section.title,
@@ -95,6 +166,8 @@ export const ingestParsedBook = action({
           parentOrderIndex: section.parentOrderIndex,
           href: section.href,
           anchor: section.anchor,
+          contentStorageId,
+          contentSize,
         });
         continue;
       }
@@ -110,6 +183,8 @@ export const ingestParsedBook = action({
         anchor: section.anchor,
         textStorageId: storageId,
         textSize: text.length,
+        contentStorageId,
+        contentSize,
       });
     }
 
@@ -117,5 +192,43 @@ export const ingestParsedBook = action({
       bookId: args.bookId,
       sections: sectionsToInsert,
     });
+
+    for (const image of args.images ?? []) {
+      if (!image?.href || !image?.data) {
+        continue;
+      }
+      const existing = await ctx.db
+        .query("bookAssets")
+        .withIndex("by_book_href", (q) =>
+          q.eq("bookId", args.bookId).eq("href", image.href)
+        )
+        .unique();
+      if (existing) {
+        continue;
+      }
+      const buffer = base64ToBytes(image.data);
+      const storageId = await ctx.storage.store(
+        new Blob([buffer], {
+          type: image.contentType ?? "application/octet-stream",
+        })
+      );
+      await ctx.db.insert("bookAssets", {
+        bookId: args.bookId,
+        href: image.href,
+        storageId,
+        contentType: image.contentType,
+        byteSize: buffer.length,
+        createdAt: Date.now(),
+      });
+    }
   },
 });
+
+const base64ToBytes = (data: string) => {
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+};

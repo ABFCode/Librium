@@ -215,13 +215,13 @@ function Library() {
               </p>
             </div>
           ) : (
-            <div className="grid justify-items-center gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid justify-items-center gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {filteredBooks.map((book) => {
                 const coverUrl = coverUrls?.[book._id]
                 return (
                   <div
                     key={book._id}
-                    className="card book-card group flex w-full max-w-[220px] flex-col overflow-hidden"
+                    className="card book-card group flex w-full max-w-[200px] flex-col overflow-hidden"
                   >
                     <Link
                       className="block"

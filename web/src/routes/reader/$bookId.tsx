@@ -10,6 +10,41 @@ type ReaderChunk = {
   content: string
 }
 
+type InlinePayload = {
+  kind: string
+  text?: string
+  href?: string
+  src?: string
+  alt?: string
+  emph?: boolean
+  strong?: boolean
+}
+
+type TableCellPayload = {
+  inlines: InlinePayload[]
+  header?: boolean
+}
+
+type TablePayload = {
+  rows: { cells: TableCellPayload[] }[]
+}
+
+type FigurePayload = {
+  images: InlinePayload[]
+  caption: InlinePayload[]
+}
+
+type BlockPayload = {
+  kind: string
+  level?: number
+  ordered?: boolean
+  listIndex?: number
+  inlines?: InlinePayload[]
+  table?: TablePayload
+  figure?: FigurePayload
+  anchors?: string[]
+}
+
 export const Route = createFileRoute('/reader/$bookId')({
   component: Reader,
 })
@@ -18,7 +53,7 @@ function Reader() {
   const { bookId } = Route.useParams()
   const userId = useLocalUser()
   const sections = useQuery(api.sections.listSections, { bookId })
-  const getSectionText = useAction(api.reader.getSectionText)
+  const getSectionContent = useAction(api.reader.getSectionContent)
   const updateProgress = useMutation(api.userBooks.updateProgress)
   const userBook = useQuery(
     api.userBooks.getUserBook,
@@ -33,10 +68,12 @@ function Reader() {
     api.bookmarks.listByUserBook,
     userId ? { userId, bookId } : 'skip',
   )
+  const imageUrls = useQuery(api.bookAssets.getUrlsByBook, { bookId })
   const createBookmark = useMutation(api.bookmarks.createBookmark)
   const deleteBookmark = useMutation(api.bookmarks.deleteBookmark)
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [chunks, setChunks] = useState<ReaderChunk[]>([])
+  const [blocks, setBlocks] = useState<BlockPayload[] | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [fontScale, setFontScale] = useState(0)
   const [lineHeight, setLineHeight] = useState(1.7)
@@ -160,13 +197,14 @@ function Reader() {
     }
     loadingSectionRef.current = targetId
     setIsLoading(true)
-    const { text } = await getSectionText({ sectionId: targetId })
+    const { text, blocks } = await getSectionContent({ sectionId: targetId })
     if (activeSectionRef.current !== targetId) {
       if (loadingSectionRef.current === targetId) {
         setIsLoading(false)
       }
       return
     }
+    setBlocks(Array.isArray(blocks) ? (blocks as BlockPayload[]) : null)
     const paragraphs = text.split(/\n{2,}/).filter(Boolean)
     setChunks(
       paragraphs.map((content, index) => ({
@@ -277,23 +315,26 @@ function Reader() {
   }, [sectionId, chunks.length, userBook?.lastSectionId, userBook?.lastChunkOffset])
 
   const searchMatches = useMemo(() => {
-    if (!searchQuery.trim() || chunks.length === 0) {
+    const source = blocks && blocks.length > 0
+      ? blocks.map((block) => blockToText(block))
+      : chunks.map((chunk) => chunk.content)
+    if (!searchQuery.trim() || source.length === 0) {
       return []
     }
     const query = searchQuery.toLowerCase()
-    return chunks
-      .map((chunk, index) => {
-        const pos = chunk.content.toLowerCase().indexOf(query)
+    return source
+      .map((content, index) => {
+        const pos = content.toLowerCase().indexOf(query)
         if (pos < 0) {
           return null
         }
         const start = Math.max(0, pos - 40)
-        const end = Math.min(chunk.content.length, pos + query.length + 40)
-        const snippet = chunk.content.slice(start, end)
+        const end = Math.min(content.length, pos + query.length + 40)
+        const snippet = content.slice(start, end)
         return { index, snippet }
       })
       .filter((match): match is { index: number; snippet: string } => !!match)
-  }, [searchQuery, chunks])
+  }, [searchQuery, chunks, blocks])
 
   const scrollToChunk = (index: number) => {
     const container = parentRef.current
@@ -306,6 +347,203 @@ function Reader() {
     if (target) {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
+  }
+
+  function inlineToText(inline: InlinePayload) {
+    if (inline.kind === 'image') {
+      return inline.alt ?? ''
+    }
+    return inline.text ?? ''
+  }
+
+  function inlinesToText(inlines?: InlinePayload[]) {
+    if (!inlines || inlines.length === 0) {
+      return ''
+    }
+    return inlines.map(inlineToText).join(' ').trim()
+  }
+
+  function blockToText(block: BlockPayload) {
+    if (block.table?.rows) {
+      return block.table.rows
+        .map((row) =>
+          row.cells.map((cell) => inlinesToText(cell.inlines)).join(' '),
+        )
+        .join('\n')
+        .trim()
+    }
+    if (block.figure) {
+      const caption = inlinesToText(block.figure.caption)
+      if (caption) {
+        return caption
+      }
+      return inlinesToText(block.figure.images)
+    }
+    return inlinesToText(block.inlines)
+  }
+
+  const renderInlines = (inlines?: InlinePayload[], keyPrefix = 'inline') => {
+    if (!inlines || inlines.length === 0) {
+      return null
+    }
+    return inlines.map((inline, index) => {
+      const key = `${keyPrefix}-${index}`
+      switch (inline.kind) {
+        case 'emphasis':
+          return <em key={key}>{inline.text}</em>
+        case 'strong':
+          return <strong key={key}>{inline.text}</strong>
+        case 'link': {
+          const href = inline.href ?? '#'
+          const external =
+            href.startsWith('http://') || href.startsWith('https://')
+          return (
+            <a
+              key={key}
+              href={href}
+              className="reader-link"
+              target={external ? '_blank' : undefined}
+              rel={external ? 'noreferrer' : undefined}
+            >
+              {inline.text}
+            </a>
+          )
+        }
+        case 'image': {
+          const src = inline.src ? imageUrls?.[inline.src] : undefined
+          if (!src) {
+            return null
+          }
+          return (
+            <img
+              key={key}
+              src={src}
+              alt={inline.alt ?? ''}
+              className="reader-image"
+              loading="lazy"
+            />
+          )
+        }
+        case 'code':
+          return <code key={key}>{inline.text}</code>
+        default:
+          return <span key={key}>{inline.text}</span>
+      }
+    })
+  }
+
+  const renderBlocks = (contentBlocks: BlockPayload[]) => {
+    const nodes: JSX.Element[] = []
+    for (let i = 0; i < contentBlocks.length; i += 1) {
+      const block = contentBlocks[i]
+      if (block.kind === 'list_item') {
+        const ordered = Boolean(block.ordered)
+        const items: BlockPayload[] = [block]
+        let j = i + 1
+        while (
+          j < contentBlocks.length &&
+          contentBlocks[j].kind === 'list_item' &&
+          Boolean(contentBlocks[j].ordered) === ordered
+        ) {
+          items.push(contentBlocks[j])
+          j += 1
+        }
+        i = j - 1
+        const ListTag = ordered ? 'ol' : 'ul'
+        nodes.push(
+          <ListTag key={`list-${i}`} className="reader-list">
+            {items.map((item, itemIndex) => (
+              <li
+                key={`list-item-${i}-${itemIndex}`}
+                data-chunk-index={i + itemIndex}
+              >
+                {renderInlines(item.inlines, `li-${i}-${itemIndex}`)}
+              </li>
+            ))}
+          </ListTag>,
+        )
+        continue
+      }
+      if (block.kind === 'heading') {
+        const level = Math.min(6, Math.max(1, block.level ?? 2))
+        const Tag = `h${level}` as keyof JSX.IntrinsicElements
+        nodes.push(
+          <Tag key={`heading-${i}`} data-chunk-index={i} className="reader-heading">
+            {renderInlines(block.inlines, `heading-${i}`)}
+          </Tag>,
+        )
+        continue
+      }
+      if (block.kind === 'blockquote') {
+        nodes.push(
+          <blockquote key={`quote-${i}`} data-chunk-index={i} className="reader-quote">
+            {renderInlines(block.inlines, `quote-${i}`)}
+          </blockquote>,
+        )
+        continue
+      }
+      if (block.kind === 'pre') {
+        nodes.push(
+          <pre key={`pre-${i}`} data-chunk-index={i} className="reader-pre">
+            <code>{renderInlines(block.inlines, `pre-${i}`)}</code>
+          </pre>,
+        )
+        continue
+      }
+      if (block.kind === 'hr') {
+        nodes.push(<hr key={`hr-${i}`} data-chunk-index={i} className="reader-hr" />)
+        continue
+      }
+      if (block.kind === 'table' && block.table) {
+        nodes.push(
+          <div key={`table-${i}`} data-chunk-index={i} className="reader-table">
+            <table>
+              <tbody>
+                {block.table.rows.map((row, rowIndex) => (
+                  <tr key={`row-${i}-${rowIndex}`}>
+                    {row.cells.map((cell, cellIndex) =>
+                      cell.header ? (
+                        <th key={`cell-${i}-${rowIndex}-${cellIndex}`}>
+                          {renderInlines(cell.inlines, `cell-${i}-${rowIndex}-${cellIndex}`)}
+                        </th>
+                      ) : (
+                        <td key={`cell-${i}-${rowIndex}-${cellIndex}`}>
+                          {renderInlines(cell.inlines, `cell-${i}-${rowIndex}-${cellIndex}`)}
+                        </td>
+                      ),
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>,
+        )
+        continue
+      }
+      if (block.kind === 'figure' && block.figure) {
+        nodes.push(
+          <figure key={`figure-${i}`} data-chunk-index={i} className="reader-figure">
+            <div className="reader-figure-images">
+              {block.figure.images.map((inline, idx) => (
+                <div key={`fig-${i}-${idx}`}>{renderInlines([inline], `fig-${i}-${idx}`)}</div>
+              ))}
+            </div>
+            {block.figure.caption.length > 0 ? (
+              <figcaption className="reader-figure-caption">
+                {renderInlines(block.figure.caption, `figcap-${i}`)}
+              </figcaption>
+            ) : null}
+          </figure>,
+        )
+        continue
+      }
+      nodes.push(
+        <p key={`para-${i}`} data-chunk-index={i} className="reader-paragraph">
+          {renderInlines(block.inlines, `para-${i}`)}
+        </p>,
+      )
+    }
+    return nodes
   }
 
   const handleCreateBookmark = async () => {
@@ -820,21 +1058,23 @@ function Reader() {
                   className="mx-auto"
                   style={{ maxWidth: `${contentWidth}px` }}
                 >
-                  {chunks.length === 0 ? (
+                  {(blocks && blocks.length > 0 ? false : chunks.length === 0) ? (
                     <p className="text-sm text-[var(--reader-muted)]">
                       {sectionId ? 'Loading chapter...' : 'Select a chapter to begin reading.'}
                     </p>
                   ) : (
-                    chunks.map((chunk, index) => (
-                      <div
-                        key={chunk.id}
-                        data-chunk-index={index}
-                        className="py-3 whitespace-pre-wrap text-[var(--reader-ink)]"
-                        style={{ lineHeight }}
-                      >
-                        {chunk.content}
-                      </div>
-                    ))
+                    blocks && blocks.length > 0
+                      ? renderBlocks(blocks)
+                      : chunks.map((chunk, index) => (
+                          <div
+                            key={chunk.id}
+                            data-chunk-index={index}
+                            className="py-3 whitespace-pre-wrap text-[var(--reader-ink)]"
+                            style={{ lineHeight }}
+                          >
+                            {chunk.content}
+                          </div>
+                        ))
                   )}
                 </div>
               </div>

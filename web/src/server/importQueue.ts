@@ -189,6 +189,10 @@ const processQueue = async (convexUrl: string, parserUrl: string) => {
           bookId,
           sections: body.sections,
           chunks: body.chunks,
+          sectionBlocks: Array.isArray(body.sectionBlocks)
+            ? body.sectionBlocks
+            : undefined,
+          images: Array.isArray(body.images) ? body.images : undefined,
         })
       }
 

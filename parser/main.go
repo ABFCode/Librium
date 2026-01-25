@@ -6,8 +6,12 @@ import (
 	"errors"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"os"
+	"path"
+	"sort"
+	"strings"
 	"time"
 
 	spine "github.com/ABFCode/Spine"
@@ -28,9 +32,11 @@ type parseResponse struct {
 	Message  string `json:"message"`
 	Sections []sectionPayload `json:"sections"`
 	Chunks   []chunkPayload `json:"chunks"`
+	SectionBlocks []sectionBlocksPayload `json:"sectionBlocks,omitempty"`
 	Metadata metadataPayload `json:"metadata"`
 	Warnings []warningPayload `json:"warnings"`
 	Cover    *coverPayload `json:"cover,omitempty"`
+	Images   []imagePayload `json:"images,omitempty"`
 }
 
 type sectionPayload struct {
@@ -49,6 +55,50 @@ type chunkPayload struct {
 	EndOffset         int    `json:"endOffset"`
 	WordCount         int    `json:"wordCount"`
 	Content           string `json:"content"`
+}
+
+type sectionBlocksPayload struct {
+	SectionOrderIndex int `json:"sectionOrderIndex"`
+	Blocks            []blockPayload `json:"blocks"`
+}
+
+type blockPayload struct {
+	Kind      string `json:"kind"`
+	Level     int    `json:"level,omitempty"`
+	Ordered   bool   `json:"ordered,omitempty"`
+	ListIndex int    `json:"listIndex,omitempty"`
+	Inlines   []inlinePayload `json:"inlines,omitempty"`
+	Table     *tablePayload `json:"table,omitempty"`
+	Figure    *figurePayload `json:"figure,omitempty"`
+	Anchors   []string `json:"anchors,omitempty"`
+}
+
+type inlinePayload struct {
+	Kind   string `json:"kind"`
+	Text   string `json:"text,omitempty"`
+	Href   string `json:"href,omitempty"`
+	Src    string `json:"src,omitempty"`
+	Alt    string `json:"alt,omitempty"`
+	Emph   bool   `json:"emph,omitempty"`
+	Strong bool   `json:"strong,omitempty"`
+}
+
+type tablePayload struct {
+	Rows []tableRowPayload `json:"rows"`
+}
+
+type tableRowPayload struct {
+	Cells []tableCellPayload `json:"cells"`
+}
+
+type tableCellPayload struct {
+	Inlines []inlinePayload `json:"inlines"`
+	Header  bool            `json:"header,omitempty"`
+}
+
+type figurePayload struct {
+	Images  []inlinePayload `json:"images"`
+	Caption []inlinePayload `json:"caption"`
 }
 
 type metadataPayload struct {
@@ -71,6 +121,12 @@ type warningPayload struct {
 
 type coverPayload struct {
 	ContentType string `json:"contentType"`
+	Data        string `json:"data"`
+}
+
+type imagePayload struct {
+	Href        string `json:"href"`
+	ContentType string `json:"contentType,omitempty"`
 	Data        string `json:"data"`
 }
 
@@ -165,6 +221,7 @@ func handleParse(w http.ResponseWriter, r *http.Request) {
 
 	sectionsInfo := buildSections(book)
 	chunks := buildChunkPayloads(book, sectionsInfo, cfg.Chunking)
+	sectionBlocks, images := buildSectionBlocks(book, sectionsInfo)
 	sections := make([]sectionPayload, 0, len(sectionsInfo))
 	for _, section := range sectionsInfo {
 		sections = append(sections, sectionPayload{
@@ -187,9 +244,11 @@ func handleParse(w http.ResponseWriter, r *http.Request) {
 		Message:  message,
 		Sections: sections,
 		Chunks:   chunks,
+		SectionBlocks: sectionBlocks,
 		Metadata: buildMetadata(book.Metadata),
 		Warnings: mapWarnings(book.Warnings),
 		Cover:    buildCover(book),
+		Images:   images,
 	})
 }
 
@@ -431,6 +490,298 @@ func buildCover(book *spine.Book) *coverPayload {
 	return &coverPayload{
 		ContentType: cover.ContentType,
 		Data:        base64.StdEncoding.EncodeToString(cover.Bytes),
+	}
+}
+
+type sectionTarget struct {
+	SectionIndex int
+	SpineIndex   int
+	BlockIndex   int
+	BaseHref     string
+}
+
+func buildSectionBlocks(book *spine.Book, sections []sectionInfo) ([]sectionBlocksPayload, []imagePayload) {
+	if book == nil || len(sections) == 0 {
+		return nil, nil
+	}
+
+	spineIndexByHref := map[string]int{}
+	for i, item := range book.Spine {
+		spineIndexByHref[item.Href] = i
+	}
+
+	targets := []sectionTarget{}
+	for _, section := range sections {
+		if section.AnchorHref != "" {
+			if ref, ok := book.ResolveAnchor(section.AnchorHref); ok {
+				baseHref := ""
+				if ref.SpineIndex >= 0 && ref.SpineIndex < len(book.Spine) {
+					baseHref = book.Spine[ref.SpineIndex].Href
+				}
+				targets = append(targets, sectionTarget{
+					SectionIndex: section.OrderIndex,
+					SpineIndex:   ref.SpineIndex,
+					BlockIndex:   ref.BlockIndex,
+					BaseHref:     baseHref,
+				})
+				continue
+			}
+		}
+		if section.Href != "" {
+			if idx, ok := spineIndexByHref[section.Href]; ok {
+				targets = append(targets, sectionTarget{
+					SectionIndex: section.OrderIndex,
+					SpineIndex:   idx,
+					BlockIndex:   0,
+					BaseHref:     section.Href,
+				})
+			}
+		}
+	}
+
+	if len(targets) == 0 {
+		return nil, nil
+	}
+
+	targetsBySpine := map[int][]sectionTarget{}
+	for _, target := range targets {
+		targetsBySpine[target.SpineIndex] = append(targetsBySpine[target.SpineIndex], target)
+	}
+
+	blocksBySpine := map[int][]spine.Block{}
+	for spineIndex := range targetsBySpine {
+		blocks, err := book.Blocks(spineIndex)
+		if err != nil {
+			continue
+		}
+		blocksBySpine[spineIndex] = blocks
+	}
+
+	imageMap := map[string]imagePayload{}
+	sectionBlocks := map[int][]blockPayload{}
+
+	for spineIndex, list := range targetsBySpine {
+		blocks, ok := blocksBySpine[spineIndex]
+		if !ok {
+			continue
+		}
+		sort.Slice(list, func(i, j int) bool {
+			if list[i].BlockIndex == list[j].BlockIndex {
+				return list[i].SectionIndex < list[j].SectionIndex
+			}
+			return list[i].BlockIndex < list[j].BlockIndex
+		})
+		for i, target := range list {
+			start := target.BlockIndex
+			if start < 0 {
+				start = 0
+			}
+			if start > len(blocks) {
+				start = len(blocks)
+			}
+			end := len(blocks)
+			for j := i + 1; j < len(list); j++ {
+				if list[j].BlockIndex > start {
+					end = list[j].BlockIndex
+					break
+				}
+			}
+			if end < start {
+				end = start
+			}
+			slice := blocks[start:end]
+			payloadBlocks := make([]blockPayload, 0, len(slice))
+			for _, block := range slice {
+				payloadBlocks = append(payloadBlocks, convertBlock(block, target.BaseHref, book, imageMap))
+			}
+			if len(payloadBlocks) > 0 {
+				sectionBlocks[target.SectionIndex] = payloadBlocks
+			}
+		}
+	}
+
+	sectionPayloads := make([]sectionBlocksPayload, 0, len(sectionBlocks))
+	for _, section := range sections {
+		if blocks, ok := sectionBlocks[section.OrderIndex]; ok {
+			sectionPayloads = append(sectionPayloads, sectionBlocksPayload{
+				SectionOrderIndex: section.OrderIndex,
+				Blocks:            blocks,
+			})
+		}
+	}
+
+	images := make([]imagePayload, 0, len(imageMap))
+	for _, payload := range imageMap {
+		images = append(images, payload)
+	}
+	sort.Slice(images, func(i, j int) bool { return images[i].Href < images[j].Href })
+
+	return sectionPayloads, images
+}
+
+func convertBlock(block spine.Block, baseHref string, book *spine.Book, images map[string]imagePayload) blockPayload {
+	payload := blockPayload{
+		Kind:    blockKindString(block.Kind),
+		Level:   block.Level,
+		Ordered: block.Ordered,
+		ListIndex: block.ListIndex,
+		Anchors: block.Anchors,
+	}
+	if len(block.Inlines) > 0 {
+		payload.Inlines = convertInlines(block.Inlines, baseHref, book, images)
+	}
+	if block.Table != nil {
+		payload.Table = convertTable(block.Table, baseHref, book, images)
+	}
+	if block.Figure != nil {
+		payload.Figure = convertFigure(block.Figure, baseHref, book, images)
+	}
+	return payload
+}
+
+func convertTable(table *spine.Table, baseHref string, book *spine.Book, images map[string]imagePayload) *tablePayload {
+	if table == nil {
+		return nil
+	}
+	rows := make([]tableRowPayload, 0, len(table.Rows))
+	for _, row := range table.Rows {
+		cells := make([]tableCellPayload, 0, len(row.Cells))
+		for _, cell := range row.Cells {
+			cells = append(cells, tableCellPayload{
+				Inlines: convertInlines(cell.Inlines, baseHref, book, images),
+				Header:  cell.Header,
+			})
+		}
+		rows = append(rows, tableRowPayload{Cells: cells})
+	}
+	return &tablePayload{Rows: rows}
+}
+
+func convertFigure(fig *spine.Figure, baseHref string, book *spine.Book, images map[string]imagePayload) *figurePayload {
+	if fig == nil {
+		return nil
+	}
+	return &figurePayload{
+		Images:  convertInlines(fig.Images, baseHref, book, images),
+		Caption: convertInlines(fig.Caption, baseHref, book, images),
+	}
+}
+
+func convertInlines(inlines []spine.Inline, baseHref string, book *spine.Book, images map[string]imagePayload) []inlinePayload {
+	out := make([]inlinePayload, 0, len(inlines))
+	for _, inline := range inlines {
+		payload := inlinePayload{
+			Kind:   inlineKindString(inline.Kind),
+			Text:   inline.Text,
+			Href:   inline.Href,
+			Src:    inline.Src,
+			Alt:    inline.Alt,
+			Emph:   inline.Emph,
+			Strong: inline.Strong,
+		}
+		if inline.Kind == spine.InlineImage {
+			resolved := resolveResourceHref(baseHref, inline.Src)
+			if resolved != "" {
+				payload.Src = resolved
+				ensureImagePayload(book, resolved, images)
+			}
+		}
+		out = append(out, payload)
+	}
+	return out
+}
+
+func blockKindString(kind spine.BlockKind) string {
+	switch kind {
+	case spine.BlockParagraph:
+		return "paragraph"
+	case spine.BlockHeading:
+		return "heading"
+	case spine.BlockListItem:
+		return "list_item"
+	case spine.BlockQuote:
+		return "blockquote"
+	case spine.BlockPre:
+		return "pre"
+	case spine.BlockHorizontalRule:
+		return "hr"
+	case spine.BlockTable:
+		return "table"
+	case spine.BlockFigure:
+		return "figure"
+	default:
+		return "paragraph"
+	}
+}
+
+func inlineKindString(kind spine.InlineKind) string {
+	switch kind {
+	case spine.InlineText:
+		return "text"
+	case spine.InlineEmphasis:
+		return "emphasis"
+	case spine.InlineStrong:
+		return "strong"
+	case spine.InlineLink:
+		return "link"
+	case spine.InlineImage:
+		return "image"
+	case spine.InlineCode:
+		return "code"
+	default:
+		return "text"
+	}
+}
+
+func resolveResourceHref(baseHref, src string) string {
+	if src == "" {
+		return ""
+	}
+	clean := strings.TrimSpace(src)
+	lower := strings.ToLower(clean)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "data:") || strings.HasPrefix(lower, "//") {
+		return ""
+	}
+	if strings.Contains(clean, "#") {
+		clean = strings.SplitN(clean, "#", 2)[0]
+	}
+	if strings.Contains(clean, "?") {
+		clean = strings.SplitN(clean, "?", 2)[0]
+	}
+	clean = strings.TrimPrefix(clean, "./")
+	clean = strings.TrimPrefix(clean, "/")
+	if baseHref != "" {
+		baseDir := path.Dir(baseHref)
+		clean = path.Join(baseDir, clean)
+	}
+	clean = path.Clean(clean)
+	return clean
+}
+
+func ensureImagePayload(book *spine.Book, href string, images map[string]imagePayload) {
+	if book == nil || href == "" {
+		return
+	}
+	if _, ok := images[href]; ok {
+		return
+	}
+	r, err := book.OpenResource(href)
+	if err != nil {
+		return
+	}
+	defer r.Close()
+	data, err := io.ReadAll(r)
+	if err != nil || len(data) == 0 {
+		return
+	}
+	contentType := mime.TypeByExtension(path.Ext(href))
+	if contentType == "" {
+		contentType = http.DetectContentType(data)
+	}
+	images[href] = imagePayload{
+		Href:        href,
+		ContentType: contentType,
+		Data:        base64.StdEncoding.EncodeToString(data),
 	}
 }
 

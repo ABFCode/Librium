@@ -1,7 +1,7 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 
-export const getSectionText = action({
+export const getSectionContent = action({
   args: {
     sectionId: v.id("sections"),
   },
@@ -9,14 +9,25 @@ export const getSectionText = action({
     const section = await ctx.runQuery("sections:getSection", {
       sectionId: args.sectionId,
     });
-    if (!section?.textStorageId) {
-      return { text: "" };
+    let text = "";
+    let blocks: unknown[] | null = null;
+    if (section?.textStorageId) {
+      const blob = await ctx.storage.get(section.textStorageId);
+      if (blob) {
+        text = await blob.text();
+      }
     }
-    const blob = await ctx.storage.get(section.textStorageId);
-    if (!blob) {
-      return { text: "" };
+    if (section?.contentStorageId) {
+      const blob = await ctx.storage.get(section.contentStorageId);
+      if (blob) {
+        try {
+          const raw = await blob.text();
+          blocks = JSON.parse(raw);
+        } catch {
+          blocks = null;
+        }
+      }
     }
-    const text = await blob.text();
-    return { text };
+    return { text, blocks };
   },
 });

@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as bookAssets from "../bookAssets.js";
 import type * as bookFiles from "../bookFiles.js";
 import type * as bookmarks from "../bookmarks.js";
 import type * as books from "../books.js";
@@ -31,6 +32,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  bookAssets: typeof bookAssets;
   bookFiles: typeof bookFiles;
   bookmarks: typeof bookmarks;
   books: typeof books;
