@@ -80,6 +80,13 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const [isTocOpen, setIsTocOpen] = useState(false)
   const [activeSideTab, setActiveSideTab] = useState<'toc' | 'search' | 'bookmarks'>('toc')
   const [isPrefsOpen, setIsPrefsOpen] = useState(false)
+  const [tocReady, setTocReady] = useState(false)
+  const lastSavedPrefsRef = useRef<{
+    fontScale: number
+    lineHeight: number
+    contentWidth: number
+    theme: string
+  } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const parentRef = useRef<HTMLDivElement | null>(null)
   const activeSectionRef = useRef<string | null>(null)
@@ -88,6 +95,8 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const pendingScrollRef = useRef<number | null>(null)
   const loadingSectionRef = useRef<string | null>(null)
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(false)
+  const restoredFromUserBookRef = useRef(false)
+  const tocInitRef = useRef(false)
   const tocListRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -98,6 +107,12 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     setLineHeight(userSettings.lineHeight ?? 1.7)
     setContentWidth(userSettings.contentWidth ?? 720)
     setTheme(userSettings.theme ?? 'night')
+    lastSavedPrefsRef.current = {
+      fontScale: userSettings.fontScale ?? 0,
+      lineHeight: userSettings.lineHeight ?? 1.7,
+      contentWidth: userSettings.contentWidth ?? 720,
+      theme: userSettings.theme ?? 'night',
+    }
   }, [userSettings, isPrefsOpen])
 
   useEffect(() => {
@@ -105,12 +120,50 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   }, [theme])
 
   useEffect(() => {
+    if (!userId) {
+      return
+    }
+    const payload = { fontScale, lineHeight, contentWidth, theme }
+    const last = lastSavedPrefsRef.current
+    const changed =
+      !last ||
+      last.fontScale !== fontScale ||
+      last.lineHeight !== lineHeight ||
+      last.contentWidth !== contentWidth ||
+      last.theme !== theme
+    if (!changed) {
+      return
+    }
+    const timeout = window.setTimeout(() => {
+      void saveSettings({ userId, ...payload })
+      lastSavedPrefsRef.current = payload
+    }, 250)
+    return () => window.clearTimeout(timeout)
+  }, [userId, fontScale, lineHeight, contentWidth, theme, saveSettings])
+
+  useEffect(() => {
     if (typeof window === 'undefined') {
       return
     }
     const media = window.matchMedia('(min-width: 1024px)')
-    setIsTocOpen(media.matches)
-    const handleChange = () => setIsTocOpen(media.matches)
+    if (!tocInitRef.current) {
+      const saved = window.localStorage.getItem('reader:tocOpen')
+      if (saved !== null) {
+        setIsTocOpen(saved === 'true')
+      } else {
+        setIsTocOpen(media.matches)
+      }
+      tocInitRef.current = true
+      setTocReady(true)
+    }
+    const handleChange = () => {
+      const stored = window.localStorage.getItem('reader:tocOpen')
+      if (stored !== null) {
+        setIsTocOpen(stored === 'true')
+      } else {
+        setIsTocOpen(media.matches)
+      }
+    }
     media.addEventListener('change', handleChange)
     return () => media.removeEventListener('change', handleChange)
   }, [])
@@ -120,6 +173,13 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   useEffect(() => {
     activeSectionRef.current = sectionId
   }, [sectionId])
+
+  useEffect(() => {
+    if (!tocReady || typeof window === 'undefined') {
+      return
+    }
+    window.localStorage.setItem('reader:tocOpen', String(isTocOpen))
+  }, [isTocOpen, tocReady])
 
   const activeSection = useMemo(() => {
     if (!sections || !sectionId) {
@@ -196,20 +256,21 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     if (!sections || sections.length === 0) {
       return
     }
-    if (activeSectionId) {
-      return
-    }
-    if (userBook?.lastSectionId) {
+    if (userBook?.lastSectionId && !restoredFromUserBookRef.current) {
       const match = sections.find(
         (section) => section._id === userBook.lastSectionId,
       )
-      if (match) {
+      if (match && match._id !== activeSectionId) {
         setActiveSectionId(match._id)
+        restoredFromUserBookRef.current = true
         return
       }
+      restoredFromUserBookRef.current = true
     }
-    setActiveSectionId(sections[0]._id)
-  }, [sections, activeSectionId, userBook])
+    if (!activeSectionId) {
+      setActiveSectionId(sections[0]._id)
+    }
+  }, [sections, activeSectionId, userBook?.lastSectionId])
 
   const loadSection = async (targetId: string | null) => {
     if (!targetId) {
@@ -1376,27 +1437,6 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
                   ))}
                 </div>
               </div>
-            </div>
-            <div className="mt-6 flex items-center justify-between">
-              <button className="btn btn-ghost text-xs" onClick={() => setIsPrefsOpen(false)}>
-                Cancel
-              </button>
-              <button
-                className="btn btn-primary text-xs"
-                onClick={async () => {
-                  if (!userId) return
-                  await saveSettings({
-                    userId,
-                    fontScale,
-                    lineHeight,
-                    contentWidth,
-                    theme,
-                  })
-                  setIsPrefsOpen(false)
-                }}
-              >
-                Save preferences
-              </button>
             </div>
           </div>
         </div>
