@@ -9,3 +9,6 @@
 - Progress tracking and resume support.
 - Added browser tests (Vitest Browser Mode) and Playwright smoke tests.
 
+  ## 0.1.1 - 2026-01-26
+  - Remove unused template files/assets (benchmarks, TanStack scaffolding, sample logos).
+  - Clean up .gitignore.
