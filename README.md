@@ -89,6 +89,13 @@ cd web
 pnpm test:e2e
 ```
 
+## Known limitations (0.1.0)
+
+- EPUB only (additional formats planned).
+- Parser service required for imports (separate Go service).
+- Auth is basic email/password (reset/2FA planned).
+- Offline reading is not supported yet.
+
 ## Status
 
 Active development. Expect breaking changes while the new stack stabilizes.
