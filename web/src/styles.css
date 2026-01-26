@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;400;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
 @import './styles/base.css';
 @import './styles/components.css';
 @import './styles/import.css';

@@ -38,10 +38,24 @@ export const importBook = action({
 
     const formData = new FormData();
     formData.append("file", fileBlob, args.fileName);
-    const response = await fetch(parserUrl, {
-      method: "POST",
-      body: formData,
-    });
+    let response: Response;
+    try {
+      response = await fetch(parserUrl, {
+        method: "POST",
+        body: formData,
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? `Parser service unavailable: ${err.message}`
+          : "Parser service unavailable. Is it running?";
+      await ctx.runMutation("importJobs:updateImportJobStatusInternal", {
+        importJobId,
+        status: "failed",
+        errorMessage: message,
+      });
+      throw new Error(message);
+    }
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
       await ctx.runMutation("importJobs:updateImportJobStatusInternal", {

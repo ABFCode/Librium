@@ -41,6 +41,9 @@ defaults/
 EpubTest/
 
 .env.production
+.env.local
+.pnpm-store/
+*.log
 
 *.epub
 *.jpg

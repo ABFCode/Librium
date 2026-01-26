@@ -1080,7 +1080,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       {tabItems.map((tab) => (
         <button
           key={tab.key}
-          className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
+          className={`reader-tab-btn rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
             activeSideTab === tab.key
               ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--accent)]'
               : 'border-white/10 text-[var(--muted-2)]'
