@@ -20,19 +20,36 @@ Librium is a performance‑focused web app for uploading, managing, and reading 
 
 ## Quick start (dev)
 
-1) Start the parser:
+1) Install dependencies:
+```
+cd web
+pnpm install
+```
+
+2) Install Playwright browsers (for UI tests):
+```
+cd web
+pnpm exec playwright install
+```
+If Playwright reports missing system libraries on Linux, run:
+```
+cd web
+npx playwright install-deps
+```
+
+3) Start the parser:
 ```
 cd parser
 go run ./main.go
 ```
 
-2) Start Convex:
+4) Start Convex:
 ```
 cd web
 pnpm convex dev
 ```
 
-3) Start the web app:
+5) Start the web app:
 ```
 cd web
 pnpm dev
@@ -44,6 +61,32 @@ The parser defaults to `http://localhost:8081/parse`. Override with `PARSER_URL`
 
 ```
 make convex-reset CONFIRM=RESET
+```
+
+## Tests
+
+```
+cd web
+pnpm test
+```
+
+Browser tests run headless by default in CI. To see the browser locally:
+```
+cd web
+VITEST_BROWSER_HEADLESS=false pnpm test:watch
+```
+
+To run only browser or node tests:
+```
+cd web
+pnpm test:browser
+pnpm test:node
+```
+
+E2E smoke tests (Playwright):
+```
+cd web
+pnpm test:e2e
 ```
 
 ## Status
