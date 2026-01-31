@@ -1,6 +1,13 @@
 .PHONY: convex-dev convex-codegen convex-reset convex-seed convex-seed-book
 .PHONY: convex-seed
 
+
+dev:
+	cd web && npx concurrently -k -n parser,convex,web \
+	"cd ../parser && go run ./main.go" \
+	"pnpm convex dev" \
+	"pnpm dev"
+
 convex-dev:
 	cd web && pnpm convex dev
 
