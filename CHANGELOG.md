@@ -17,3 +17,10 @@
 - Upgrade all web dependencies to latest; npm audit vulnerabilities cleared (44 → 0), including better-auth 1.6 + Convex adapter 0.12, Convex 1.42, Vite 8, TanStack Start/Router 1.168, and TypeScript 6.
 - Upgrade the Go parser: toolchain go 1.25.11 (stdlib CVE fixes), Spine 0.3.1, and golang.org/x/* to latest; govulncheck clean (19 → 0).
 - Minor fixes surfaced by the upgrade: remove deprecated tsconfig `baseUrl`, add the missing default export on the library route, and match Convex functions by name in the Library test mock.
+
+## 0.2.0 - 2026-07-04
+- Parse EPUBs in the browser: replaced the Go parser microservice with **Spine-TS**, a TypeScript port of Spine (`web/src/spine`). Removes the third deployable service and its hosting/reachability requirements. Validated exact/near-exact against Go Spine on a corpus of real books.
+- Scalable import: in-browser parse + batched, blocks-only ingest via storage upload URLs — no book-sized payload passes through a Convex function, fixing the 64 MB out-of-memory failure on large webnovels (thousand-chapter books now import and read).
+- Blocks-only data model: sections store per-section structured blocks (no duplicated plain text); reading progress is block-anchored (`lastBlockIndex`/`lastBlockOffset`); bookmarks use `blockIndex`.
+- Removed the Go `/parser` service, `PARSER_URL`, and related Makefile/README wiring.
+- **Breaking:** the data model changed; existing dev data must be reset (`make convex-reset CONFIRM=RESET`).
