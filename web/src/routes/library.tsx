@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useConvex, useConvexAuth, useMutation, useQuery } from 'convex/react'
+import { useAction, useConvex, useConvexAuth, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { RequireAuth } from '../components/RequireAuth'
 import { useEffect, useMemo, useState } from 'react'
@@ -12,7 +12,7 @@ export default function Library() {
   const convex = useConvex()
   const { isAuthenticated } = useConvexAuth()
   const canQuery = isAuthenticated
-  const deleteBook = useMutation(api.books.deleteBook)
+  const deleteBook = useAction(api.books.deleteBook)
   const books = useQuery(api.books.listByOwner, canQuery ? {} : 'skip')
   const progressEntries = useQuery(
     api.userBooks.listByUser,

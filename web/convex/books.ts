@@ -1,5 +1,6 @@
-import { mutation, query } from "./_generated/server";
+import { action, internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import {
   getViewerUserId,
   requireBookOwner,
@@ -67,23 +68,63 @@ export const listByOwner = query({
   },
 });
 
-export const deleteBook = mutation({
+const DELETE_BATCH = 256;
+
+/**
+ * Delete a book. Sections/assets are removed in bounded chunks so large books
+ * (thousands of chapters) don't exceed Convex's per-mutation read limit.
+ */
+export const deleteBook = action({
   args: {
     bookId: v.id("books"),
   },
-  handler: async (ctx, args) => {
-    const { viewerId, book } = await requireBookOwner(ctx, args.bookId);
+  handler: async (ctx, args): Promise<void> => {
+    let more = true;
+    while (more) {
+      more = await ctx.runMutation(internal.books.deleteBookChunk, {
+        bookId: args.bookId,
+      });
+    }
+    await ctx.runMutation(internal.books.deleteBookFinal, { bookId: args.bookId });
+  },
+});
+
+export const deleteBookChunk = internalMutation({
+  args: { bookId: v.id("books") },
+  handler: async (ctx, args): Promise<boolean> => {
+    await requireBookOwner(ctx, args.bookId);
+    let deleted = 0;
 
     const sections = await ctx.db
       .query("sections")
       .withIndex("by_book", (q) => q.eq("bookId", args.bookId))
-      .collect();
+      .take(DELETE_BATCH);
     for (const section of sections) {
       if (section.contentStorageId) {
         await ctx.storage.delete(section.contentStorageId);
       }
       await ctx.db.delete(section._id);
+      deleted += 1;
     }
+    if (deleted >= DELETE_BATCH) return true;
+
+    const assets = await ctx.db
+      .query("bookAssets")
+      .withIndex("by_book", (q) => q.eq("bookId", args.bookId))
+      .take(DELETE_BATCH - deleted);
+    for (const asset of assets) {
+      await ctx.storage.delete(asset.storageId);
+      await ctx.db.delete(asset._id);
+      deleted += 1;
+    }
+    return deleted >= DELETE_BATCH;
+  },
+});
+
+export const deleteBookFinal = internalMutation({
+  args: { bookId: v.id("books") },
+  handler: async (ctx, args) => {
+    const { viewerId, book } = await requireBookOwner(ctx, args.bookId);
 
     const files = await ctx.db
       .query("bookFiles")
@@ -112,15 +153,6 @@ export const deleteBook = mutation({
       .collect();
     for (const bookmark of bookmarks) {
       await ctx.db.delete(bookmark._id);
-    }
-
-    const assets = await ctx.db
-      .query("bookAssets")
-      .withIndex("by_book", (q) => q.eq("bookId", args.bookId))
-      .collect();
-    for (const asset of assets) {
-      await ctx.storage.delete(asset.storageId);
-      await ctx.db.delete(asset._id);
     }
 
     if (book.coverStorageId) {
