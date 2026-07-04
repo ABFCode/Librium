@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { RequireAuth } from './RequireAuth'
@@ -428,24 +429,22 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     restoredSectionRef.current = null
   }, [sectionId])
 
+  const tocVirtualizer = useVirtualizer({
+    count: sections?.length ?? 0,
+    getScrollElement: () => tocListRef.current,
+    estimateSize: () => 64,
+    overscan: 10,
+  })
+
   useEffect(() => {
-    if (!isTocOpen || activeSideTab !== 'toc' || !sectionId) {
-      return
-    }
-    const container = tocListRef.current
-    if (!container) {
+    if (!isTocOpen || activeSideTab !== 'toc' || activeIndex < 0) {
       return
     }
     const id = window.requestAnimationFrame(() => {
-      const target = container.querySelector(
-        `[data-section-id="${sectionId}"]`,
-      ) as HTMLElement | null
-      if (target) {
-        target.scrollIntoView({ block: 'center' })
-      }
+      tocVirtualizer.scrollToIndex(activeIndex, { align: 'center' })
     })
     return () => window.cancelAnimationFrame(id)
-  }, [isTocOpen, activeSideTab, sectionId, sections])
+  }, [isTocOpen, activeSideTab, activeIndex, tocVirtualizer])
 
   useLayoutEffect(() => {
     const container = parentRef.current
@@ -1017,7 +1016,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const shellWidthClass = isTocOpen ? 'max-w-6xl' : 'max-w-7xl lg:pr-16'
   const contentOrderClass = 'lg:order-1'
   const tocListClass =
-    'reader-scroll mt-4 flex max-h-[55vh] flex-col gap-2 overflow-auto pr-2'
+    'reader-scroll mt-4 max-h-[55vh] overflow-auto pr-2'
 
   const tabControls = (
     <div className="mt-4 flex gap-2">
@@ -1050,26 +1049,44 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
           </p>
         ) : (
           <div className={tocListClass} ref={tocListRef}>
-            {sections.map((section, index) => {
-              const isActive = section._id === sectionId
-              return (
-                <button
-                  key={section._id}
-                  data-section-id={section._id}
-                  className={`reader-panel-item rounded-2xl px-3 py-3 text-left text-sm transition ${
-                    isActive ? 'is-active' : ''
-                  }`}
-                  onClick={() => {
-                    setActiveSectionId(section._id)
-                  }}
-                  disabled={isActive}
-                >
-                  <div className="mt-1 text-base text-[var(--ink)]">
-                    {section.title}
-                  </div>
-                </button>
-              )
-            })}
+            <div
+              style={{
+                height: tocVirtualizer.getTotalSize(),
+                position: 'relative',
+                width: '100%',
+              }}
+            >
+              {tocVirtualizer.getVirtualItems().map((vi) => {
+                const section = sections[vi.index]
+                const isActive = section._id === sectionId
+                return (
+                  <button
+                    key={section._id}
+                    data-section-id={section._id}
+                    data-index={vi.index}
+                    ref={tocVirtualizer.measureElement}
+                    className={`reader-panel-item rounded-2xl px-3 py-2 text-left text-sm transition ${
+                      isActive ? 'is-active' : ''
+                    }`}
+                    onClick={() => {
+                      setActiveSectionId(section._id)
+                    }}
+                    disabled={isActive}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${vi.start}px)`,
+                    }}
+                  >
+                    <div className="text-base text-[var(--ink)]">
+                      {section.title}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         )
       ) : null}

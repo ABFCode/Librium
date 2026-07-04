@@ -5,6 +5,7 @@ import { parseEpubToPayload } from '../lib/epub'
 import { contentTypeFromHref } from '@abfcode/spine'
 
 const SECTION_BATCH = 50
+const INGEST_CONCURRENCY = 5
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = []
@@ -118,9 +119,19 @@ export const useImportFlow = () => {
         anchor: s.anchor,
         blocksJson: JSON.stringify(blocksBySection.get(s.orderIndex) ?? []),
       }))
-      for (const batch of chunk(sectionArgs, SECTION_BATCH)) {
-        await ingestSectionsBatch({ bookId, sections: batch })
+      // Ingest batches with bounded concurrency (order-independent: sections
+      // carry orderIndex, and the reader queries them by that index).
+      const batches = chunk(sectionArgs, SECTION_BATCH)
+      let next = 0
+      const worker = async () => {
+        while (next < batches.length) {
+          const idx = next++
+          await ingestSectionsBatch({ bookId, sections: batches[idx] })
+        }
       }
+      await Promise.all(
+        Array.from({ length: Math.min(INGEST_CONCURRENCY, batches.length) }, worker),
+      )
       await finalizeImport({ bookId, sectionCount: payload.sections.length, importJobId })
     } catch (err) {
       await failImport({ importJobId, errorMessage: err instanceof Error ? err.message : 'Ingest failed' })
