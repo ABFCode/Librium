@@ -1,11 +1,10 @@
 import { defineConfig } from 'vite'
 import { devtools } from '@tanstack/devtools-vite'
-import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import { fileURLToPath, URL } from 'url'
-import { nitro } from 'nitro/vite'
 
 const config = defineConfig({
   resolve: {
@@ -13,22 +12,16 @@ const config = defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  // @abfcode/spine is a linked (file:) package whose emitted ESM uses
-  // extension-less relative imports; bundle it for SSR instead of letting
-  // Node's ESM resolver choke on them in dev.
-  ssr: {
-    noExternal: ['@abfcode/spine'],
-  },
   plugins: [
     tailwindcss(),
     devtools(),
-    nitro(),
     // this is the plugin that enables path aliases
     viteTsConfigPaths({
       projects: ['./tsconfig.json'],
     }),
 
-    tanstackStart(),
+    // File-based routing (must come before the React plugin).
+    tanstackRouter({ target: 'react', autoCodeSplitting: true }),
     viteReact(),
   ],
 })

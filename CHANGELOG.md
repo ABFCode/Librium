@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- **Static SPA (ROADMAP Phase 1):** removed TanStack Start and the nitro SSR server; the app is now a plain Vite + TanStack Router single-page app (`index.html` + `src/main.tsx` entry, route code-splitting via `@tanstack/router-plugin`). `vite build` emits a fully static `dist/` deployable to any static host. Auth is unaffected (Better Auth is served by Convex HTTP actions, not the removed Node server). Drops the `nitro` nightly pin and `@tanstack/react-start`/`react-router-ssr-query` dependencies.
+
 ## 0.1.0 - 2026-01-26
 
 - New TanStack Start + Convex stack with Better Auth (email/password).

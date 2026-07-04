@@ -1,0 +1,18 @@
+import ReactDOM from 'react-dom/client'
+import { RouterProvider } from '@tanstack/react-router'
+
+import { router } from './router'
+
+import './styles.css'
+
+// Self-hosted fonts (no third-party request; avoids tracker/adblock breakage).
+import '@fontsource-variable/fraunces'
+import '@fontsource/ibm-plex-sans/300.css'
+import '@fontsource/ibm-plex-sans/400.css'
+import '@fontsource/ibm-plex-sans/500.css'
+import '@fontsource/ibm-plex-sans/600.css'
+import '@fontsource/ibm-plex-sans/700.css'
+
+const rootElement = document.getElementById('root')!
+
+ReactDOM.createRoot(rootElement).render(<RouterProvider router={router} />)

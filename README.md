@@ -1,12 +1,12 @@
 # Librium — Personal Ebook Library & Reader
 
-Librium is a performance‑focused web app for uploading, managing, and reading your personal EPUB library. It’s built as a modern, real‑time stack with a dedicated parser service.
+Librium is a performance‑focused web app for uploading, managing, and reading your personal EPUB library. EPUBs are parsed entirely in the browser; the app ships as a static SPA.
 
 ## Stack
 
-* **Web app:** TanStack Start + React 19 + Vite + Tailwind (`/web`)
+* **Web app:** React 19 + TanStack Router + Vite + Tailwind, static SPA (`/web`)
 * **Data/Auth:** Convex (with Better Auth) (`/web/convex`)
-* **EPUB parsing:** in-browser, via a TypeScript port of Spine (`/web/src/spine`)
+* **EPUB parsing:** in-browser, via [`@abfcode/spine`](https://www.npmjs.com/package/@abfcode/spine) (TypeScript port of Spine)
 * **Storage:** Convex Storage (EPUBs, section content blocks, and assets)
 
 ## Features (current)
