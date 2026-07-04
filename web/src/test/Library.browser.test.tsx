@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { render } from 'vitest-browser-react'
 import { getFunctionName } from 'convex/server'
 import { api } from '../../convex/_generated/api'
-import Library from '../routes/library'
+import { Library } from '../components/LibraryView'
 
 const books = [
   {
@@ -87,6 +87,7 @@ vi.mock('convex/react', () => ({
   useConvexAuth: () => ({ isAuthenticated: true }),
   useQuery: (...args: unknown[]) => useQueryMock(...args),
   useMutation: () => vi.fn(),
+  useAction: () => vi.fn(),
   useConvex: () => ({ mutation: vi.fn() }),
 }))
 
