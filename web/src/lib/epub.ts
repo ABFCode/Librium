@@ -1,10 +1,8 @@
 // Librium's EPUB → ingest-payload assembler. Port of the Go parser service's
 // build* functions (main.go), now running on @/spine (the TS Spine port).
 // Produces the same JSON contract the Go service produced.
-import { parse } from '../spine'
-import type { Book } from '../spine'
-import { posixClean, posixDir, posixJoin } from '../spine/util'
-import type { Block, Inline, TOCItem } from '../spine'
+import { parse, posixClean, posixDir, posixJoin } from '@abfcode/spine'
+import type { Book, Block, Inline, TOCItem } from '@abfcode/spine'
 
 const CHUNKING = { mode: 'size' as const, maxChars: 2000 }
 

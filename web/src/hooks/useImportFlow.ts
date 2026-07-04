@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { parseEpubToPayload } from '../lib/epub'
-import { contentTypeFromHref } from '../spine/util'
+import { contentTypeFromHref } from '@abfcode/spine'
 
 const SECTION_BATCH = 50
 
