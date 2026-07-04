@@ -1,7 +1,7 @@
 module librium-parser
 
-go 1.25.0
+go 1.25.11
 
-require github.com/ABFCode/Spine v0.2.0
+require github.com/ABFCode/Spine v0.3.1
 
-require golang.org/x/net v0.49.0 // indirect
+require golang.org/x/net v0.56.0 // indirect
