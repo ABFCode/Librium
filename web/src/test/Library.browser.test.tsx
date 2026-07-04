@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { ReactNode } from 'react'
 import { render } from 'vitest-browser-react'
+import { getFunctionName } from 'convex/server'
 import { api } from '../../convex/_generated/api'
 import Library from '../routes/library'
 
@@ -62,17 +63,21 @@ const coverUrls = {
   book2: null,
 }
 
+// `api` is a proxy (anyApi); references aren't identity-stable across accesses,
+// so match on the resolved function name instead of `===`.
+const nameOf = (ref: unknown) => getFunctionName(ref as never)
 const useQueryMock = vi.fn((query: unknown) => {
-  if (query === api.books.listByOwner) {
+  const name = nameOf(query)
+  if (name === nameOf(api.books.listByOwner)) {
     return books
   }
-  if (query === api.userBooks.listByUser) {
+  if (name === nameOf(api.userBooks.listByUser)) {
     return progressEntries
   }
-  if (query === api.userBooks.listRecentByUser) {
+  if (name === nameOf(api.userBooks.listRecentByUser)) {
     return recentEntries
   }
-  if (query === api.books.getCoverUrls) {
+  if (name === nameOf(api.books.getCoverUrls)) {
     return coverUrls
   }
   return undefined

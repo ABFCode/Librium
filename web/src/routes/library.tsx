@@ -8,7 +8,7 @@ export const Route = createFileRoute('/library')({
   component: Library,
 })
 
-function Library() {
+export default function Library() {
   const convex = useConvex()
   const { isAuthenticated } = useConvexAuth()
   const canQuery = isAuthenticated
