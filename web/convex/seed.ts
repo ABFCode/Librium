@@ -23,8 +23,8 @@ export const createDemoBookInternal = internalMutation({
         title: v.string(),
         orderIndex: v.number(),
         depth: v.number(),
-        textStorageId: v.optional(v.id("_storage")),
-        textSize: v.optional(v.number()),
+        contentStorageId: v.optional(v.id("_storage")),
+        contentSize: v.optional(v.number()),
       }),
     ),
   },
@@ -61,12 +61,6 @@ export const createDemoBookInternal = internalMutation({
       userId: ownerId,
       bookId,
       lastSectionIndex: 0,
-      lastChunkIndex: 0,
-      lastChunkOffset: 0,
-      lastScrollRatio: 0,
-      lastScrollTop: 0,
-      lastScrollHeight: 0,
-      lastClientHeight: 0,
       updatedAt: Date.now(),
     });
 
@@ -246,16 +240,20 @@ const buildSeedSections = async (
         } placeholder content for reader testing.`,
       );
     }
-    const text = paragraphs.join("\n\n");
+    const blocks = [
+      { kind: "heading", level: 2, inlines: [{ kind: "text", text: `Section ${s + 1}` }] },
+      ...paragraphs.map((p) => ({ kind: "paragraph", inlines: [{ kind: "text", text: p }] })),
+    ];
+    const json = JSON.stringify(blocks);
     const storageId = await ctx.storage.store(
-      new Blob([text], { type: "text/plain" }),
+      new Blob([json], { type: "application/json" }),
     );
     sections.push({
       title: `Section ${s + 1}`,
       orderIndex: s,
       depth: 0,
-      textStorageId: storageId,
-      textSize: text.length,
+      contentStorageId: storageId,
+      contentSize: json.length,
     });
   }
   return sections;

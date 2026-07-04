@@ -169,20 +169,15 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       return
     }
     const shouldRestore =
-      (userBook.lastScrollTop ?? 0) > 0 ||
-      (userBook.lastScrollRatio ?? 0) > 0.001 ||
-      (userBook.lastChunkIndex ?? 0) > 0 ||
-      (userBook.lastChunkOffset ?? 0) > 0
+      (userBook.lastBlockIndex ?? 0) > 0 || (userBook.lastBlockOffset ?? 0) > 0
     if (shouldRestore) {
       setIsRestoringView(true)
     }
   }, [
     sectionId,
     userBook?.lastSectionId,
-    userBook?.lastScrollTop,
-    userBook?.lastScrollRatio,
-    userBook?.lastChunkIndex,
-    userBook?.lastChunkOffset,
+    userBook?.lastBlockIndex,
+    userBook?.lastBlockOffset,
   ])
 
   const fontSize = 16 + fontScale * 2
@@ -314,7 +309,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     }
     loadingSectionRef.current = targetId
     setIsLoading(true)
-    const { text, blocks } = await getSectionContent({ sectionId: targetId })
+    const { blocks } = await getSectionContent({ sectionId: targetId })
     if (activeSectionRef.current !== targetId) {
       if (loadingSectionRef.current === targetId) {
         setIsLoading(false)
@@ -322,13 +317,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       return
     }
     setBlocks(Array.isArray(blocks) ? (blocks as BlockPayload[]) : null)
-    const paragraphs = text.split(/\n{2,}/).filter(Boolean)
-    setChunks(
-      paragraphs.map((content, index) => ({
-        id: `${targetId}-${index}`,
-        content,
-      })),
-    )
+    setChunks([])
     if (loadingSectionRef.current === targetId) {
       setIsLoading(false)
     }
@@ -369,9 +358,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     }
     const container = parentRef.current
     const scrollTop = container.scrollTop
-    const maxScroll = Math.max(1, container.scrollHeight - container.clientHeight)
-    const scrollRatio = Math.min(1, Math.max(0, scrollTop / maxScroll))
-    let chunkIndex = 0
+    let blockIndex = 0
     let offsetWithin = 0
     const nodes = Array.from(
       container.querySelectorAll('[data-chunk-index]'),
@@ -379,7 +366,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     for (const node of nodes) {
       const element = node as HTMLElement
       if (element.offsetTop + element.clientHeight > scrollTop) {
-        chunkIndex = Number(element.dataset.chunkIndex ?? 0)
+        blockIndex = Number(element.dataset.chunkIndex ?? 0)
         offsetWithin = Math.max(0, scrollTop - element.offsetTop)
         break
       }
@@ -388,12 +375,8 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       bookId,
       lastSectionId: sectionId,
       lastSectionIndex: activeIndex >= 0 ? activeIndex : 0,
-      lastChunkIndex: chunkIndex,
-      lastChunkOffset: offsetWithin,
-      lastScrollRatio: scrollRatio,
-      lastScrollTop: scrollTop,
-      lastScrollHeight: container.scrollHeight,
-      lastClientHeight: container.clientHeight,
+      lastBlockIndex: blockIndex,
+      lastBlockOffset: offsetWithin,
     })
   }
 
@@ -486,17 +469,9 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         setIsRestoringView(false)
         return
       }
-      const targetIndex = userBook.lastChunkIndex ?? 0
-      const targetOffset = userBook.lastChunkOffset ?? 0
-      const targetRatio = userBook.lastScrollRatio
-      const targetScrollTop = userBook.lastScrollTop
-      const targetScrollHeight = userBook.lastScrollHeight
-      const targetClientHeight = userBook.lastClientHeight
-      const shouldRestore =
-        (targetRatio !== undefined && targetRatio > 0.001) ||
-        targetOffset > 0 ||
-        targetIndex > 0 ||
-        (targetScrollTop !== undefined && targetScrollTop > 0)
+      const targetIndex = userBook.lastBlockIndex ?? 0
+      const targetOffset = userBook.lastBlockOffset ?? 0
+      const shouldRestore = targetIndex > 0 || targetOffset > 0
       if (!shouldRestore) {
         container.scrollTop = 0
         setIsRestoringView(false)
@@ -505,31 +480,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         return
       }
       setIsRestoringView(true)
-      const restoreByRatio = () => {
-        if (targetRatio === undefined) {
-          return false
-        }
-        const maxScroll = Math.max(1, container.scrollHeight - container.clientHeight)
-        container.scrollTop = Math.round(targetRatio * maxScroll)
-        return true
-      }
-      const restoreByScrollTop = () => {
-        if (targetScrollTop === undefined) {
-          return false
-        }
-        if (targetClientHeight === undefined || targetScrollHeight === undefined) {
-          container.scrollTop = targetScrollTop
-          return true
-        }
-        const heightDelta = Math.abs(container.clientHeight - targetClientHeight)
-        const scrollDelta = Math.abs(container.scrollHeight - targetScrollHeight)
-        if (heightDelta > 6 || scrollDelta > 24) {
-          return false
-        }
-        container.scrollTop = targetScrollTop
-        return true
-      }
-      const restoreByChunk = () => {
+      const restoreByBlock = () => {
         const target = container.querySelector(
           `[data-chunk-index="${targetIndex}"]`,
         ) as HTMLElement | null
@@ -539,8 +490,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         container.scrollTop = target.offsetTop + targetOffset
         return true
       }
-      const restoredNow = restoreByScrollTop() || restoreByChunk() || restoreByRatio()
-      if (!restoredNow) {
+      if (!restoreByBlock()) {
         container.scrollTop = 0
         setIsRestoringView(false)
         scrollRestoredRef.current = sectionId
@@ -551,19 +501,17 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       restoredSectionRef.current = sectionId
       isRestoringRef.current = true
       const restoreToken = ++restoreTokenRef.current
-      const restoreNow = () =>
-        restoreByScrollTop() || restoreByChunk() || restoreByRatio()
       void waitForFonts().then(() => {
         if (restoreTokenRef.current !== restoreToken) {
           return
         }
         window.requestAnimationFrame(() => {
-          restoreNow()
+          restoreByBlock()
           window.requestAnimationFrame(() => {
             if (restoreTokenRef.current !== restoreToken) {
               return
             }
-            restoreNow()
+            restoreByBlock()
             isRestoringRef.current = false
             setIsRestoringView(false)
           })
@@ -578,12 +526,8 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         bookId,
         lastSectionId: sectionId,
         lastSectionIndex: activeIndex >= 0 ? activeIndex : 0,
-        lastChunkIndex: 0,
-        lastChunkOffset: 0,
-        lastScrollRatio: 0,
-        lastScrollTop: 0,
-        lastScrollHeight: 0,
-        lastClientHeight: 0,
+        lastBlockIndex: 0,
+        lastBlockOffset: 0,
       })
     }
     container.scrollTop = 0
@@ -955,14 +899,14 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     }
     const container = parentRef.current
     const scrollTop = container.scrollTop
-    let chunkIndex = 0
+    let blockIndex = 0
     const nodes = Array.from(
       container.querySelectorAll('[data-chunk-index]'),
     )
     for (const node of nodes) {
       const element = node as HTMLElement
       if (element.offsetTop + element.clientHeight > scrollTop) {
-        chunkIndex = Number(element.dataset.chunkIndex ?? 0)
+        blockIndex = Number(element.dataset.chunkIndex ?? 0)
         break
       }
     }
@@ -970,7 +914,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     await createBookmark({
       bookId,
       sectionId,
-      chunkIndex,
+      blockIndex,
       offset: scrollTop,
       label: label && label.length > 0 ? label : undefined,
     })
@@ -1183,7 +1127,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
                         setActiveSectionId(bookmark.sectionId)
                         return
                       }
-                      scrollToChunk(bookmark.chunkIndex)
+                      scrollToChunk(bookmark.blockIndex)
                       if (parentRef.current) {
                         parentRef.current.scrollTop = bookmark.offset
                       }
@@ -1196,7 +1140,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
                           setActiveSectionId(bookmark.sectionId)
                           return
                         }
-                        scrollToChunk(bookmark.chunkIndex)
+                        scrollToChunk(bookmark.blockIndex)
                         if (parentRef.current) {
                           parentRef.current.scrollTop = bookmark.offset
                         }

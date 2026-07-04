@@ -30,7 +30,7 @@ export const createBookmark = mutation({
   args: {
     bookId: v.id("books"),
     sectionId: v.id("sections"),
-    chunkIndex: v.number(),
+    blockIndex: v.number(),
     offset: v.number(),
     label: v.optional(v.string()),
   },
@@ -46,7 +46,7 @@ export const createBookmark = mutation({
       userId,
       bookId: args.bookId,
       sectionId: args.sectionId,
-      chunkIndex: args.chunkIndex,
+      blockIndex: args.blockIndex,
       offset: args.offset,
       label: args.label,
       createdAt: now,

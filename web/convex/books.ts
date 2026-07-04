@@ -79,9 +79,6 @@ export const deleteBook = mutation({
       .withIndex("by_book", (q) => q.eq("bookId", args.bookId))
       .collect();
     for (const section of sections) {
-      if (section.textStorageId) {
-        await ctx.storage.delete(section.textStorageId);
-      }
       if (section.contentStorageId) {
         await ctx.storage.delete(section.contentStorageId);
       }

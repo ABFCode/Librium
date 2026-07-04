@@ -1,24 +1,30 @@
 import { useState } from 'react'
 import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
+import { parseEpubToPayload } from '../lib/epub'
+import { contentTypeFromHref } from '../spine/util'
+
+const SECTION_BATCH = 50
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
 
 export const useImportFlow = () => {
   const { isAuthenticated } = useConvexAuth()
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl)
-  const importBook = useAction(api.imports.importBook)
+  const startImport = useMutation(api.ingest.startImport)
+  const ingestSectionsBatch = useAction(api.ingest.ingestSectionsBatch)
+  const finalizeImport = useMutation(api.ingest.finalizeImport)
+  const failImport = useMutation(api.ingest.failImport)
   const [files, setFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
-  const [result, setResult] = useState<{
-    fileName: string
-    fileSize: number
-    author: string
-  } | null>(null)
+  const [result, setResult] = useState<{ fileName: string; fileSize: number; author: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
-  const importJobs = useQuery(
-    api.importJobs.listImportJobs,
-    isAuthenticated ? {} : 'skip',
-  )
+  const importJobs = useQuery(api.importJobs.listImportJobs, isAuthenticated ? {} : 'skip')
 
   const statusLabel = (status: string) => {
     switch (status) {
@@ -33,6 +39,95 @@ export const useImportFlow = () => {
       default:
         return 'Queued'
     }
+  }
+
+  const uploadBlob = async (blob: Blob): Promise<string> => {
+    const url = await generateUploadUrl({})
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: blob.type ? { 'Content-Type': blob.type } : undefined,
+      body: blob,
+    })
+    const body = await res.json()
+    if (!res.ok || !body?.storageId) throw new Error('Upload failed')
+    return body.storageId as string
+  }
+
+  const importOne = async (file: File) => {
+    const bytes = new Uint8Array(await file.arrayBuffer())
+
+    // Parse entirely in the browser (native DOMParser + fflate).
+    const payload = parseEpubToPayload(bytes)
+
+    // Upload the raw EPUB (kept for the download feature) + cover + images.
+    const rawStorageId = await uploadBlob(new Blob([bytes as BlobPart], { type: 'application/epub+zip' }))
+
+    let coverStorageId: string | undefined
+    let coverContentType: string | undefined
+    if (payload.cover) {
+      coverContentType = payload.cover.contentType || 'image/jpeg'
+      coverStorageId = await uploadBlob(new Blob([payload.cover.bytes as BlobPart], { type: coverContentType }))
+    }
+
+    const images: {
+      href: string
+      storageId: string
+      contentType?: string
+      byteSize?: number
+    }[] = []
+    for (const batch of chunk(payload.images, 8)) {
+      const uploaded = await Promise.all(
+        batch.map(async (img) => {
+          const ct = img.contentType || contentTypeFromHref(img.href) || 'application/octet-stream'
+          const storageId = await uploadBlob(new Blob([img.bytes as BlobPart], { type: ct }))
+          return { href: img.href, storageId, contentType: ct, byteSize: img.bytes.length }
+        }),
+      )
+      images.push(...uploaded)
+    }
+
+    const m = payload.metadata
+    const { bookId, importJobId } = await startImport({
+      fileName: file.name,
+      fileSize: file.size,
+      contentType: file.type || undefined,
+      rawStorageId: rawStorageId as never,
+      metadata: {
+        title: m.title,
+        author: m.authors && m.authors.length > 0 ? m.authors.join(', ') : undefined,
+        language: m.language,
+        publisher: m.publisher,
+        publishedAt: m.publishedAt,
+        series: m.series,
+        seriesIndex: m.seriesIndex,
+        subjects: m.subjects,
+        identifiers: m.identifiers,
+      },
+      coverStorageId: coverStorageId as never,
+      coverContentType,
+      images: images as never,
+    })
+
+    try {
+      const blocksBySection = new Map(payload.sectionBlocks.map((sb) => [sb.sectionOrderIndex, sb.blocks]))
+      const sectionArgs = payload.sections.map((s) => ({
+        title: s.title,
+        orderIndex: s.orderIndex,
+        depth: s.depth,
+        href: s.href,
+        anchor: s.anchor,
+        blocksJson: JSON.stringify(blocksBySection.get(s.orderIndex) ?? []),
+      }))
+      for (const batch of chunk(sectionArgs, SECTION_BATCH)) {
+        await ingestSectionsBatch({ bookId, sections: batch })
+      }
+      await finalizeImport({ bookId, sectionCount: payload.sections.length, importJobId })
+    } catch (err) {
+      await failImport({ importJobId, errorMessage: err instanceof Error ? err.message : 'Ingest failed' })
+      throw err
+    }
+
+    return { bookId, title: payload.metadata.title, author: (payload.metadata.authors ?? []).join(', ') }
   }
 
   const submit = async () => {
@@ -50,64 +145,29 @@ export const useImportFlow = () => {
     let hadFailure = false
     for (const file of files) {
       try {
-        const uploadUrl = await generateUploadUrl({})
-        const uploadResponse = await fetch(uploadUrl, {
-          method: 'POST',
-          body: file,
-        })
-        const uploadBody = await uploadResponse.json()
-        if (!uploadBody?.storageId) {
-          throw new Error('Upload failed: storageId missing.')
-        }
-        const storageId = uploadBody.storageId as string
-        const result = await importBook({
-          storageId,
-          fileName: file.name,
-          fileSize: file.size,
-          contentType: file.type || undefined,
-        })
-        if (!result?.bookId) {
-          throw new Error('Import failed: book was not created.')
-        }
+        const res = await importOne(file)
+        setResult({ fileName: res.title || file.name, fileSize: file.size, author: res.author || 'Unknown' })
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : `Upload failed for ${file.name}`,
-        )
+        setError(err instanceof Error ? err.message : `Import failed for ${file.name}`)
         hadFailure = true
-        continue
       }
-      const author = 'Uploaded'
-      const title = file.name
-      setResult({
-        fileName: title,
-        fileSize: file.size,
-        author,
-      })
     }
-    if (!hadFailure) {
-      setFiles([])
-    }
+    if (!hadFailure) setFiles([])
     setIsUploading(false)
   }
 
   const addFiles = (incoming: FileList | File[]) => {
-    const next = Array.from(incoming).filter((file) =>
-      file.name.toLowerCase().endsWith('.epub'),
-    )
+    const next = Array.from(incoming).filter((file) => file.name.toLowerCase().endsWith('.epub'))
     if (next.length === 0) {
       setError('Only EPUB files are supported.')
       return
     }
     setFiles((prev) => {
-      const seen = new Set(prev.map((file) => `${file.name}-${file.size}-${file.lastModified}`))
+      const seen = new Set(prev.map((f) => `${f.name}-${f.size}-${f.lastModified}`))
       const merged = [...prev]
       for (const file of next) {
         const key = `${file.name}-${file.size}-${file.lastModified}`
-        if (seen.has(key)) {
-          continue
-        }
+        if (seen.has(key)) continue
         seen.add(key)
         merged.push(file)
       }

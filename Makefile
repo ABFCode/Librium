@@ -3,8 +3,7 @@
 
 
 dev:
-	cd web && npx concurrently -k -n parser,convex,web \
-	"cd ../parser && go run ./main.go" \
+	cd web && npx concurrently -k -n convex,web \
 	"pnpm convex dev" \
 	"pnpm dev"
 

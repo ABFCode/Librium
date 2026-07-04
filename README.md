@@ -6,8 +6,8 @@ Librium is a performance‑focused web app for uploading, managing, and reading 
 
 * **Web app:** TanStack Start + React 19 + Vite + Tailwind (`/web`)
 * **Data/Auth:** Convex (with Better Auth) (`/web/convex`)
-* **Parser:** Go microservice using Spine for EPUB parsing (`/parser`)
-* **Storage:** Convex Storage (EPUBs, section text, and assets)
+* **EPUB parsing:** in-browser, via a TypeScript port of Spine (`/web/src/spine`)
+* **Storage:** Convex Storage (EPUBs, section content blocks, and assets)
 
 ## Features (current)
 
@@ -37,25 +37,19 @@ cd web
 npx playwright install-deps
 ```
 
-3) Start the parser:
-```
-cd parser
-go run ./main.go
-```
-
-4) Start Convex:
+3) Start Convex:
 ```
 cd web
 pnpm convex dev
 ```
 
-5) Start the web app:
+4) Start the web app:
 ```
 cd web
 pnpm dev
 ```
 
-The parser defaults to `http://localhost:8081/parse`. Override with `PARSER_URL` if needed.
+EPUBs are parsed in the browser on upload (no separate parser service).
 
 ## Resetting dev data
 
@@ -92,7 +86,6 @@ pnpm test:e2e
 ## Known limitations (0.1.0)
 
 - EPUB only (additional formats planned).
-- Parser service required for imports (separate Go service).
 - Auth is basic email/password (reset/2FA planned).
 - Offline reading is not supported yet.
 

@@ -24,9 +24,6 @@ export const resetAllDataInternal = internalMutation({
 
     const sections = await ctx.db.query("sections").collect();
     for (const section of sections) {
-      if (section.textStorageId) {
-        await ctx.storage.delete(section.textStorageId);
-      }
       if (section.contentStorageId) {
         await ctx.storage.delete(section.contentStorageId);
       }

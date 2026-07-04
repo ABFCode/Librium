@@ -30,12 +30,6 @@ export const upsertUserBook = mutation({
       userId,
       bookId: args.bookId,
       lastSectionIndex: 0,
-      lastChunkIndex: 0,
-      lastChunkOffset: 0,
-      lastScrollRatio: 0,
-      lastScrollTop: 0,
-      lastScrollHeight: 0,
-      lastClientHeight: 0,
       updatedAt: now,
     });
   },
@@ -65,12 +59,8 @@ export const updateProgress = mutation({
     bookId: v.id("books"),
     lastSectionId: v.optional(v.id("sections")),
     lastSectionIndex: v.optional(v.number()),
-    lastChunkIndex: v.optional(v.number()),
-    lastChunkOffset: v.optional(v.number()),
-    lastScrollRatio: v.optional(v.number()),
-    lastScrollTop: v.optional(v.number()),
-    lastScrollHeight: v.optional(v.number()),
-    lastClientHeight: v.optional(v.number()),
+    lastBlockIndex: v.optional(v.number()),
+    lastBlockOffset: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const userId = await requireViewerUserId(ctx);
@@ -85,17 +75,9 @@ export const updateProgress = mutation({
     const now = Date.now();
     const patch = {
       lastSectionId: args.lastSectionId ?? existing?.lastSectionId ?? undefined,
-      lastSectionIndex:
-        args.lastSectionIndex ?? existing?.lastSectionIndex ?? 0,
-      lastChunkIndex: args.lastChunkIndex ?? existing?.lastChunkIndex ?? 0,
-      lastChunkOffset: args.lastChunkOffset ?? existing?.lastChunkOffset ?? 0,
-      lastScrollRatio:
-        args.lastScrollRatio ?? existing?.lastScrollRatio ?? 0,
-      lastScrollTop: args.lastScrollTop ?? existing?.lastScrollTop ?? 0,
-      lastScrollHeight:
-        args.lastScrollHeight ?? existing?.lastScrollHeight ?? 0,
-      lastClientHeight:
-        args.lastClientHeight ?? existing?.lastClientHeight ?? 0,
+      lastSectionIndex: args.lastSectionIndex ?? existing?.lastSectionIndex ?? 0,
+      lastBlockIndex: args.lastBlockIndex ?? existing?.lastBlockIndex ?? undefined,
+      lastBlockOffset: args.lastBlockOffset ?? existing?.lastBlockOffset ?? undefined,
       updatedAt: now,
     };
 
@@ -164,8 +146,7 @@ export const listByUser = query({
       }
       const totalSections = book.sectionCount ?? 0;
       const lastIndex = entry.lastSectionIndex ?? 0;
-      const progress =
-        totalSections > 0 ? (lastIndex + 1) / totalSections : 0;
+      const progress = totalSections > 0 ? (lastIndex + 1) / totalSections : 0;
       results.push({
         bookId: entry.bookId,
         lastSectionId: entry.lastSectionId,
