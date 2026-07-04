@@ -24,3 +24,9 @@
 - Blocks-only data model: sections store per-section structured blocks (no duplicated plain text); reading progress is block-anchored (`lastBlockIndex`/`lastBlockOffset`); bookmarks use `blockIndex`.
 - Removed the Go `/parser` service, `PARSER_URL`, and related Makefile/README wiring.
 - **Breaking:** the data model changed; existing dev data must be reset (`make convex-reset CONFIRM=RESET`).
+
+## 0.3.0 - 2026-07-04
+- Extracted the EPUB parser into its own package, **[`@abfcode/spine`](https://www.npmjs.com/package/@abfcode/spine)** (published to npm); Librium now consumes it as a normal dependency.
+- Parallelized the import ingest (concurrent batches) and virtualized the chapter list (TOC) — large books import and browse smoothly.
+- Fixed book deletion to run in bounded batches so thousand-chapter books stay under Convex's per-mutation read limit.
+- Self-hosted fonts (Fraunces + IBM Plex Sans via `@fontsource`), removing the third-party Google Fonts request (blocked by Firefox tracking protection / adblockers).
