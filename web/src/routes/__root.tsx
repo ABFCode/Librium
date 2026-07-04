@@ -9,6 +9,14 @@ import { authClient } from '../lib/auth-client'
 
 import appCss from '../styles.css?url'
 
+// Self-hosted fonts (no third-party request; avoids tracker/adblock breakage).
+import '@fontsource-variable/fraunces'
+import '@fontsource/ibm-plex-sans/300.css'
+import '@fontsource/ibm-plex-sans/400.css'
+import '@fontsource/ibm-plex-sans/500.css'
+import '@fontsource/ibm-plex-sans/600.css'
+import '@fontsource/ibm-plex-sans/700.css'
+
 export const Route = createRootRoute({
   head: () => ({
     meta: [
@@ -28,19 +36,6 @@ export const Route = createRootRoute({
       },
     ],
     links: [
-      {
-        rel: 'preconnect',
-        href: 'https://fonts.googleapis.com',
-      },
-      {
-        rel: 'preconnect',
-        href: 'https://fonts.gstatic.com',
-        crossOrigin: 'anonymous',
-      },
-      {
-        rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;400;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap',
-      },
       {
         rel: 'stylesheet',
         href: appCss,
