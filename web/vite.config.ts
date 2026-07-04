@@ -13,6 +13,12 @@ const config = defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  // @abfcode/spine is a linked (file:) package whose emitted ESM uses
+  // extension-less relative imports; bundle it for SSR instead of letting
+  // Node's ESM resolver choke on them in dev.
+  ssr: {
+    noExternal: ['@abfcode/spine'],
+  },
   plugins: [
     tailwindcss(),
     devtools(),
