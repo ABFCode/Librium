@@ -7,6 +7,7 @@ vi.mock('convex/react', () => ({
   useMutation: () => vi.fn(),
   useAction: () => vi.fn(),
   useQuery: () => [],
+  useConvex: () => ({ query: vi.fn() }),
 }))
 
 describe('useImportFlow', () => {

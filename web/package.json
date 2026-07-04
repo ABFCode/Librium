@@ -25,6 +25,8 @@
     "@tanstack/router-plugin": "^1.168.19",
     "better-auth": "^1.6.23",
     "convex": "^1.42.1",
+    "dexie": "^4.4.4",
+    "dexie-react-hooks": "^4.4.0",
     "fflate": "^0.8.3",
     "lucide-react": "^1.23.0",
     "react": "^19.2.3",

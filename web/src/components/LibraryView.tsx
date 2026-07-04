@@ -3,6 +3,7 @@ import { useAction, useConvex, useConvexAuth, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { RequireAuth } from './RequireAuth'
 import { useEffect, useMemo, useState } from 'react'
+import { deleteLocalBook } from '../lib/db'
 
 export function Library() {
   const convex = useConvex()
@@ -124,6 +125,8 @@ export function Library() {
     try {
       setError(null)
       await deleteBook({ bookId })
+      // Delete parity: purge this device's local copy too.
+      await deleteLocalBook(bookId).catch(() => {})
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete book')
     }

@@ -1,10 +1,29 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { api } from '../../convex/_generated/api'
 import { RequireAuth } from './RequireAuth'
 import { useUserSettings } from '../hooks/useUserSettings'
 import { ReaderPreferencesModal } from './ReaderPreferencesModal'
+import {
+  backfillSectionIds,
+  cacheImage,
+  cacheSectionBlocks,
+  cacheSectionMeta,
+  db,
+  getLocalBlocks,
+  isLocalSectionKey,
+  localSectionKey,
+} from '../lib/db'
+
+type ReaderSection = {
+  _id: string
+  title: string
+  orderIndex: number
+  href?: string
+  anchor?: string
+}
 
 type ReaderChunk = {
   id: string
@@ -55,10 +74,60 @@ type ReaderExperienceProps = {
 export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const { isAuthenticated } = useConvexAuth()
   const canQuery = isAuthenticated
-  const sections = useQuery(
+  // Local-first: IndexedDB is the read source; Convex is the fallback for
+  // books that are not on this device (and the source for cache-fill).
+  const localSectionRows = useLiveQuery(
+    () => db.sections.where('bookId').equals(bookId).sortBy('orderIndex'),
+    [bookId],
+  )
+  const remoteSections = useQuery(
     api.sections.listSections,
     canQuery ? { bookId } : 'skip',
   )
+  const sections: ReaderSection[] | undefined = useMemo(() => {
+    if (localSectionRows && localSectionRows.length > 0) {
+      return localSectionRows.map((row) => ({
+        _id: row.convexId ?? localSectionKey(bookId, row.orderIndex),
+        title: row.title,
+        orderIndex: row.orderIndex,
+        href: row.href,
+        anchor: row.anchor,
+      }))
+    }
+    return remoteSections ?? undefined
+  }, [localSectionRows, remoteSections, bookId])
+
+  // Reconcile local and remote copies: cache-fill metadata for books imported
+  // on another device, and backfill missing Convex ids into local rows.
+  useEffect(() => {
+    if (!remoteSections || remoteSections.length === 0) {
+      return
+    }
+    if (localSectionRows === undefined) {
+      return
+    }
+    if (localSectionRows.length === 0) {
+      void cacheSectionMeta(
+        bookId,
+        remoteSections.map((s) => ({
+          orderIndex: s.orderIndex,
+          convexId: s._id,
+          title: s.title,
+          depth: s.depth ?? 0,
+          href: s.href,
+          anchor: s.anchor,
+        })),
+      ).catch(() => {})
+      return
+    }
+    if (localSectionRows.some((row) => !row.convexId)) {
+      void backfillSectionIds(
+        bookId,
+        remoteSections.map((s) => ({ orderIndex: s.orderIndex, convexId: s._id })),
+      ).catch(() => {})
+    }
+  }, [remoteSections, localSectionRows, bookId])
+
   const getSectionContent = useAction(api.reader.getSectionContent)
   const updateProgress = useMutation(api.userBooks.updateProgress)
   const userBook = useQuery(
@@ -256,12 +325,94 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     return Array.from(set)
   }, [blocks])
 
-  const imageUrls = useQuery(
+  // Images local-first: object URLs from IndexedDB blobs; only hrefs missing
+  // locally are requested from Convex (and then cached for next time).
+  const [localImageUrls, setLocalImageUrls] = useState<Record<string, string>>({})
+  const [missingImageHrefs, setMissingImageHrefs] = useState<string[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    const created: string[] = []
+    if (imageHrefs.length === 0) {
+      setLocalImageUrls({})
+      setMissingImageHrefs([])
+      return
+    }
+    void (async () => {
+      const local: Record<string, string> = {}
+      const missing: string[] = []
+      try {
+        const rows = await db.images.bulkGet(
+          imageHrefs.map((href) => [bookId, href] as [string, string]),
+        )
+        rows.forEach((row, i) => {
+          if (row) {
+            const url = URL.createObjectURL(row.blob)
+            local[imageHrefs[i]] = url
+            created.push(url)
+          } else {
+            missing.push(imageHrefs[i])
+          }
+        })
+      } catch {
+        missing.push(...imageHrefs)
+      }
+      if (cancelled) {
+        created.forEach((url) => URL.revokeObjectURL(url))
+        return
+      }
+      setLocalImageUrls(local)
+      setMissingImageHrefs(missing)
+    })()
+    return () => {
+      cancelled = true
+      created.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [imageHrefs, bookId])
+
+  const remoteImageUrls = useQuery(
     api.bookAssets.getUrlsByBook,
-    canQuery && imageHrefs.length > 0
-      ? { bookId, hrefs: imageHrefs }
+    canQuery && missingImageHrefs.length > 0
+      ? { bookId, hrefs: missingImageHrefs }
       : 'skip',
   )
+
+  const imageUrls = useMemo(
+    () => ({ ...(remoteImageUrls ?? {}), ...localImageUrls }),
+    [remoteImageUrls, localImageUrls],
+  )
+
+  // Cache-fill remotely served images into IndexedDB in the background.
+  useEffect(() => {
+    if (!remoteImageUrls) {
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      for (const [href, url] of Object.entries(remoteImageUrls)) {
+        if (cancelled) {
+          return
+        }
+        try {
+          const existing = await db.images.get([bookId, href])
+          if (existing) {
+            continue
+          }
+          const res = await fetch(url)
+          if (!res.ok) {
+            continue
+          }
+          const blob = await res.blob()
+          await cacheImage(bookId, href, blob, blob.type || undefined)
+        } catch {
+          // Offline or transient failure — retried on a future view.
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [remoteImageUrls, bookId])
 
   const goToSection = (index: number) => {
     if (!sections || index < 0 || index >= sections.length) {
@@ -305,12 +456,42 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   }, [sections, activeSectionId, userBook?.lastSectionId])
 
   const loadSection = async (targetId: string | null) => {
-    if (!targetId || !canQuery) {
+    if (!targetId) {
       return
     }
     loadingSectionRef.current = targetId
     setIsLoading(true)
+
+    // Local first: blocks from IndexedDB — no network on the read path.
+    const meta = sections?.find((section) => section._id === targetId)
+    if (meta) {
+      const local = await getLocalBlocks(bookId, meta.orderIndex)
+      if (local) {
+        if (activeSectionRef.current === targetId) {
+          setBlocks(local as BlockPayload[])
+          setChunks([])
+        }
+        if (loadingSectionRef.current === targetId) {
+          setIsLoading(false)
+        }
+        return
+      }
+    }
+
+    // Remote fallback (book not on this device yet); requires auth + a real id.
+    if (!canQuery || isLocalSectionKey(targetId)) {
+      if (loadingSectionRef.current === targetId) {
+        setIsLoading(false)
+      }
+      return
+    }
     const { blocks } = await getSectionContent({ sectionId: targetId })
+    if (Array.isArray(blocks) && meta) {
+      // Cache-fill so the next read of this section is local.
+      void cacheSectionBlocks(bookId, meta.orderIndex, blocks, targetId).catch(
+        () => {},
+      )
+    }
     if (activeSectionRef.current !== targetId) {
       if (loadingSectionRef.current === targetId) {
         setIsLoading(false)
@@ -326,7 +507,8 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 
   useEffect(() => {
     void loadSection(sectionId)
-  }, [sectionId])
+    // canQuery: retry the remote fallback once auth resolves after a local miss.
+  }, [sectionId, canQuery])
 
   useEffect(() => {
     let timeout: number | undefined
@@ -372,12 +554,19 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         break
       }
     }
+    if (isLocalSectionKey(sectionId)) {
+      // Convex id unknown for this section (not yet backfilled) — progress
+      // sync for it resumes once ids reconcile. Local reading is unaffected.
+      return
+    }
     void updateProgress({
       bookId,
       lastSectionId: sectionId,
       lastSectionIndex: activeIndex >= 0 ? activeIndex : 0,
       lastBlockIndex: blockIndex,
       lastBlockOffset: offsetWithin,
+    }).catch(() => {
+      // Offline — progress stays in-session; durable local progress is Phase 4.
     })
   }
 
@@ -518,7 +707,11 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       })
       return
     }
-    if (userBook === null && !initialProgressRef.current) {
+    if (
+      userBook === null &&
+      !initialProgressRef.current &&
+      !isLocalSectionKey(sectionId)
+    ) {
       setIsRestoringView(false)
       initialProgressRef.current = true
       void updateProgress({
@@ -527,7 +720,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         lastSectionIndex: activeIndex >= 0 ? activeIndex : 0,
         lastBlockIndex: 0,
         lastBlockOffset: 0,
-      })
+      }).catch(() => {})
     }
     container.scrollTop = 0
     setIsRestoringView(false)
@@ -893,7 +1086,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   }
 
   const handleCreateBookmark = async () => {
-    if (!sectionId || !parentRef.current) {
+    if (!sectionId || !parentRef.current || isLocalSectionKey(sectionId)) {
       return
     }
     const container = parentRef.current

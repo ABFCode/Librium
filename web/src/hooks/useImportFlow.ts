@@ -1,8 +1,15 @@
 import { useState } from 'react'
-import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react'
+import {
+  useAction,
+  useConvex,
+  useConvexAuth,
+  useMutation,
+  useQuery,
+} from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { parseEpubToPayload } from '../lib/epub'
 import { contentTypeFromHref } from '@abfcode/spine'
+import { backfillSectionIds, saveImportedBook } from '../lib/db'
 
 const SECTION_BATCH = 50
 const INGEST_CONCURRENCY = 5
@@ -15,6 +22,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
 
 export const useImportFlow = () => {
   const { isAuthenticated } = useConvexAuth()
+  const convex = useConvex()
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl)
   const startImport = useMutation(api.ingest.startImport)
   const ingestSectionsBatch = useAction(api.ingest.ingestSectionsBatch)
@@ -70,18 +78,29 @@ export const useImportFlow = () => {
       coverStorageId = await uploadBlob(new Blob([payload.cover.bytes as BlobPart], { type: coverContentType }))
     }
 
+    // Materialize image blobs once; they are uploaded to Convex storage and
+    // also stored locally in IndexedDB (the reader's primary source).
+    const imageBlobs = payload.images.map((img) => {
+      const ct = img.contentType || contentTypeFromHref(img.href) || 'application/octet-stream'
+      return {
+        href: img.href,
+        blob: new Blob([img.bytes as BlobPart], { type: ct }),
+        contentType: ct,
+        byteSize: img.bytes.length,
+      }
+    })
+
     const images: {
       href: string
       storageId: string
       contentType?: string
       byteSize?: number
     }[] = []
-    for (const batch of chunk(payload.images, 8)) {
+    for (const batch of chunk(imageBlobs, 8)) {
       const uploaded = await Promise.all(
         batch.map(async (img) => {
-          const ct = img.contentType || contentTypeFromHref(img.href) || 'application/octet-stream'
-          const storageId = await uploadBlob(new Blob([img.bytes as BlobPart], { type: ct }))
-          return { href: img.href, storageId, contentType: ct, byteSize: img.bytes.length }
+          const storageId = await uploadBlob(img.blob)
+          return { href: img.href, storageId, contentType: img.contentType, byteSize: img.byteSize }
         }),
       )
       images.push(...uploaded)
@@ -109,8 +128,37 @@ export const useImportFlow = () => {
       images: images as never,
     })
 
+    const blocksBySection = new Map(payload.sectionBlocks.map((sb) => [sb.sectionOrderIndex, sb.blocks]))
+
+    // Local-first: persist the parsed book to IndexedDB immediately — it is
+    // fully readable on this device before (and regardless of) the section
+    // ingest below. Failure is non-fatal; the Convex copy still works.
     try {
-      const blocksBySection = new Map(payload.sectionBlocks.map((sb) => [sb.sectionOrderIndex, sb.blocks]))
+      await saveImportedBook({
+        bookId,
+        title: m.title,
+        author: m.authors && m.authors.length > 0 ? m.authors.join(', ') : undefined,
+        cover: payload.cover
+          ? {
+              blob: new Blob([payload.cover.bytes as BlobPart], { type: coverContentType ?? 'image/jpeg' }),
+              contentType: coverContentType,
+            }
+          : undefined,
+        sections: payload.sections.map((s) => ({
+          orderIndex: s.orderIndex,
+          title: s.title,
+          depth: s.depth,
+          href: s.href,
+          anchor: s.anchor,
+          blocks: blocksBySection.get(s.orderIndex) ?? [],
+        })),
+        images: imageBlobs.map(({ href, blob, contentType }) => ({ href, blob, contentType })),
+      })
+    } catch {
+      // IndexedDB unavailable (private mode, quota) — remote path still works.
+    }
+
+    try {
       const sectionArgs = payload.sections.map((s) => ({
         title: s.title,
         orderIndex: s.orderIndex,
@@ -136,6 +184,21 @@ export const useImportFlow = () => {
     } catch (err) {
       await failImport({ importJobId, errorMessage: err instanceof Error ? err.message : 'Ingest failed' })
       throw err
+    }
+
+    // Backfill Convex section ids into the local rows so progress/bookmarks
+    // (which reference Convex ids) line up with locally served sections.
+    try {
+      const rows = (await convex.query(api.sections.listSections, { bookId })) as {
+        _id: string
+        orderIndex: number
+      }[]
+      await backfillSectionIds(
+        bookId,
+        rows.map((r) => ({ orderIndex: r.orderIndex, convexId: r._id })),
+      )
+    } catch {
+      // Non-fatal: the reader also backfills when it sees the remote list.
     }
 
     return { bookId, title: payload.metadata.title, author: (payload.metadata.authors ?? []).join(', ') }
