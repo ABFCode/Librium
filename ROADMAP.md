@@ -1,0 +1,158 @@
+# Librium Roadmap
+
+*Written 2026-07-04, after the v0.3.0 modernization (browser parsing via `@abfcode/spine`, blocks-only data model, batched ingest). This document defines where Librium goes next.*
+
+## Vision
+
+An incredibly fast personal book library and reader. Local-first: every read is a
+local disk read; the network is never on the read path. Seamless cross-device
+sync — pick up mid-chapter on any device. Zero-ops infrastructure that can sit
+untouched for a year without rotting.
+
+## Requirements
+
+1. **Extremely performant** — instant open, instant chapter turns, instant TOC,
+   even on 2,000-chapter webnovels. Implies: reads come from device storage, never
+   the network.
+2. **Seamless cross-device sync** — progress/bookmarks propagate near-realtime
+   (push, not poll-on-open).
+3. **Offline is a first-class mode** — reading works with no connection.
+4. **Durability** — the library is the asset. Raw EPUBs backed up server-side;
+   device storage loss is always recoverable.
+5. **Zero-ops longevity** — managed/free-tier services only; no server process to
+   patch; minimal moving parts.
+6. **Import throughput stays first-class** — thousand-chapter webnovels parse and
+   ingest without ceilings (already true as of v0.2.0).
+
+Deferred, revisit later: highlights/notes, full-library export, iOS PWA polish
+(home-screen install, `navigator.storage.persist()`, Safari eviction testing).
+
+## Target architecture
+
+```
+┌───────────────────── device ─────────────────────┐   ┌─────────── cloud ───────────┐
+│ Static SPA (CDN-delivered, service-worker cached) │   │ Cloudflare Pages — app shell│
+│                                                   │   │                             │
+│ IndexedDB (via Dexie):                            │   │ Cloudflare R2 (via          │
+│   • parsed blocks + images  ◀── seed/re-parse ────┼───┼── @convex-dev/r2):          │
+│   • raw-EPUB backup pointer                       │   │   • raw EPUBs • covers      │
+│   • progress / bookmarks / library records        │   │                             │
+│                                                   │   │ Convex Cloud (free tier):   │
+│ @abfcode/spine — parse on device at import/seed   │◀──┼── auth (Better Auth)        │
+│ Sync module — LWW push/pull ──────────────────────┼──▶│   tiny sync DB + realtime   │
+└───────────────────────────────────────────────────┘   └─────────────────────────────┘
+```
+
+Two data planes with opposite characteristics:
+
+- **Plane A — content (heavy, immutable).** Raw EPUBs and covers live in R2 (the
+  master shelf). Each device holds its own parsed working copy (blocks + images) in
+  IndexedDB. "Sync" here is a cache fill: *don't have book X locally → download the
+  EPUB from R2 → parse on device → store in IndexedDB.* Parsed blocks are **derived
+  data and are not backed up** — the raw EPUB is the source of truth and the parser
+  is fast (~2s for a 2,277-chapter book on desktop). Parser improvements
+  retroactively apply to the whole library.
+- **Plane B — user state (tiny, mutable).** Progress, bookmarks, library
+  membership, settings. Kilobytes. Written to IndexedDB first (instant, offline),
+  reconciled with Convex in the background, pushed to other devices via Convex's
+  reactive queries.
+
+What this architecture **removes**:
+
+- The SSR/nitro server (TanStack Start → static Vite SPA + TanStack Router).
+  Private, login-gated, local-first app: nothing to server-render. Deletes an
+  entire deployable and its dependency surface (currently pinned to a nitro
+  nightly).
+- Convex from the read path. It remains the auth + sync + storage-authorization
+  brain, but no chapter read ever touches it.
+- Convex file storage for blobs (free tier is 0.5 GB; the library is larger).
+  R2: 10 GB free forever, $0.015/GB/mo after, zero egress — and egress-free matters
+  because device seeding re-downloads whole books.
+
+## Sync design (decided up front — be careful here)
+
+The data model makes sync tractable: content never merges (immutable), and user
+state is single-user last-write-wins. No CRDTs. But three rules are load-bearing:
+
+1. **Tombstones for deletes.** Deleting a book (or bookmark) writes a
+   `deletedAt` tombstone record, synced like any other change. Deletion without a
+   tombstone gets resurrected by the next device that syncs. Tombstones can be
+   compacted after all known devices have synced past them (or after a fixed
+   horizon, e.g. 90 days).
+2. **Server-authoritative timestamps.** LWW ordering uses the Convex server's
+   receipt time (or a server-issued monotonic version), never device wall-clocks.
+   A phone with a skewed clock must not be able to clobber newer progress.
+3. **Sync cursor per device.** Each device tracks the last server version it has
+   seen and pulls only newer changes. Push is a queue of local mutations flushed
+   when online; pull rides Convex's reactive subscription.
+
+Conflict policy per record type:
+- `progress` (per book): LWW. Worst case you re-read half a page.
+- `bookmarks`: append-mostly; LWW on edits; tombstone on delete.
+- `library` (book add/remove): add is idempotent (keyed by content hash);
+  remove is a tombstone.
+- `settings`: LWW.
+
+## Phases
+
+### Phase 1 — Static SPA conversion
+Drop TanStack Start/nitro; ship a plain Vite + TanStack Router SPA. Keep all
+routes/components (Start is built on Router — this is subtraction). Verify Better
+Auth still works (it serves via Convex HTTP actions, not the Node server).
+**Exit:** `vite build` emits static files that run the full app from a file server.
+
+### Phase 2 — Local-first read path
+Add Dexie. Import writes parsed blocks + images to IndexedDB *first* (book is
+readable before any upload finishes). Reader and TOC read exclusively from
+IndexedDB. Progress/bookmarks write locally first.
+**Exit:** aeroplane-mode reading works for any imported book; chapter turns do no
+network I/O.
+
+### Phase 3 — PWA shell
+`vite-plugin-pwa`: service worker caches the app shell; manifest for
+installability. Minimal scope — iOS-specific polish is explicitly deferred.
+**Exit:** app boots offline from a cold start.
+
+### Phase 4 — Sync layer (Plane B)
+Implement the sync module per the design above: local mutation queue, server
+timestamps, tombstones, per-device cursor, Convex reactive pull. Migrate
+progress/bookmarks/library records onto it.
+**Exit:** two browsers, one offline: edits reconcile correctly on reconnect,
+including deletes; progress hand-off between devices is near-instant.
+
+### Phase 5 — Blob plane → R2 (Plane A)
+Add `@convex-dev/r2`. Import uploads raw EPUB + cover to R2 (background, after
+the local write). New-device seeding: download EPUB from R2 → parse on device →
+IndexedDB. Stamp `parserVersion` on every book's local blocks; on open, if the
+installed `@abfcode/spine` is newer, re-parse from the raw EPUB. Stop storing
+per-section blobs in Convex storage.
+**Exit:** fresh browser profile can log in, see the library, tap a book, and be
+reading from local storage; total Convex storage usage is near-zero.
+
+### Phase 6 — Library at scale
+- **Bulk import:** directory picker / multi-file drag-drop; queued
+  parse→IDB→R2 pipeline with progress and per-file error skip (onboard a
+  multi-GB books folder in one sitting).
+- **Per-device download management:** Kindle-style — full library visible
+  everywhere; each device holds only downloaded books; "remove from this device";
+  storage-used view.
+
+### Phase 7 — Harden + deploy
+- Auth: close signups (allowlist / disable registration post-setup); remove
+  `admin.resetAllData` and `seed.*` from the deployed instance; rate limiting.
+- Deploy: Cloudflare Pages (app) + Convex Cloud (prod deployment) + R2 bucket.
+- Error reporting (optional, decide then).
+**Exit:** Librium usable from any device via a real URL; total infra cost $0/mo
+at current library size.
+
+## Deferred / future
+
+- iOS PWA polish (install prompt, persistent-storage request, Safari eviction
+  testing, mobile parse performance).
+- Highlights + notes (ride the Phase 4 sync layer when added).
+- One-click full export (books + progress as a zip) — durability escape hatch.
+- Web Worker parsing (blocked on `DOMParser` in workers; needs a pure-JS DOM in
+  `@abfcode/spine`). Import freeze of a few seconds is acceptable meanwhile.
+- More formats (MOBI/AZW3/FB2) in `@abfcode/spine` — grows the OSS library and
+  the reader together.
+- `@abfcode/spine` OSS hygiene: LICENSE file, CI, golden-fixture test corpus.
