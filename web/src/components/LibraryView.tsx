@@ -101,6 +101,79 @@ export function Library() {
     }
   }, [localBooks])
 
+  // Bulk operations (global; per-book actions live in each card's menu).
+  const [bulkStatus, setBulkStatus] = useState<string | null>(null)
+
+  const handleDownloadAll = async () => {
+    const targets = (books ?? []).filter((b) => !downloadedIds.has(b._id))
+    if (targets.length === 0 || bulkStatus) {
+      return
+    }
+    setError(null)
+    let done = 0
+    for (const book of targets) {
+      setBulkStatus(`Downloading… ${done}/${targets.length}`)
+      try {
+        await seedBookFromR2(convex, book._id)
+      } catch {
+        // Skip failures (e.g. upload still pending); continue with the rest.
+      }
+      done += 1
+    }
+    setBulkStatus(null)
+  }
+
+  const handleRemoveAllDownloads = async () => {
+    const ids = Array.from(downloadedIds)
+    if (ids.length === 0 || bulkStatus) {
+      return
+    }
+    const ok = window.confirm(
+      `Remove ${ids.length} downloaded book(s) from this device? Your library, progress, and bookmarks are unaffected — books re-download when opened.`,
+    )
+    if (!ok) {
+      return
+    }
+    setError(null)
+    setBulkStatus('Removing downloads…')
+    for (const id of ids) {
+      try {
+        await removeLocalContent(id)
+      } catch {
+        // Continue; the reconcile pass can retry later.
+      }
+    }
+    setBulkStatus(null)
+  }
+
+  const handleDeleteAllBooks = async () => {
+    const list = books ?? []
+    if (list.length === 0 || bulkStatus) {
+      return
+    }
+    const typed = window.prompt(
+      `This permanently deletes all ${list.length} book(s) from your library and cloud backup, on every device. Type DELETE to confirm.`,
+    )
+    if (typed !== 'DELETE') {
+      return
+    }
+    setError(null)
+    let done = 0
+    for (const book of list) {
+      setBulkStatus(`Deleting… ${done}/${list.length}`)
+      try {
+        await deleteBook({ bookId: book._id as never })
+        await deleteLocalBook(book._id).catch(() => {})
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : `Failed to delete ${book.title}`,
+        )
+      }
+      done += 1
+    }
+    setBulkStatus(null)
+  }
+
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const handleDeviceDownload = async (bookId: string) => {
     try {
@@ -435,10 +508,43 @@ export function Library() {
                   </button>
                 ))}
               </div>
+              <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.3em]">
+                <button
+                  className="rounded-full border border-white/10 px-3 py-1 text-[var(--muted-2)] transition hover:text-[var(--ink)] disabled:opacity-40"
+                  onClick={handleDownloadAll}
+                  disabled={
+                    bulkStatus !== null ||
+                    !books ||
+                    books.length === downloadedIds.size
+                  }
+                  title="Store every book's content on this device (e.g. before going offline)"
+                >
+                  Download all
+                </button>
+                <button
+                  className="rounded-full border border-white/10 px-3 py-1 text-[var(--muted-2)] transition hover:text-[var(--ink)] disabled:opacity-40"
+                  onClick={handleRemoveAllDownloads}
+                  disabled={bulkStatus !== null || downloadedIds.size === 0}
+                  title="Free this device's storage; the library itself is untouched"
+                >
+                  Clear downloads
+                </button>
+                <button
+                  className="rounded-full border border-rose-500/20 px-3 py-1 text-rose-300/80 transition hover:text-rose-300 disabled:opacity-40"
+                  onClick={handleDeleteAllBooks}
+                  disabled={bulkStatus !== null || !books || books.length === 0}
+                  title="Permanently delete every book, everywhere"
+                >
+                  Delete all
+                </button>
+              </div>
               <Link className="btn btn-primary h-10 px-4" to="/import">
                 Upload books
               </Link>
             </div>
+            {bulkStatus ? (
+              <p className="w-full text-sm text-[var(--muted)]">{bulkStatus}</p>
+            ) : null}
             {error ? (
               <p className="w-full text-sm text-[var(--danger)]">{error}</p>
             ) : null}
