@@ -10,10 +10,6 @@ vi.mock('convex/react', () => ({
   useConvex: () => ({ query: vi.fn() }),
 }))
 
-vi.mock('@convex-dev/r2/react', () => ({
-  useUploadFile: () => vi.fn(async () => 'test-key'),
-}))
-
 describe('useImportFlow', () => {
   it('filters non-epub files and reports an error', async () => {
     const { result, act } = await renderHook(() => useImportFlow())

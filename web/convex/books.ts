@@ -63,6 +63,25 @@ export const registerImport = mutation({
   },
 });
 
+/**
+ * Signed R2 upload URL with a structured key (books/{bookId}/…) so the
+ * bucket stays debuggable — each book's objects live under one prefix.
+ */
+export const generateBookUploadUrl = mutation({
+  args: {
+    bookId: v.id("books"),
+    kind: v.union(v.literal("epub"), v.literal("cover")),
+  },
+  handler: async (ctx, args) => {
+    await requireBookOwner(ctx, args.bookId);
+    const key =
+      args.kind === "epub"
+        ? `books/${args.bookId}/book.epub`
+        : `books/${args.bookId}/cover`;
+    return await r2.generateUploadUrl(key);
+  },
+});
+
 /** Attach the R2 object keys once the client uploads complete. */
 export const attachFiles = mutation({
   args: {

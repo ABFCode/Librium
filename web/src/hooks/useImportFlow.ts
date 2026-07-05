@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useConvexAuth, useMutation } from 'convex/react'
-import { useUploadFile } from '@convex-dev/r2/react'
 import { api } from '../../convex/_generated/api'
 import { parseEpubToPayload } from '../lib/epub'
 import { payloadToLocalBookInput } from '../lib/localBook'
@@ -16,7 +15,30 @@ export const useImportFlow = () => {
   const { isAuthenticated } = useConvexAuth()
   const registerImport = useMutation(api.books.registerImport)
   const attachFiles = useMutation(api.books.attachFiles)
-  const uploadFile = useUploadFile(api.r2)
+  const generateBookUploadUrl = useMutation(api.books.generateBookUploadUrl)
+  const syncMetadata = useMutation(api.r2.syncMetadata)
+
+  // Direct-to-R2 upload under a structured key (books/{bookId}/…).
+  const uploadToR2 = async (
+    bookId: string,
+    kind: 'epub' | 'cover',
+    blob: Blob,
+  ): Promise<string> => {
+    const { url, key } = await generateBookUploadUrl({
+      bookId: bookId as never,
+      kind,
+    })
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: blob.type ? { 'Content-Type': blob.type } : undefined,
+      body: blob,
+    })
+    if (!res.ok) {
+      throw new Error(`Upload failed (${kind})`)
+    }
+    await syncMetadata({ key })
+    return key
+  }
   const [files, setFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [completed, setCompleted] = useState<ImportResult[]>([])
@@ -58,14 +80,18 @@ export const useImportFlow = () => {
     }
 
     // Backup the master copy (raw EPUB + cover) to R2, then attach the keys.
-    const epubKey = await uploadFile(
-      new File([bytes as BlobPart], file.name, { type: 'application/epub+zip' }),
+    const epubKey = await uploadToR2(
+      bookId,
+      'epub',
+      new Blob([bytes as BlobPart], { type: 'application/epub+zip' }),
     )
     let coverKey: string | undefined
     if (payload.cover) {
       const coverType = payload.cover.contentType || 'image/jpeg'
-      coverKey = await uploadFile(
-        new File([payload.cover.bytes as BlobPart], 'cover', { type: coverType }),
+      coverKey = await uploadToR2(
+        bookId,
+        'cover',
+        new Blob([payload.cover.bytes as BlobPart], { type: coverType }),
       )
     }
     await attachFiles({ bookId: bookId as never, epubKey, coverKey })
