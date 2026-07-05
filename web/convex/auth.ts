@@ -4,7 +4,7 @@ import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
 import { betterAuth } from "better-auth/minimal";
 import authConfig from "./auth.config";
-import { allowSignUp } from "./authPolicy";
+import { allowSignUp, isDeployedInstance } from "./authPolicy";
 
 const siteUrl = process.env.SITE_URL!;
 
@@ -18,6 +18,21 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
       enabled: true,
       disableSignUp: !allowSignUp,
       requireEmailVerification: false,
+    },
+    // Throttle auth endpoints on deployed instances. `storage: "database"`
+    // persists counters in the component's rateLimit table (serverless-safe;
+    // in-memory counters don't survive across Convex invocations). Disabled
+    // locally so dev/tests aren't throttled. If Convex can't surface a client
+    // IP, Better Auth falls back to a shared per-path bucket — still throttles
+    // brute force, just coarser; sign-in max is kept loose to avoid lockout.
+    rateLimit: {
+      enabled: isDeployedInstance,
+      storage: "database",
+      window: 60,
+      max: 100,
+      customRules: {
+        "/sign-in/email": { window: 60, max: 20 },
+      },
     },
     plugins: [crossDomain({ siteUrl }), convex({ authConfig })],
   });

@@ -15,3 +15,7 @@ const isLocalConvex =
 
 export const allowSignUp =
   process.env.ALLOW_SIGNUP === "true" || isLocalDeployment || isLocalConvex;
+
+// True on real (cloud) deployments; false for local/dev. Used to enable auth
+// rate limiting only where it matters, so local testing isn't throttled.
+export const isDeployedInstance = !isLocalDeployment && !isLocalConvex;
