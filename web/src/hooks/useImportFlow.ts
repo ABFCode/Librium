@@ -1,15 +1,21 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useConvexAuth, useMutation } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { parseEpubToPayload } from '../lib/epub'
 import { payloadToLocalBookInput } from '../lib/localBook'
 import { saveImportedBook } from '../lib/db'
 
-export type ImportResult = {
-  fileName: string
-  fileSize: number
-  author: string
+export type QueueStatus = 'queued' | 'importing' | 'done' | 'failed'
+
+export type QueueItem = {
+  id: string
+  file: File
+  status: QueueStatus
+  title?: string
+  error?: string
 }
+
+const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`
 
 export const useImportFlow = () => {
   const { isAuthenticated } = useConvexAuth()
@@ -17,6 +23,20 @@ export const useImportFlow = () => {
   const attachFiles = useMutation(api.books.attachFiles)
   const generateBookUploadUrl = useMutation(api.books.generateBookUploadUrl)
   const syncMetadata = useMutation(api.r2.syncMetadata)
+  const [queue, setQueue] = useState<QueueItem[]>([])
+  const [isDragging, setIsDragging] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const runningRef = useRef(false)
+
+  // Files still waiting to be imported (kept for compatibility with callers).
+  const files = queue.filter((q) => q.status === 'queued').map((q) => q.file)
+
+  const setItem = (id: string, patch: Partial<QueueItem>) => {
+    setQueue((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    )
+  }
 
   // Direct-to-R2 upload under a structured key (books/{bookId}/…).
   const uploadToR2 = async (
@@ -39,12 +59,6 @@ export const useImportFlow = () => {
     await syncMetadata({ key })
     return key
   }
-  const [files, setFiles] = useState<File[]>([])
-  const [isDragging, setIsDragging] = useState(false)
-  const [completed, setCompleted] = useState<ImportResult[]>([])
-  const [result, setResult] = useState<ImportResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [isUploading, setIsUploading] = useState(false)
 
   const importOne = async (file: File) => {
     const bytes = new Uint8Array(await file.arrayBuffer())
@@ -96,15 +110,15 @@ export const useImportFlow = () => {
     }
     await attachFiles({ bookId: bookId as never, epubKey, coverKey })
 
-    return {
-      fileName: m.title || file.name,
-      fileSize: file.size,
-      author: (m.authors ?? []).join(', ') || 'Unknown',
-    }
+    return m.title || file.name
   }
 
   const submit = async () => {
-    if (files.length === 0) {
+    if (runningRef.current) {
+      return
+    }
+    const pending = queue.filter((q) => q.status === 'queued')
+    if (pending.length === 0) {
       setError('Select at least one EPUB file.')
       return
     }
@@ -112,55 +126,70 @@ export const useImportFlow = () => {
       setError('Please sign in to upload books.')
       return
     }
+    runningRef.current = true
     setIsUploading(true)
     setError(null)
-    setResult(null)
-    let hadFailure = false
-    for (const file of files) {
+    // Sequential: parsing is CPU-bound on the main thread; one book at a
+    // time keeps the tab responsive and failures isolated per file.
+    for (const item of pending) {
+      setItem(item.id, { status: 'importing' })
       try {
-        const res = await importOne(file)
-        setResult(res)
-        setCompleted((prev) => [res, ...prev])
+        const title = await importOne(item.file)
+        setItem(item.id, { status: 'done', title })
       } catch (err) {
-        setError(err instanceof Error ? err.message : `Import failed for ${file.name}`)
-        hadFailure = true
+        setItem(item.id, {
+          status: 'failed',
+          error: err instanceof Error ? err.message : 'Import failed',
+        })
       }
     }
-    if (!hadFailure) setFiles([])
     setIsUploading(false)
+    runningRef.current = false
   }
 
   const addFiles = (incoming: FileList | File[]) => {
-    const next = Array.from(incoming).filter((file) => file.name.toLowerCase().endsWith('.epub'))
+    const next = Array.from(incoming).filter((file) =>
+      file.name.toLowerCase().endsWith('.epub'),
+    )
     if (next.length === 0) {
       setError('Only EPUB files are supported.')
       return
     }
-    setFiles((prev) => {
-      const seen = new Set(prev.map((f) => `${f.name}-${f.size}-${f.lastModified}`))
+    setError(null)
+    setQueue((prev) => {
+      const seen = new Set(prev.map((item) => fileKey(item.file)))
       const merged = [...prev]
       for (const file of next) {
-        const key = `${file.name}-${file.size}-${file.lastModified}`
+        const key = fileKey(file)
         if (seen.has(key)) continue
         seen.add(key)
-        merged.push(file)
+        merged.push({
+          id: `${key}-${merged.length}`,
+          file,
+          status: 'queued',
+        })
       }
       return merged
     })
   }
 
+  const clearFinished = () => {
+    setQueue((prev) =>
+      prev.filter((item) => item.status === 'queued' || item.status === 'importing'),
+    )
+  }
+
   return {
+    queue,
     files,
-    setFiles,
     isDragging,
     setIsDragging,
-    result,
-    completed,
     error,
     setError,
     isUploading,
     isAuthenticated,
     submit,
     addFiles,
+    clearFinished,
   }
 }

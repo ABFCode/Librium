@@ -1,24 +1,68 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { RequireAuth } from '../components/RequireAuth'
-import { useImportFlow } from '../hooks/useImportFlow'
+import { useImportFlow, type QueueItem } from '../hooks/useImportFlow'
+import { filesFromDataTransfer } from '../lib/fileTree'
 
 export const Route = createFileRoute('/import')({
   component: ImportPage,
 })
 
+const statusChip = (item: QueueItem) => {
+  switch (item.status) {
+    case 'done':
+      return 'bg-emerald-500/20 text-emerald-200'
+    case 'failed':
+      return 'bg-rose-500/20 text-rose-200'
+    case 'importing':
+      return 'bg-[rgba(143,181,166,0.2)] text-[var(--accent-2)]'
+    default:
+      return 'bg-white/5 text-[var(--muted)]'
+  }
+}
+
+const statusLabel = (item: QueueItem) => {
+  switch (item.status) {
+    case 'done':
+      return 'Ready'
+    case 'failed':
+      return 'Failed'
+    case 'importing':
+      return 'Importing'
+    default:
+      return 'Queued'
+  }
+}
+
 function ImportPage() {
   const {
+    queue,
     files,
     isDragging,
     setIsDragging,
-    result,
-    completed,
     error,
+    setError,
     isUploading,
     isAuthenticated,
     submit,
     addFiles,
   } = useImportFlow()
+
+  const handleDrop = async (event: React.DragEvent) => {
+    event.preventDefault()
+    setIsDragging(false)
+    try {
+      const dropped = await filesFromDataTransfer(event.dataTransfer)
+      if (dropped.length > 0) {
+        addFiles(dropped)
+      }
+    } catch {
+      setError('Could not read the dropped files.')
+    }
+  }
+
+  const finished = queue.filter(
+    (item) => item.status === 'done' || item.status === 'failed',
+  ).length
 
   return (
     <RequireAuth>
@@ -28,7 +72,7 @@ function ImportPage() {
             <div>
               <h1 className="text-3xl">Add books</h1>
               <p className="mt-2 text-sm text-[var(--muted)]">
-                Drop EPUBs or choose files.
+                Drop EPUBs — or an entire folder of them.
               </p>
             </div>
           </div>
@@ -51,15 +95,9 @@ function ImportPage() {
                     setIsDragging(true)
                   }}
                   onDragLeave={() => setIsDragging(false)}
-                  onDrop={(event) => {
-                    event.preventDefault()
-                    setIsDragging(false)
-                    if (event.dataTransfer.files.length > 0) {
-                      addFiles(event.dataTransfer.files)
-                    }
-                  }}
+                  onDrop={handleDrop}
                 >
-                  <p className="text-base font-semibold">Drop EPUBs</p>
+                  <p className="text-base font-semibold">Drop EPUBs or folders</p>
                   <p className="mt-2 text-xs text-[var(--muted-2)]">
                     {files.length > 0
                       ? `${files.length} file(s) queued`
@@ -69,29 +107,8 @@ function ImportPage() {
 
                 <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-center">
                   <label className="upload-control w-full md:w-auto">
-                    <span className="upload-label">
-                      <span className="upload-icon" aria-hidden="true">
-                        <svg
-                          aria-hidden="true"
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M12 5v14" />
-                          <path d="M5 12h14" />
-                        </svg>
-                      </span>
-                      Choose files
-                    </span>
-                    <span className="upload-meta">
-                      {files.length > 0 ? `${files.length} selected` : 'EPUB only'}
-                    </span>
+                    <span className="upload-label">Choose files</span>
+                    <span className="upload-meta">EPUB only</span>
                     <input
                       className="upload-input"
                       type="file"
@@ -101,82 +118,76 @@ function ImportPage() {
                         if (event.target.files) {
                           addFiles(event.target.files)
                         }
+                        event.target.value = ''
+                      }}
+                    />
+                  </label>
+                  <label className="upload-control w-full md:w-auto">
+                    <span className="upload-label">Choose folder</span>
+                    <span className="upload-meta">EPUBs inside are picked up</span>
+                    <input
+                      className="upload-input"
+                      type="file"
+                      multiple
+                      {...({ webkitdirectory: '' } as Record<string, string>)}
+                      onChange={(event) => {
+                        if (event.target.files) {
+                          addFiles(event.target.files)
+                        }
+                        event.target.value = ''
                       }}
                     />
                   </label>
                   <button
                     className="btn btn-primary w-full md:w-auto"
                     onClick={submit}
-                    disabled={
-                      isUploading ||
-                      files.length === 0 ||
-                      !isAuthenticated
-                    }
+                    disabled={isUploading || files.length === 0 || !isAuthenticated}
                   >
-                    {isUploading ? `Uploading ${files.length} file(s)...` : 'Upload'}
+                    {isUploading
+                      ? `Importing… (${finished}/${queue.length})`
+                      : `Import ${files.length > 0 ? files.length : ''} book${files.length === 1 ? '' : 's'}`}
                   </button>
                 </div>
 
                 {error ? (
                   <p className="mt-3 text-sm text-[var(--danger)]">{error}</p>
                 ) : null}
-                {files.length > 0 ? (
-                  <div className="mt-4 rounded-2xl border border-white/5 bg-[rgba(12,15,18,0.6)] px-4 py-3">
-                    <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--muted-2)]">
-                      Selected files
-                    </div>
-                    <ul className="mt-2 space-y-1 text-xs text-[var(--ink)]">
-                      {files.map((file) => (
-                        <li
-                          key={`${file.name}-${file.size}`}
-                          className="flex items-center justify-between gap-3"
-                        >
-                          <span className="truncate">{file.name}</span>
-                          <span className="text-[var(--muted-2)]">
-                            {Math.round(file.size / 1024)} KB
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
                 {!isAuthenticated ? (
                   <p className="mt-2 text-xs text-[var(--muted)]">
                     Sign in to upload and sync your library.
                   </p>
                 ) : null}
-                {result ? (
-                  <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                    <div className="font-semibold">{result.fileName}</div>
-                    <div className="text-xs text-emerald-100/80">
-                      {Math.round(result.fileSize / 1024)} KB • {result.author}
-                    </div>
-                  </div>
-                ) : null}
               </div>
 
               <div className="surface-soft rounded-2xl p-5">
                 <div className="text-xs uppercase tracking-[0.35em] text-[var(--accent-3)]">
-                  This session
+                  Queue
                 </div>
-                {completed.length === 0 ? (
+                {queue.length === 0 ? (
                   <p className="mt-3 text-sm text-[var(--muted)]">
-                    No uploads yet.
+                    Nothing queued yet.
                   </p>
                 ) : (
-                  <div className="mt-3 space-y-2">
-                    {completed.map((item, index) => (
+                  <div className="reader-scroll mt-3 max-h-[50vh] space-y-2 overflow-auto">
+                    {queue.map((item) => (
                       <div
-                        key={`${item.fileName}-${index}`}
+                        key={item.id}
                         className="flex items-center justify-between gap-4 rounded-2xl border border-white/5 bg-[rgba(12,15,18,0.6)] px-3 py-2 text-xs"
                       >
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-semibold">
-                            {item.fileName}
+                            {item.title ?? item.file.name}
                           </div>
+                          {item.error ? (
+                            <div className="mt-0.5 truncate text-[10px] text-rose-300">
+                              {item.error}
+                            </div>
+                          ) : null}
                         </div>
-                        <span className="rounded-full bg-emerald-500/20 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.25em] text-emerald-200">
-                          Ready
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.25em] ${statusChip(item)}`}
+                        >
+                          {statusLabel(item)}
                         </span>
                       </div>
                     ))}

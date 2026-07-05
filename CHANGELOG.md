@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+- **Bulk import (ROADMAP Phase 6):** the import page is now a queue — drop many EPUBs or an entire folder (folder picker + recursive folder drag-drop), each file imports sequentially with per-file status (Queued/Importing/Ready/Failed) and failures skip instead of aborting the batch.
+- **Per-device download management (ROADMAP Phase 6):** the library shows which books' content is cached on this device (dot on the cover + "N/M on device · storage used" summary). Book menu: "Download to this device" (pre-load without opening), "Remove download" (free local space; the book, its progress, and bookmarks are untouched everywhere), "Save EPUB" (renamed from Download), "Delete book" (renamed from Remove).
+
 ## 0.5.0 - 2026-07-05
 - **Structured R2 keys:** objects live under `books/{bookId}/…` (book.epub + cover) via an ownership-checked upload-URL mutation — the bucket is self-documenting.
 - **Blobs → Cloudflare R2 (ROADMAP Phase 5):** raw EPUBs + covers now live in R2 (10 GB free, zero egress) via `@convex-dev/r2`; Convex storage holds no blobs. Parsed content is treated as derived data: new devices seed a book by downloading the EPUB from R2 and re-parsing it locally (`parserVersion` is stamped per book — a device with a stale parse re-seeds automatically, so parser improvements apply retroactively).
