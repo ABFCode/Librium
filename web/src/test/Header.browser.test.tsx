@@ -5,12 +5,15 @@ import Header from '../components/Header'
 
 let authState = { isAuthenticated: false }
 let sessionUser: { email?: string; name?: string } | null = null
+// config.signupEnabled result: undefined while loading, true/false once known.
+let signupEnabled: boolean | undefined = undefined
 const ensureViewer = vi.fn()
 const setTheme = vi.fn()
 
 vi.mock('convex/react', () => ({
   useConvexAuth: () => authState,
   useMutation: () => ensureViewer,
+  useQuery: () => signupEnabled,
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -34,6 +37,7 @@ describe('Header', () => {
   beforeEach(() => {
     authState = { isAuthenticated: false }
     sessionUser = null
+    signupEnabled = undefined
     ensureViewer.mockReset()
     setTheme.mockReset()
   })
@@ -43,6 +47,14 @@ describe('Header', () => {
 
     await expect.element(screen.getByText('Sign in')).toBeVisible()
     await expect.element(screen.getByText('Sign up')).toBeVisible()
+  })
+
+  it('hides sign up when registration is closed', async () => {
+    signupEnabled = false
+    const screen = await render(<Header />)
+
+    await expect.element(screen.getByText('Sign in')).toBeVisible()
+    expect(screen.container.textContent).not.toContain('Sign up')
   })
 
   it('shows navigation and ensures viewer when signed in', async () => {
