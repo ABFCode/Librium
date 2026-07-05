@@ -145,6 +145,10 @@ reading from local storage; total Convex storage usage is near-zero.
 - Auth: close signups (allowlist / disable registration post-setup); remove
   `admin.resetAllData` and `seed.*` from the deployed instance; rate limiting.
 - Deploy: Cloudflare Pages (app) + Convex Cloud (prod deployment) + R2 bucket.
+- Per-environment buckets: the existing bucket stays dev-only; create a fresh
+  prod bucket + token and set the `R2_*` env vars on the cloud deployment
+  (config is per-Convex-deployment — no code change). Add the prod origin to
+  both the bucket CORS policy and the auth trusted origins.
 - Error reporting (optional, decide then).
 **Exit:** Librium usable from any device via a real URL; total infra cost $0/mo
 at current library size.
