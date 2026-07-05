@@ -16,7 +16,11 @@ export const listByUserBook = query({
     if (!userId) {
       return [];
     }
-    await requireBookOwner(ctx, args.bookId);
+    // Graceful when the book was deleted — see userBooks.getUserBook.
+    const book = await ctx.db.get(args.bookId);
+    if (!book || book.ownerId !== userId) {
+      return [];
+    }
     return await ctx.db
       .query("bookmarks")
       .withIndex("by_user_book", (q) =>

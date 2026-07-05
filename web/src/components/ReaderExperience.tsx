@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { useNavigate } from '@tanstack/react-router'
 import { useAction, useConvexAuth, useQuery } from 'convex/react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { api } from '../../convex/_generated/api'
@@ -21,6 +22,7 @@ import {
   cacheSectionBlocks,
   cacheSectionMeta,
   db,
+  deleteLocalBook,
   getLocalBlocks,
   isLocalSectionKey,
   localSectionKey,
@@ -83,6 +85,27 @@ type ReaderExperienceProps = {
 export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const { isAuthenticated } = useConvexAuth()
   const canQuery = isAuthenticated
+  const navigate = useNavigate()
+
+  // If the book was deleted (possibly from another device) while open here,
+  // purge the local copy and return to the library instead of erroring.
+  const remoteBook = useQuery(
+    api.books.getBook,
+    canQuery ? { bookId: bookId as never } : 'skip',
+  )
+  useEffect(() => {
+    if (!canQuery || remoteBook !== null) {
+      return
+    }
+    void (async () => {
+      try {
+        await deleteLocalBook(bookId)
+      } catch {
+        // Purge retried by the library reconcile.
+      }
+      void navigate({ to: '/library' })
+    })()
+  }, [canQuery, remoteBook, bookId, navigate])
   // Local-first: IndexedDB is the read source; Convex is the fallback for
   // books that are not on this device (and the source for cache-fill).
   const localSectionRows = useLiveQuery(

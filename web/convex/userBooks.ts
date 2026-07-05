@@ -44,7 +44,12 @@ export const getUserBook = query({
     if (!userId) {
       return null;
     }
-    await requireBookOwner(ctx, args.bookId);
+    // Graceful when the book was deleted (possibly from another device) —
+    // a live reader subscription must not explode into an error page.
+    const book = await ctx.db.get(args.bookId);
+    if (!book || book.ownerId !== userId) {
+      return null;
+    }
     return await ctx.db
       .query("userBooks")
       .withIndex("by_user_book", (q) =>

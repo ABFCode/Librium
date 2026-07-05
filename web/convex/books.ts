@@ -68,6 +68,25 @@ export const listByOwner = query({
   },
 });
 
+// Graceful single-book lookup: null when missing or not owned — never throws.
+// Clients use null as the definitive "deleted elsewhere" signal.
+export const getBook = query({
+  args: {
+    bookId: v.id("books"),
+  },
+  handler: async (ctx, args) => {
+    const viewerId = await getViewerUserId(ctx);
+    if (!viewerId) {
+      return null;
+    }
+    const book = await ctx.db.get(args.bookId);
+    if (!book || book.ownerId !== viewerId) {
+      return null;
+    }
+    return book;
+  },
+});
+
 const DELETE_BATCH = 256;
 
 /**
