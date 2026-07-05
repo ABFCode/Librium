@@ -1,16 +1,61 @@
 import { Link } from '@tanstack/react-router'
 import { useAction, useConvex, useConvexAuth, useQuery } from 'convex/react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { api } from '../../convex/_generated/api'
 import { RequireAuth } from './RequireAuth'
 import { useEffect, useMemo, useState } from 'react'
-import { deleteLocalBook } from '../lib/db'
+import { db, deleteLocalBook } from '../lib/db'
+
+type LibraryBook = {
+  _id: string
+  title: string
+  author?: string | null
+  sectionCount?: number
+  createdAt?: number
+  updatedAt?: number
+}
+
+// Grace period before purging a local book missing from the remote list —
+// covers the moment between a fresh import's local write and the reactive
+// remote list catching up.
+const PURGE_GRACE_MS = 60_000
 
 export function Library() {
   const convex = useConvex()
   const { isAuthenticated } = useConvexAuth()
   const canQuery = isAuthenticated
   const deleteBook = useAction(api.books.deleteBook)
-  const books = useQuery(api.books.listByOwner, canQuery ? {} : 'skip')
+
+  // Local-first: the shelf renders from IndexedDB when the server list is
+  // unavailable (offline); the remote list is authoritative when present.
+  const remoteBooks = useQuery(api.books.listByOwner, canQuery ? {} : 'skip')
+  const localBooks = useLiveQuery(() => db.books.toArray(), [])
+  const localProgress = useLiveQuery(() => db.progress.toArray(), [])
+
+  const books: LibraryBook[] | undefined = useMemo(() => {
+    if (remoteBooks) {
+      return remoteBooks as LibraryBook[]
+    }
+    if (localBooks === undefined) {
+      return undefined
+    }
+    if (localBooks.length > 0) {
+      const progressTimes = new Map(
+        (localProgress ?? []).map((p) => [p.bookId, p.editedAt]),
+      )
+      return localBooks.map((b) => ({
+        _id: b.bookId,
+        title: b.title,
+        author: b.author,
+        sectionCount: b.sectionCount,
+        createdAt: b.addedAt,
+        updatedAt: progressTimes.get(b.bookId) ?? b.addedAt,
+      }))
+    }
+    // Empty local shelf: online, wait for the server; offline, show empty.
+    return canQuery ? undefined : []
+  }, [remoteBooks, localBooks, localProgress, canQuery])
+
   const progressEntries = useQuery(
     api.userBooks.listByUser,
     canQuery ? {} : 'skip',
@@ -19,10 +64,121 @@ export function Library() {
     api.userBooks.listRecentByUser,
     canQuery ? { limit: books?.length ?? 200 } : 'skip',
   )
-  const coverUrls = useQuery(
-    api.books.getCoverUrls,
-    canQuery && books ? { bookIds: books.map((book) => book._id) } : 'skip',
+
+  // Covers: object URLs from local blobs; ask the server only for the rest.
+  const [localCoverUrls, setLocalCoverUrls] = useState<Record<string, string>>(
+    {},
   )
+  useEffect(() => {
+    if (!localBooks) {
+      return
+    }
+    const created: string[] = []
+    const urls: Record<string, string> = {}
+    for (const b of localBooks) {
+      if (b.coverBlob) {
+        const url = URL.createObjectURL(b.coverBlob)
+        urls[b.bookId] = url
+        created.push(url)
+      }
+    }
+    setLocalCoverUrls(urls)
+    return () => {
+      created.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [localBooks])
+
+  const missingCoverIds = useMemo(
+    () => (books ?? []).map((b) => b._id).filter((id) => !localCoverUrls[id]),
+    [books, localCoverUrls],
+  )
+  const remoteCoverUrls = useQuery(
+    api.books.getCoverUrls,
+    canQuery && missingCoverIds.length > 0
+      ? { bookIds: missingCoverIds as never }
+      : 'skip',
+  )
+  const coverUrls = useMemo(
+    () => ({ ...(remoteCoverUrls ?? {}), ...localCoverUrls }),
+    [remoteCoverUrls, localCoverUrls],
+  )
+
+  // Reconcile local ↔ remote: purge local copies of books deleted elsewhere,
+  // and cache-fill shelf rows for books imported on another device.
+  useEffect(() => {
+    if (!remoteBooks || localBooks === undefined) {
+      return
+    }
+    const remoteIds = new Set(remoteBooks.map((b) => b._id as string))
+    const localIds = new Set(localBooks.map((b) => b.bookId))
+    void (async () => {
+      for (const local of localBooks) {
+        if (
+          !remoteIds.has(local.bookId) &&
+          Date.now() - local.addedAt > PURGE_GRACE_MS
+        ) {
+          try {
+            await deleteLocalBook(local.bookId)
+          } catch {
+            // Retried on the next reconcile.
+          }
+        }
+      }
+      for (const remote of remoteBooks) {
+        if (!localIds.has(remote._id as string)) {
+          try {
+            await db.books.put({
+              bookId: remote._id as string,
+              title: remote.title,
+              author: remote.author ?? undefined,
+              sectionCount: remote.sectionCount ?? 0,
+              // Metadata-only row: blocks arrive via reader cache-fill; the
+              // parser version applies only once blocks exist.
+              parserVersion: '',
+              addedAt: Date.now(),
+            })
+          } catch {
+            // IndexedDB unavailable — shelf still renders from the server.
+          }
+        }
+      }
+    })()
+  }, [remoteBooks, localBooks])
+
+  // Cache-fill remote covers into IndexedDB so the shelf has art offline.
+  useEffect(() => {
+    if (!remoteCoverUrls) {
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      for (const [bookId, url] of Object.entries(remoteCoverUrls)) {
+        if (cancelled || !url) {
+          continue
+        }
+        try {
+          const row = await db.books.get(bookId)
+          if (!row || row.coverBlob) {
+            continue
+          }
+          const res = await fetch(url)
+          if (!res.ok) {
+            continue
+          }
+          const blob = await res.blob()
+          await db.books.update(bookId, {
+            coverBlob: blob,
+            coverType: blob.type || undefined,
+          })
+        } catch {
+          // Offline or transient — retried next visit.
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [remoteCoverUrls])
   const [query, setQuery] = useState('')
   const [sortBy, setSortBy] = useState<'recent' | 'title' | 'author' | 'progress'>('recent')
   const [error, setError] = useState<string | null>(null)
@@ -51,11 +207,31 @@ export function Library() {
   }, [sortBy])
 
   const progressByBookId = useMemo(() => {
-    if (!progressEntries) {
-      return new Map<string, (typeof progressEntries)[number]>()
+    const map = new Map<string, { progress: number; updatedAt?: number }>()
+    if (progressEntries) {
+      for (const entry of progressEntries) {
+        map.set(entry.bookId, {
+          progress: entry.progress,
+          updatedAt: entry.updatedAt,
+        })
+      }
+      return map
     }
-    return new Map(progressEntries.map((entry) => [entry.bookId, entry]))
-  }, [progressEntries])
+    // Offline: derive progress from the local records.
+    if (localProgress) {
+      const counts = new Map(
+        (localBooks ?? []).map((b) => [b.bookId, b.sectionCount]),
+      )
+      for (const p of localProgress) {
+        const total = counts.get(p.bookId) ?? 0
+        map.set(p.bookId, {
+          progress: total > 0 ? (p.sectionIndex + 1) / total : 0,
+          updatedAt: p.editedAt,
+        })
+      }
+    }
+    return map
+  }, [progressEntries, localProgress, localBooks])
 
   const recentOrder = useMemo(() => {
     if (!recentEntries) {
