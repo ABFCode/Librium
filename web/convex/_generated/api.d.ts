@@ -11,8 +11,10 @@
 import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
 import type * as authHelpers from "../authHelpers.js";
+import type * as authPolicy from "../authPolicy.js";
 import type * as bookmarks from "../bookmarks.js";
 import type * as books from "../books.js";
+import type * as config from "../config.js";
 import type * as http from "../http.js";
 import type * as r2 from "../r2.js";
 import type * as seed from "../seed.js";
@@ -30,8 +32,10 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   auth: typeof auth;
   authHelpers: typeof authHelpers;
+  authPolicy: typeof authPolicy;
   bookmarks: typeof bookmarks;
   books: typeof books;
+  config: typeof config;
   http: typeof http;
   r2: typeof r2;
   seed: typeof seed;

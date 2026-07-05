@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useEffect } from 'react'
-import { useConvexAuth, useMutation } from 'convex/react'
+import { useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
 import { authClient } from '../lib/auth-client'
 import { useUserSettings } from '../hooks/useUserSettings'
@@ -10,6 +10,8 @@ export default function Header() {
   const user = session?.user
   const { isAuthenticated } = useConvexAuth()
   const ensureViewer = useMutation(api.users.ensureViewer)
+  // Hide the sign-up link when registration is closed on this instance.
+  const signupEnabled = useQuery(api.config.signupEnabled)
   const showNav = Boolean(user)
   const { theme, setTheme } = useUserSettings()
 
@@ -110,9 +112,11 @@ export default function Header() {
               <Link className="btn btn-ghost text-xs" to="/sign-in">
                 Sign in
               </Link>
-              <Link className="btn btn-primary text-xs" to="/sign-up">
-                Sign up
-              </Link>
+              {signupEnabled === false ? null : (
+                <Link className="btn btn-primary text-xs" to="/sign-up">
+                  Sign up
+                </Link>
+              )}
             </>
           )}
         </div>

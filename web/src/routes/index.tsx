@@ -1,12 +1,14 @@
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
-import { useConvexAuth } from 'convex/react'
+import { useConvexAuth, useQuery } from 'convex/react'
+import { api } from '../../convex/_generated/api'
 
 export const Route = createFileRoute('/')({ component: Landing })
 
 function Landing() {
   const navigate = useNavigate()
   const { isAuthenticated, isLoading } = useConvexAuth()
+  const signupEnabled = useQuery(api.config.signupEnabled)
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
@@ -41,9 +43,11 @@ function Landing() {
             <Link className="btn btn-primary" to="/sign-in">
               Sign in
             </Link>
-            <Link className="btn btn-ghost" to="/sign-up">
-              Create account
-            </Link>
+            {signupEnabled === false ? null : (
+              <Link className="btn btn-ghost" to="/sign-up">
+                Create account
+              </Link>
+            )}
           </div>
         </section>
 
