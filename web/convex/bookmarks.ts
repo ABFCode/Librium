@@ -3,7 +3,6 @@ import { v } from "convex/values";
 import {
   getViewerUserId,
   requireBookOwner,
-  requireSectionOwner,
   requireViewerUserId,
 } from "./authHelpers";
 
@@ -33,8 +32,7 @@ export const listByUserBook = query({
 export const createBookmark = mutation({
   args: {
     bookId: v.id("books"),
-    sectionId: v.id("sections"),
-    sectionIndex: v.optional(v.number()),
+    sectionIndex: v.number(),
     blockIndex: v.number(),
     offset: v.number(),
     label: v.optional(v.string()),
@@ -45,10 +43,6 @@ export const createBookmark = mutation({
   handler: async (ctx, args) => {
     const userId = await requireViewerUserId(ctx);
     await requireBookOwner(ctx, args.bookId);
-    const { section } = await requireSectionOwner(ctx, args.sectionId);
-    if (section.bookId !== args.bookId) {
-      throw new Error("Section does not belong to this book.");
-    }
     const now = Date.now();
     if (args.clientKey) {
       const existing = await ctx.db
@@ -65,7 +59,6 @@ export const createBookmark = mutation({
     return await ctx.db.insert("bookmarks", {
       userId,
       bookId: args.bookId,
-      sectionId: args.sectionId,
       sectionIndex: args.sectionIndex,
       blockIndex: args.blockIndex,
       offset: args.offset,

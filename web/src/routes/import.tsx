@@ -1,8 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { RequireAuth } from '../components/RequireAuth'
 import { useImportFlow } from '../hooks/useImportFlow'
-import { useMutation } from 'convex/react'
-import { api } from '../../convex/_generated/api'
 
 export const Route = createFileRoute('/import')({
   component: ImportPage,
@@ -14,15 +12,13 @@ function ImportPage() {
     isDragging,
     setIsDragging,
     result,
+    completed,
     error,
     isUploading,
-    importJobs,
     isAuthenticated,
-    statusLabel,
     submit,
     addFiles,
   } = useImportFlow()
-  const clearJobs = useMutation(api.importJobs.clearImportJobs)
 
   return (
     <RequireAuth>
@@ -160,47 +156,27 @@ function ImportPage() {
               </div>
 
               <div className="surface-soft rounded-2xl p-5">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs uppercase tracking-[0.35em] text-[var(--accent-3)]">
-                    Recent
-                  </div>
-                  {isAuthenticated ? (
-                    <button
-                      className="text-[10px] uppercase tracking-[0.3em] text-[var(--muted-2)] hover:text-[var(--ink)]"
-                      onClick={() => clearJobs({})}
-                    >
-                      Clear
-                    </button>
-                  ) : null}
+                <div className="text-xs uppercase tracking-[0.35em] text-[var(--accent-3)]">
+                  This session
                 </div>
-                {!importJobs ? (
-                  <p className="mt-3 text-sm text-[var(--muted)]">Loading uploads...</p>
-                ) : importJobs.length === 0 ? (
-                  <p className="mt-3 text-sm text-[var(--muted)]">No uploads yet.</p>
+                {completed.length === 0 ? (
+                  <p className="mt-3 text-sm text-[var(--muted)]">
+                    No uploads yet.
+                  </p>
                 ) : (
                   <div className="mt-3 space-y-2">
-                    {importJobs.map((job) => (
+                    {completed.map((item, index) => (
                       <div
-                        key={job._id}
+                        key={`${item.fileName}-${index}`}
                         className="flex items-center justify-between gap-4 rounded-2xl border border-white/5 bg-[rgba(12,15,18,0.6)] px-3 py-2 text-xs"
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="truncate font-semibold">{job.fileName}</div>
+                          <div className="truncate font-semibold">
+                            {item.fileName}
+                          </div>
                         </div>
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.25em] ${
-                            job.status === 'completed'
-                              ? 'bg-emerald-500/20 text-emerald-200'
-                              : job.status === 'failed'
-                                ? 'bg-rose-500/20 text-rose-200'
-                                : job.status === 'ingesting'
-                                  ? 'bg-[rgba(143,181,166,0.2)] text-[var(--accent-2)]'
-                                  : job.status === 'parsing'
-                                    ? 'bg-indigo-500/20 text-indigo-200'
-                                    : 'bg-white/5 text-[var(--muted)]'
-                          }`}
-                        >
-                          {statusLabel(job.status)}
+                        <span className="rounded-full bg-emerald-500/20 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.25em] text-emerald-200">
+                          Ready
                         </span>
                       </div>
                     ))}

@@ -95,6 +95,10 @@ Conflict policy per record type:
 
 ## Phases
 
+*Status: Phases 1–4 shipped in v0.4.0; Phase 5 landed after it (unreleased).
+Remaining: Phase 6 (bulk import, per-device downloads) and Phase 7 (harden +
+deploy).*
+
 ### Phase 1 — Static SPA conversion
 Drop TanStack Start/nitro; ship a plain Vite + TanStack Router SPA. Keep all
 routes/components (Start is built on Router — this is subtraction). Verify Better

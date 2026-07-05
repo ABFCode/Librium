@@ -1,54 +1,81 @@
 import { action, internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import {
-  getViewerUserId,
-  requireBookOwner,
-  requireViewerUserId,
-} from "./authHelpers";
+import { getViewerUserId, requireBookOwner, requireViewerUserId } from "./authHelpers";
+import { r2 } from "./r2";
 
-export const createBook = mutation({
-  args: {
-    title: v.string(),
-    author: v.optional(v.string()),
-    language: v.optional(v.string()),
-    publisher: v.optional(v.string()),
-    publishedAt: v.optional(v.string()),
-    series: v.optional(v.string()),
-    seriesIndex: v.optional(v.string()),
-    subjects: v.optional(v.array(v.string())),
-    coverStorageId: v.optional(v.id("_storage")),
-    coverContentType: v.optional(v.string()),
-    identifiers: v.optional(
-      v.array(
-        v.object({
-          id: v.string(),
-          scheme: v.string(),
-          value: v.string(),
-          type: v.string(),
-        }),
-      ),
+const metadataSchema = v.object({
+  title: v.string(),
+  author: v.optional(v.string()),
+  language: v.optional(v.string()),
+  publisher: v.optional(v.string()),
+  publishedAt: v.optional(v.string()),
+  series: v.optional(v.string()),
+  seriesIndex: v.optional(v.string()),
+  subjects: v.optional(v.array(v.string())),
+  identifiers: v.optional(
+    v.array(
+      v.object({ id: v.string(), scheme: v.string(), value: v.string(), type: v.string() }),
     ),
+  ),
+});
+
+/**
+ * Register an imported book (metadata only — the client has already parsed it
+ * locally). Blob uploads to R2 happen after this and land via attachFiles, so
+ * the book is readable on the importing device before any upload completes.
+ */
+export const registerImport = mutation({
+  args: {
+    fileName: v.string(),
+    fileSize: v.number(),
+    sectionCount: v.number(),
+    metadata: metadataSchema,
   },
   handler: async (ctx, args) => {
-    const ownerId = await requireViewerUserId(ctx);
+    const userId = await requireViewerUserId(ctx);
     const now = Date.now();
-    return await ctx.db.insert("books", {
-      ownerId,
-      title: args.title,
-      author: args.author,
-      language: args.language,
-      publisher: args.publisher,
-      publishedAt: args.publishedAt,
-      series: args.series,
-      seriesIndex: args.seriesIndex,
-      subjects: args.subjects,
-      coverStorageId: args.coverStorageId,
-      coverContentType: args.coverContentType,
-      identifiers: args.identifiers,
-      sectionCount: 0,
+    const m = args.metadata;
+    const bookId = await ctx.db.insert("books", {
+      ownerId: userId,
+      title: m.title || args.fileName.replace(/\.epub$/i, ""),
+      author: m.author,
+      language: m.language,
+      publisher: m.publisher,
+      publishedAt: m.publishedAt,
+      series: m.series,
+      seriesIndex: m.seriesIndex,
+      subjects: m.subjects,
+      identifiers: m.identifiers,
+      sectionCount: args.sectionCount,
+      fileName: args.fileName,
+      fileSize: args.fileSize,
       createdAt: now,
       updatedAt: now,
+    });
+    await ctx.db.insert("userBooks", {
+      userId,
+      bookId,
+      lastSectionIndex: 0,
+      updatedAt: now,
+    });
+    return bookId;
+  },
+});
+
+/** Attach the R2 object keys once the client uploads complete. */
+export const attachFiles = mutation({
+  args: {
+    bookId: v.id("books"),
+    epubKey: v.optional(v.string()),
+    coverKey: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireBookOwner(ctx, args.bookId);
+    await ctx.db.patch(args.bookId, {
+      ...(args.epubKey ? { epubKey: args.epubKey } : {}),
+      ...(args.coverKey ? { coverKey: args.coverKey } : {}),
+      updatedAt: Date.now(),
     });
   },
 });
@@ -87,98 +114,24 @@ export const getBook = query({
   },
 });
 
-const DELETE_BATCH = 256;
-
 /**
- * Delete a book. Sections/assets are removed in bounded chunks so large books
- * (thousands of chapters) don't exceed Convex's per-mutation read limit.
+ * Signed R2 URL for the raw EPUB — device seeding (download → re-parse →
+ * IndexedDB) and the library download button.
  */
-export const deleteBook = action({
+export const getEpubUrl = query({
   args: {
     bookId: v.id("books"),
   },
-  handler: async (ctx, args): Promise<void> => {
-    let more = true;
-    while (more) {
-      more = await ctx.runMutation(internal.books.deleteBookChunk, {
-        bookId: args.bookId,
-      });
-    }
-    await ctx.runMutation(internal.books.deleteBookFinal, { bookId: args.bookId });
-  },
-});
-
-export const deleteBookChunk = internalMutation({
-  args: { bookId: v.id("books") },
-  handler: async (ctx, args): Promise<boolean> => {
-    await requireBookOwner(ctx, args.bookId);
-    let deleted = 0;
-
-    const sections = await ctx.db
-      .query("sections")
-      .withIndex("by_book", (q) => q.eq("bookId", args.bookId))
-      .take(DELETE_BATCH);
-    for (const section of sections) {
-      if (section.contentStorageId) {
-        await ctx.storage.delete(section.contentStorageId);
-      }
-      await ctx.db.delete(section._id);
-      deleted += 1;
-    }
-    if (deleted >= DELETE_BATCH) return true;
-
-    const assets = await ctx.db
-      .query("bookAssets")
-      .withIndex("by_book", (q) => q.eq("bookId", args.bookId))
-      .take(DELETE_BATCH - deleted);
-    for (const asset of assets) {
-      await ctx.storage.delete(asset.storageId);
-      await ctx.db.delete(asset._id);
-      deleted += 1;
-    }
-    return deleted >= DELETE_BATCH;
-  },
-});
-
-export const deleteBookFinal = internalMutation({
-  args: { bookId: v.id("books") },
   handler: async (ctx, args) => {
-    const { viewerId, book } = await requireBookOwner(ctx, args.bookId);
-
-    const files = await ctx.db
-      .query("bookFiles")
-      .withIndex("by_book", (q) => q.eq("bookId", args.bookId))
-      .collect();
-    for (const file of files) {
-      await ctx.storage.delete(file.storageId);
-      await ctx.db.delete(file._id);
+    const viewerId = await getViewerUserId(ctx);
+    if (!viewerId) {
+      return null;
     }
-
-    const userBooks = await ctx.db
-      .query("userBooks")
-      .withIndex("by_user_book", (q) =>
-        q.eq("userId", viewerId).eq("bookId", args.bookId),
-      )
-      .collect();
-    for (const entry of userBooks) {
-      await ctx.db.delete(entry._id);
+    const book = await ctx.db.get(args.bookId);
+    if (!book || book.ownerId !== viewerId || !book.epubKey) {
+      return null;
     }
-
-    const bookmarks = await ctx.db
-      .query("bookmarks")
-      .withIndex("by_user_book", (q) =>
-        q.eq("userId", viewerId).eq("bookId", args.bookId),
-      )
-      .collect();
-    for (const bookmark of bookmarks) {
-      await ctx.db.delete(bookmark._id);
-    }
-
-    if (book.coverStorageId) {
-      await ctx.storage.delete(book.coverStorageId);
-    }
-
-    await ctx.db.delete(args.bookId);
+    return await r2.getUrl(book.epubKey, { expiresIn: 60 * 60 });
   },
 });
 
@@ -191,19 +144,61 @@ export const getCoverUrls = query({
     if (!viewerId) {
       return {};
     }
-    const result: Record<string, string | null> = {};
+    const result: Record<string, string> = {};
     for (const bookId of args.bookIds) {
       const book = await ctx.db.get(bookId);
-      if (!book || book.ownerId !== viewerId) {
-        result[bookId] = null;
+      if (!book || book.ownerId !== viewerId || !book.coverKey) {
         continue;
       }
-      if (!book.coverStorageId) {
-        result[bookId] = null;
-        continue;
-      }
-      result[bookId] = await ctx.storage.getUrl(book.coverStorageId);
+      result[bookId] = await r2.getUrl(book.coverKey, { expiresIn: 60 * 60 });
     }
     return result;
+  },
+});
+
+export const deleteBookData = internalMutation({
+  args: {
+    bookId: v.id("books"),
+  },
+  handler: async (ctx, args) => {
+    const { book } = await requireBookOwner(ctx, args.bookId);
+    const userBooks = await ctx.db
+      .query("userBooks")
+      .withIndex("by_book", (q) => q.eq("bookId", args.bookId))
+      .collect();
+    for (const entry of userBooks) {
+      await ctx.db.delete(entry._id);
+    }
+    const bookmarks = await ctx.db
+      .query("bookmarks")
+      .withIndex("by_book", (q) => q.eq("bookId", args.bookId))
+      .collect();
+    for (const bookmark of bookmarks) {
+      await ctx.db.delete(bookmark._id);
+    }
+    await ctx.db.delete(args.bookId);
+    return { epubKey: book.epubKey, coverKey: book.coverKey };
+  },
+});
+
+/**
+ * Delete a book: rows in one mutation (content tables no longer exist, so no
+ * batching needed), then the R2 objects.
+ */
+export const deleteBook = action({
+  args: {
+    bookId: v.id("books"),
+  },
+  handler: async (ctx, args) => {
+    const { epubKey, coverKey } = await ctx.runMutation(
+      internal.books.deleteBookData,
+      { bookId: args.bookId },
+    );
+    if (epubKey) {
+      await r2.deleteObject(ctx, epubKey);
+    }
+    if (coverKey) {
+      await r2.deleteObject(ctx, coverKey);
+    }
   },
 });

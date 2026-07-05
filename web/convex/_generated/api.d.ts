@@ -11,17 +11,11 @@
 import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
 import type * as authHelpers from "../authHelpers.js";
-import type * as bookAssets from "../bookAssets.js";
-import type * as bookFiles from "../bookFiles.js";
 import type * as bookmarks from "../bookmarks.js";
 import type * as books from "../books.js";
 import type * as http from "../http.js";
-import type * as importJobs from "../importJobs.js";
-import type * as ingest from "../ingest.js";
-import type * as reader from "../reader.js";
-import type * as sections from "../sections.js";
+import type * as r2 from "../r2.js";
 import type * as seed from "../seed.js";
-import type * as storage from "../storage.js";
 import type * as userBooks from "../userBooks.js";
 import type * as userSettings from "../userSettings.js";
 import type * as users from "../users.js";
@@ -36,17 +30,11 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   auth: typeof auth;
   authHelpers: typeof authHelpers;
-  bookAssets: typeof bookAssets;
-  bookFiles: typeof bookFiles;
   bookmarks: typeof bookmarks;
   books: typeof books;
   http: typeof http;
-  importJobs: typeof importJobs;
-  ingest: typeof ingest;
-  reader: typeof reader;
-  sections: typeof sections;
+  r2: typeof r2;
   seed: typeof seed;
-  storage: typeof storage;
   userBooks: typeof userBooks;
   userSettings: typeof userSettings;
   users: typeof users;
@@ -80,4 +68,5 @@ export declare const internal: FilterApi<
 
 export declare const components: {
   betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
+  r2: import("@convex-dev/r2/_generated/component.js").ComponentApi<"r2">;
 };

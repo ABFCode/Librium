@@ -10,6 +10,10 @@ vi.mock('convex/react', () => ({
   useConvex: () => ({ query: vi.fn() }),
 }))
 
+vi.mock('@convex-dev/r2/react', () => ({
+  useUploadFile: () => vi.fn(async () => 'test-key'),
+}))
+
 describe('useImportFlow', () => {
   it('filters non-epub files and reports an error', async () => {
     const { result, act } = await renderHook(() => useImportFlow())
@@ -47,16 +51,5 @@ describe('useImportFlow', () => {
       result.current.addFiles([duplicate])
     })
     expect(result.current.files).toHaveLength(2)
-  })
-
-  it('maps import job status to user-facing labels', async () => {
-    const { result } = await renderHook(() => useImportFlow())
-
-    expect(result.current.statusLabel('completed')).toBe('Ready')
-    expect(result.current.statusLabel('failed')).toBe('Failed')
-    expect(result.current.statusLabel('parsing')).toBe('Processing')
-    expect(result.current.statusLabel('ingesting')).toBe('Processing')
-    expect(result.current.statusLabel('queued')).toBe('Queued')
-    expect(result.current.statusLabel('unknown')).toBe('Queued')
   })
 })

@@ -27,15 +27,9 @@ export type EffectiveProgress = {
 type UseProgressSyncArgs = {
   bookId: string
   canQuery: boolean
-  // Convex section id for a section index, or null if not known yet.
-  resolveSectionId: (sectionIndex: number) => string | null
 }
 
-export function useProgressSync({
-  bookId,
-  canQuery,
-  resolveSectionId,
-}: UseProgressSyncArgs) {
+export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
   const updateProgress = useMutation(api.userBooks.updateProgress)
   const remote = useQuery(
     api.userBooks.getUserBook,
@@ -118,15 +112,10 @@ export function useProgressSync({
     if (!canQuery || !local || !local.dirty || pushingRef.current) {
       return
     }
-    const sectionId = resolveSectionId(local.sectionIndex)
-    if (!sectionId) {
-      return
-    }
     pushingRef.current = true
     const editedAt = local.editedAt
     void updateProgress({
       bookId: bookId as never,
-      lastSectionId: sectionId as never,
       lastSectionIndex: local.sectionIndex,
       lastBlockIndex: local.blockIndex,
       lastBlockOffset: local.blockOffset,
@@ -149,7 +138,7 @@ export function useProgressSync({
       .finally(() => {
         pushingRef.current = false
       })
-  }, [canQuery, local, bookId, resolveSectionId, updateProgress])
+  }, [canQuery, local, bookId, updateProgress])
 
   const saveProgress = useCallback(
     async (args: {

@@ -1,6 +1,11 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+// Blobs live in Cloudflare R2 (raw EPUB + cover only — ROADMAP Phase 5).
+// Parsed content is derived data: devices re-parse the EPUB locally, so there
+// are no section/asset tables server-side. Convex holds auth, book metadata,
+// and the tiny sync plane (progress, bookmarks).
+
 const users = defineTable({
   authProvider: v.string(),
   externalId: v.string(),
@@ -19,8 +24,6 @@ const books = defineTable({
   series: v.optional(v.string()),
   seriesIndex: v.optional(v.string()),
   subjects: v.optional(v.array(v.string())),
-  coverStorageId: v.optional(v.id("_storage")),
-  coverContentType: v.optional(v.string()),
   identifiers: v.optional(
     v.array(
       v.object({
@@ -32,63 +35,19 @@ const books = defineTable({
     ),
   ),
   sectionCount: v.optional(v.number()),
+  // R2 object keys. epubKey is the master copy (device seeding + download);
+  // set by attachFiles once the client upload completes.
+  epubKey: v.optional(v.string()),
+  coverKey: v.optional(v.string()),
+  fileName: v.optional(v.string()),
+  fileSize: v.optional(v.number()),
   createdAt: v.number(),
   updatedAt: v.number(),
 }).index("by_owner", ["ownerId", "updatedAt"]);
 
-const bookFiles = defineTable({
-  bookId: v.id("books"),
-  storageId: v.id("_storage"),
-  fileName: v.string(),
-  fileSize: v.number(),
-  contentType: v.optional(v.string()),
-  createdAt: v.number(),
-}).index("by_book", ["bookId"]);
-
-const sections = defineTable({
-  bookId: v.id("books"),
-  parentId: v.optional(v.id("sections")),
-  title: v.string(),
-  href: v.optional(v.string()),
-  anchor: v.optional(v.string()),
-  orderIndex: v.number(),
-  depth: v.number(),
-  contentStorageId: v.optional(v.id("_storage")),
-  contentSize: v.optional(v.number()),
-  createdAt: v.number(),
-})
-  .index("by_book", ["bookId"])
-  .index("by_book_order", ["bookId", "orderIndex"]);
-
-const bookAssets = defineTable({
-  bookId: v.id("books"),
-  href: v.string(),
-  storageId: v.id("_storage"),
-  contentType: v.optional(v.string()),
-  byteSize: v.optional(v.number()),
-  createdAt: v.number(),
-})
-  .index("by_book", ["bookId"])
-  .index("by_book_href", ["bookId", "href"]);
-
-const importJobs = defineTable({
-  userId: v.id("users"),
-  bookId: v.optional(v.id("books")),
-  storageId: v.optional(v.id("_storage")),
-  fileName: v.string(),
-  fileSize: v.number(),
-  contentType: v.optional(v.string()),
-  status: v.string(),
-  errorMessage: v.optional(v.string()),
-  createdAt: v.number(),
-  startedAt: v.optional(v.number()),
-  finishedAt: v.optional(v.number()),
-}).index("by_user_created", ["userId", "createdAt"]);
-
 const userBooks = defineTable({
   userId: v.id("users"),
   bookId: v.id("books"),
-  lastSectionId: v.optional(v.id("sections")),
   lastSectionIndex: v.number(),
   lastBlockIndex: v.optional(v.number()),
   lastBlockOffset: v.optional(v.number()),
@@ -113,9 +72,7 @@ const userSettings = defineTable({
 const bookmarks = defineTable({
   userId: v.id("users"),
   bookId: v.id("books"),
-  sectionId: v.id("sections"),
-  // Order index of the section — lets clients render/jump without an id map.
-  sectionIndex: v.optional(v.number()),
+  sectionIndex: v.number(),
   blockIndex: v.number(),
   offset: v.number(),
   label: v.optional(v.string()),
@@ -126,15 +83,13 @@ const bookmarks = defineTable({
   clientKey: v.optional(v.string()),
   updatedAt: v.optional(v.number()),
   deletedAt: v.optional(v.number()),
-}).index("by_user_book", ["userId", "bookId"]);
+})
+  .index("by_user_book", ["userId", "bookId"])
+  .index("by_book", ["bookId"]);
 
 export default defineSchema({
   users,
   books,
-  bookFiles,
-  sections,
-  bookAssets,
-  importJobs,
   userBooks,
   userSettings,
   bookmarks,

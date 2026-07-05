@@ -141,80 +141,12 @@ export async function saveImportedBook(input: {
   })
 }
 
-export async function backfillSectionIds(
-  bookId: string,
-  pairs: { orderIndex: number; convexId: string }[],
-) {
-  await db.transaction('rw', db.sections, async () => {
-    for (const { orderIndex, convexId } of pairs) {
-      await db.sections
-        .where('[bookId+orderIndex]')
-        .equals([bookId, orderIndex])
-        .modify({ convexId })
-    }
-  })
-}
-
-// ── Cache-fill path (book imported on another device) ───────────────────────
-
-export async function cacheSectionMeta(
-  bookId: string,
-  rows: {
-    orderIndex: number
-    convexId: string
-    title: string
-    depth: number
-    href?: string
-    anchor?: string
-  }[],
-) {
-  await db.transaction('rw', db.sections, async () => {
-    const keys = rows.map((r) => [bookId, r.orderIndex] as [string, number])
-    const existing = await db.sections.bulkGet(keys)
-    const toPut: LocalSection[] = []
-    rows.forEach((row, i) => {
-      const current = existing[i]
-      // Preserve already-cached blocks; only add/refresh metadata.
-      toPut.push({ bookId, ...row, blocks: current?.blocks })
-    })
-    await db.sections.bulkPut(toPut)
-  })
-}
-
-export async function cacheSectionBlocks(
-  bookId: string,
-  orderIndex: number,
-  blocks: unknown[],
-  convexId?: string,
-) {
-  const existing = await db.sections.get([bookId, orderIndex])
-  await db.sections.put({
-    bookId,
-    orderIndex,
-    convexId: convexId ?? existing?.convexId,
-    title: existing?.title ?? '',
-    depth: existing?.depth ?? 0,
-    href: existing?.href,
-    anchor: existing?.anchor,
-    blocks,
-  })
-}
-
 export async function getLocalBlocks(
   bookId: string,
   orderIndex: number,
 ): Promise<unknown[] | null> {
   const row = await db.sections.get([bookId, orderIndex])
   return row?.blocks ?? null
-}
-
-export async function cacheImage(
-  bookId: string,
-  href: string,
-  blob: Blob,
-  contentType?: string,
-) {
-  await db.images.put({ bookId, href, blob, contentType })
 }
 
 // ── Delete parity ────────────────────────────────────────────────────────────

@@ -62,7 +62,6 @@ export const getUserBook = query({
 export const updateProgress = mutation({
   args: {
     bookId: v.id("books"),
-    lastSectionId: v.optional(v.id("sections")),
     lastSectionIndex: v.optional(v.number()),
     lastBlockIndex: v.optional(v.number()),
     lastBlockOffset: v.optional(v.number()),
@@ -91,7 +90,6 @@ export const updateProgress = mutation({
 
     const now = Date.now();
     const patch = {
-      lastSectionId: args.lastSectionId ?? existing?.lastSectionId ?? undefined,
       lastSectionIndex: args.lastSectionIndex ?? existing?.lastSectionIndex ?? 0,
       lastBlockIndex: args.lastBlockIndex ?? existing?.lastBlockIndex ?? undefined,
       lastBlockOffset: args.lastBlockOffset ?? existing?.lastBlockOffset ?? undefined,
@@ -135,7 +133,6 @@ export const listRecentByUser = query({
         results.push({
           entryId: entry._id,
           book,
-          lastSectionId: entry.lastSectionId,
           updatedAt: entry.updatedAt,
         });
       }
@@ -167,7 +164,6 @@ export const listByUser = query({
       const progress = totalSections > 0 ? (lastIndex + 1) / totalSections : 0;
       results.push({
         bookId: entry.bookId,
-        lastSectionId: entry.lastSectionId,
         lastSectionTitle: null,
         lastSectionIndex: lastIndex,
         totalSections,

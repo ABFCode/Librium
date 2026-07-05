@@ -82,16 +82,3 @@ export const requireBookOwner = async (ctx: Ctx, bookId: Id<"books">) => {
   }
   return { viewerId, book };
 };
-
-
-export const requireSectionOwner = async (
-  ctx: Ctx,
-  sectionId: Id<"sections">,
-) => {
-  const section = await ctx.db.get(sectionId);
-  if (!section) {
-    throw new Error("Section not found.");
-  }
-  const { viewerId, book } = await requireBookOwner(ctx, section.bookId);
-  return { viewerId, book, section };
-};

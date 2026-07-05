@@ -13,61 +13,6 @@ const isLocalConvex =
 const allowSeed =
   process.env.ALLOW_SEED === "true" || isLocalDeployment || isLocalConvex;
 
-export const createDemoBookInternal = internalMutation({
-  args: {
-    userId: v.id("users"),
-    title: v.optional(v.string()),
-    author: v.optional(v.string()),
-    sections: v.array(
-      v.object({
-        title: v.string(),
-        orderIndex: v.number(),
-        depth: v.number(),
-        contentStorageId: v.optional(v.id("_storage")),
-        contentSize: v.optional(v.number()),
-      }),
-    ),
-  },
-  handler: async (ctx, args) => {
-    const ownerId = args.userId;
-    const existing = await ctx.db.get(ownerId);
-    if (!existing) {
-      throw new Error("Seed user not found.");
-    }
-    const now = Date.now();
-    const bookId = await ctx.db.insert("books", {
-      ownerId,
-      title: args.title ?? "Demo Book",
-      author: args.author ?? "Librium",
-      sectionCount: 0,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    for (const section of args.sections) {
-      await ctx.db.insert("sections", {
-        bookId,
-        createdAt: now,
-        ...section,
-      });
-    }
-
-    await ctx.db.patch(bookId, {
-      sectionCount: args.sections.length,
-      updatedAt: Date.now(),
-    });
-
-    await ctx.db.insert("userBooks", {
-      userId: ownerId,
-      bookId,
-      lastSectionIndex: 0,
-      updatedAt: Date.now(),
-    });
-
-    return { bookId, ownerId, sectionCount: args.sections.length };
-  },
-});
-
 export const upsertBetterAuthUserInternal = internalMutation({
   args: {
     externalId: v.string(),
@@ -104,41 +49,14 @@ export const upsertBetterAuthUserInternal = internalMutation({
   },
 });
 
-export const createDemoBook = action({
-  args: {
-    userId: v.id("users"),
-    title: v.optional(v.string()),
-    author: v.optional(v.string()),
-    sectionCount: v.optional(v.number()),
-    chunksPerSection: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    if (!allowSeed) {
-      throw new Error("Seeding is disabled in this environment.");
-    }
-    const sections = await buildSeedSections(
-      ctx,
-      args.sectionCount,
-      args.chunksPerSection,
-    );
-    return await ctx.runMutation("seed:createDemoBookInternal", {
-      userId: args.userId,
-      title: args.title,
-      author: args.author,
-      sections,
-    });
-  },
-});
-
-export const createDemoUserAndBook = action({
+// Dev convenience: create (or sign in) a demo auth user. Demo *books* are no
+// longer seeded server-side — content is derived from real EPUBs parsed on
+// the client (see ROADMAP Phase 5); import a book through the UI instead.
+export const createDemoUser = action({
   args: {
     email: v.string(),
     password: v.string(),
     name: v.string(),
-    title: v.optional(v.string()),
-    author: v.optional(v.string()),
-    sectionCount: v.optional(v.number()),
-    chunksPerSection: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     if (!allowSeed) {
@@ -201,60 +119,10 @@ export const createDemoUserAndBook = action({
       name: authUser.name ?? args.name,
     });
 
-    const sections = await buildSeedSections(
-      ctx,
-      args.sectionCount,
-      args.chunksPerSection,
-    );
-    const book = await ctx.runMutation("seed:createDemoBookInternal", {
-      userId,
-      title: args.title,
-      author: args.author,
-      sections,
-    });
-
     return {
       userId,
       authUserId: authUser.id,
       email: authUser.email ?? args.email,
-      bookId: book.bookId,
-      sectionCount: book.sectionCount,
     };
   },
 });
-
-const buildSeedSections = async (
-  ctx: Parameters<typeof createDemoBook.handler>[0],
-  sectionCountInput?: number,
-  chunksPerSectionInput?: number,
-) => {
-  const sectionCount = Math.max(1, sectionCountInput ?? 6);
-  const chunksPerSection = Math.max(1, chunksPerSectionInput ?? 24);
-  const sections = [];
-  for (let s = 0; s < sectionCount; s += 1) {
-    const paragraphs = [];
-    for (let c = 0; c < chunksPerSection; c += 1) {
-      paragraphs.push(
-        `Section ${s + 1} — paragraph ${
-          c + 1
-        } placeholder content for reader testing.`,
-      );
-    }
-    const blocks = [
-      { kind: "heading", level: 2, inlines: [{ kind: "text", text: `Section ${s + 1}` }] },
-      ...paragraphs.map((p) => ({ kind: "paragraph", inlines: [{ kind: "text", text: p }] })),
-    ];
-    const json = JSON.stringify(blocks);
-    const storageId = await ctx.storage.store(
-      new Blob([json], { type: "application/json" }),
-    );
-    sections.push({
-      title: `Section ${s + 1}`,
-      orderIndex: s,
-      depth: 0,
-      contentStorageId: storageId,
-      contentSize: json.length,
-    });
-  }
-  return sections;
-};

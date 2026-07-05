@@ -13,34 +13,12 @@ const isLocalConvex =
 const allowAdminReset =
   process.env.ALLOW_ADMIN_RESET === "true" || isLocalDeployment || isLocalConvex;
 
+// Note: blobs live in R2 now; this clears Convex rows only. Orphaned R2
+// objects from a full reset are dev debris — clear the bucket manually (or
+// via lifecycle rules) if it matters.
 export const resetAllDataInternal = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const bookAssets = await ctx.db.query("bookAssets").collect();
-    for (const asset of bookAssets) {
-      await ctx.storage.delete(asset.storageId);
-      await ctx.db.delete(asset._id);
-    }
-
-    const sections = await ctx.db.query("sections").collect();
-    for (const section of sections) {
-      if (section.contentStorageId) {
-        await ctx.storage.delete(section.contentStorageId);
-      }
-      await ctx.db.delete(section._id);
-    }
-
-    const files = await ctx.db.query("bookFiles").collect();
-    for (const file of files) {
-      await ctx.storage.delete(file.storageId);
-      await ctx.db.delete(file._id);
-    }
-
-    const importJobs = await ctx.db.query("importJobs").collect();
-    for (const job of importJobs) {
-      await ctx.db.delete(job._id);
-    }
-
     const bookmarks = await ctx.db.query("bookmarks").collect();
     for (const bookmark of bookmarks) {
       await ctx.db.delete(bookmark._id);
@@ -58,8 +36,11 @@ export const resetAllDataInternal = internalMutation({
 
     const books = await ctx.db.query("books").collect();
     for (const book of books) {
-      if (book.coverStorageId) {
-        await ctx.storage.delete(book.coverStorageId);
+      // Legacy pre-R2 rows stored the cover in Convex storage.
+      const legacyCover = (book as unknown as { coverStorageId?: never })
+        .coverStorageId;
+      if (legacyCover) {
+        await ctx.storage.delete(legacyCover).catch(() => {});
       }
       await ctx.db.delete(book._id);
     }
@@ -67,6 +48,32 @@ export const resetAllDataInternal = internalMutation({
     const users = await ctx.db.query("users").collect();
     for (const user of users) {
       await ctx.db.delete(user._id);
+    }
+
+    // Legacy tables from pre-R2 schemas: rows here block pushing a schema
+    // that no longer declares them, and their Convex-storage blobs would
+    // otherwise be orphaned. Safe to remove once nothing references them.
+    const legacyTables = ["sections", "bookAssets", "bookFiles", "importJobs"];
+    for (const table of legacyTables) {
+      try {
+        const rows = await ctx.db.query(table as never).collect();
+        for (const row of rows) {
+          const r = row as unknown as {
+            _id: never;
+            storageId?: never;
+            contentStorageId?: never;
+          };
+          if (r.storageId) {
+            await ctx.storage.delete(r.storageId).catch(() => {});
+          }
+          if (r.contentStorageId) {
+            await ctx.storage.delete(r.contentStorageId).catch(() => {});
+          }
+          await ctx.db.delete(r._id);
+        }
+      } catch {
+        // Table no longer exists — nothing to clean.
+      }
     }
 
     return { ok: true };

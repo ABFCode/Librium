@@ -311,7 +311,9 @@ export function Library() {
   const handleDownload = async (bookId: string, fileName: string) => {
     try {
       setError(null)
-      const url = await convex.mutation('bookFiles:getDownloadUrl', { bookId })
+      const url = (await convex.query(api.books.getEpubUrl, {
+        bookId: bookId as never,
+      })) as string | null
       if (!url) {
         setError('Unable to generate download link.')
         return

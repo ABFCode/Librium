@@ -17,19 +17,9 @@ import { db } from '../lib/db'
 type UseBookmarkSyncArgs = {
   bookId: string
   canQuery: boolean
-  // Convex section id for a section index (null while unknown).
-  resolveSectionId: (sectionIndex: number) => string | null
-  // Section index for a Convex section id (null if unknown) — used for
-  // legacy remote rows that lack sectionIndex.
-  sectionIndexOf: (convexSectionId: string) => number | null
 }
 
-export function useBookmarkSync({
-  bookId,
-  canQuery,
-  resolveSectionId,
-  sectionIndexOf,
-}: UseBookmarkSyncArgs) {
+export function useBookmarkSync({ bookId, canQuery }: UseBookmarkSyncArgs) {
   const createRemote = useMutation(api.bookmarks.createBookmark)
   const deleteRemote = useMutation(api.bookmarks.deleteBookmark)
   const remote = useQuery(
@@ -77,15 +67,10 @@ export function useBookmarkSync({
             continue
           }
           if (!local) {
-            const sectionIndex =
-              r.sectionIndex ?? sectionIndexOf(r.sectionId as string)
-            if (sectionIndex === null) {
-              continue
-            }
             await db.bookmarks.put({
               clientKey: r.clientKey ?? `remote:${r._id}`,
               bookId,
-              sectionIndex,
+              sectionIndex: r.sectionIndex,
               blockIndex: r.blockIndex,
               offset: r.offset,
               label: r.label ?? undefined,
@@ -125,7 +110,7 @@ export function useBookmarkSync({
         }
       }
     })()
-  }, [remote, localAll, bookId, sectionIndexOf])
+  }, [remote, localAll, bookId])
 
   // Push dirty rows (fires on edit and on reconnect).
   const pushingRef = useRef(false)
@@ -150,13 +135,8 @@ export function useBookmarkSync({
             // it once the server list confirms whether it landed.
             continue
           }
-          const sectionId = resolveSectionId(l.sectionIndex)
-          if (!sectionId) {
-            continue // Convex id not backfilled yet — retried later.
-          }
           const id = await createRemote({
             bookId: bookId as never,
-            sectionId: sectionId as never,
             sectionIndex: l.sectionIndex,
             blockIndex: l.blockIndex,
             offset: l.offset,
@@ -175,7 +155,7 @@ export function useBookmarkSync({
     })().finally(() => {
       pushingRef.current = false
     })
-  }, [canQuery, localAll, bookId, resolveSectionId, createRemote, deleteRemote])
+  }, [canQuery, localAll, bookId, createRemote, deleteRemote])
 
   const createBookmark = useCallback(
     async (args: {
