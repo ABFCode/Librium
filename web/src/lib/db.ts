@@ -37,6 +37,23 @@ export type LocalImage = {
   contentType?: string
 }
 
+export type LocalBookmark = {
+  // Client-generated UUID; the stable identity across devices (the server
+  // stores it for idempotent creates and cross-device matching).
+  clientKey: string
+  bookId: string
+  sectionIndex: number
+  blockIndex: number
+  offset: number
+  label?: string
+  createdAt: number
+  // Tombstone: set on delete; the row is removed once the server confirms.
+  deletedAt?: number
+  // 1 = create or delete not yet acknowledged by the server.
+  dirty: 0 | 1
+  convexId?: string
+}
+
 export type LocalProgress = {
   bookId: string
   sectionIndex: number
@@ -59,6 +76,7 @@ class LibriumDB extends Dexie {
   sections!: Table<LocalSection, [string, number]>
   images!: Table<LocalImage, [string, string]>
   progress!: Table<LocalProgress, string>
+  bookmarks!: Table<LocalBookmark, string>
 
   constructor() {
     super('librium')
@@ -69,6 +87,9 @@ class LibriumDB extends Dexie {
     })
     this.version(2).stores({
       progress: 'bookId',
+    })
+    this.version(3).stores({
+      bookmarks: 'clientKey, bookId',
     })
   }
 }
@@ -205,11 +226,13 @@ export async function deleteLocalBook(bookId: string) {
     db.sections,
     db.images,
     db.progress,
+    db.bookmarks,
     async () => {
       await db.books.delete(bookId)
       await db.sections.where('bookId').equals(bookId).delete()
       await db.images.where('bookId').equals(bookId).delete()
       await db.progress.delete(bookId)
+      await db.bookmarks.where('bookId').equals(bookId).delete()
     },
   )
 }

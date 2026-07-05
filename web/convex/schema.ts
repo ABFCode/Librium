@@ -114,10 +114,18 @@ const bookmarks = defineTable({
   userId: v.id("users"),
   bookId: v.id("books"),
   sectionId: v.id("sections"),
+  // Order index of the section — lets clients render/jump without an id map.
+  sectionIndex: v.optional(v.number()),
   blockIndex: v.number(),
   offset: v.number(),
   label: v.optional(v.string()),
   createdAt: v.number(),
+  // Sync (ROADMAP Phase 4): client-generated key for idempotent offline
+  // creates; deletedAt is a tombstone so deletes propagate instead of
+  // resurrecting on other devices. TODO: compact old tombstones eventually.
+  clientKey: v.optional(v.string()),
+  updatedAt: v.optional(v.number()),
+  deletedAt: v.optional(v.number()),
 }).index("by_user_book", ["userId", "bookId"]);
 
 export default defineSchema({

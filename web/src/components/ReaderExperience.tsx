@@ -7,12 +7,13 @@ import {
   useState,
 } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react'
+import { useAction, useConvexAuth, useQuery } from 'convex/react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { api } from '../../convex/_generated/api'
 import { RequireAuth } from './RequireAuth'
 import { useUserSettings } from '../hooks/useUserSettings'
 import { useProgressSync } from '../hooks/useProgressSync'
+import { useBookmarkSync } from '../hooks/useBookmarkSync'
 import { ReaderPreferencesModal } from './ReaderPreferencesModal'
 import {
   backfillSectionIds,
@@ -157,12 +158,22 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     resolveSectionId,
   })
 
-  const bookmarks = useQuery(
-    api.bookmarks.listByUserBook,
-    canQuery ? { bookId } : 'skip',
+  // Local-first bookmarks: create/delete work offline; tombstones propagate
+  // deletes across devices.
+  const sectionIndexOf = useCallback(
+    (convexSectionId: string) => {
+      const index =
+        sections?.findIndex((section) => section._id === convexSectionId) ?? -1
+      return index >= 0 ? index : null
+    },
+    [sections],
   )
-  const createBookmark = useMutation(api.bookmarks.createBookmark)
-  const deleteBookmark = useMutation(api.bookmarks.deleteBookmark)
+  const { bookmarks, createBookmark, deleteBookmark } = useBookmarkSync({
+    bookId,
+    canQuery,
+    resolveSectionId,
+    sectionIndexOf,
+  })
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [chunks, setChunks] = useState<ReaderChunk[]>([])
   const [blocks, setBlocks] = useState<BlockPayload[] | null>(null)
@@ -289,13 +300,6 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     }
     return sections.findIndex((section) => section._id === sectionId)
   }, [sections, sectionId])
-
-  const sectionTitleById = useMemo(() => {
-    if (!sections) {
-      return new Map<string, string>()
-    }
-    return new Map(sections.map((section) => [section._id, section.title]))
-  }, [sections])
 
   const sectionLinkIndex = useMemo(() => {
     const map = new Map<string, string>()
@@ -1139,7 +1143,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   }
 
   const handleCreateBookmark = async () => {
-    if (!sectionId || !parentRef.current || isLocalSectionKey(sectionId)) {
+    if (!sectionId || !parentRef.current || activeIndex < 0) {
       return
     }
     const container = parentRef.current
@@ -1157,8 +1161,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     }
     const label = window.prompt('Bookmark label (optional)') ?? undefined
     await createBookmark({
-      bookId,
-      sectionId,
+      sectionIndex: activeIndex,
       blockIndex,
       offset: scrollTop,
       label: label && label.length > 0 ? label : undefined,
@@ -1374,39 +1377,34 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
           ) : (
             <div className="reader-scroll flex max-h-[50vh] flex-col gap-3 overflow-auto">
               {bookmarks.map((bookmark) => {
+                const targetSectionId =
+                  sections?.[bookmark.sectionIndex]?._id ?? null
                 const sectionTitle =
-                  sectionTitleById.get(bookmark.sectionId) ?? 'Untitled chapter'
+                  sections?.[bookmark.sectionIndex]?.title ?? 'Untitled chapter'
                 const label = bookmark.label?.trim()
                 const title = label || sectionTitle
+                const jumpToBookmark = () => {
+                  if (targetSectionId && targetSectionId !== sectionId) {
+                    pendingScrollRef.current = bookmark.offset
+                    setActiveSectionId(targetSectionId)
+                    return
+                  }
+                  scrollToChunk(bookmark.blockIndex)
+                  if (parentRef.current) {
+                    parentRef.current.scrollTop = bookmark.offset
+                  }
+                }
                 return (
                   <div
-                    key={bookmark._id}
+                    key={bookmark.clientKey}
                     role="button"
                     tabIndex={0}
                     className="reader-panel-card relative cursor-pointer rounded-2xl p-3 pr-10 text-xs transition hover:border-white/30"
-                    onClick={() => {
-                      if (bookmark.sectionId !== sectionId) {
-                        pendingScrollRef.current = bookmark.offset
-                        setActiveSectionId(bookmark.sectionId)
-                        return
-                      }
-                      scrollToChunk(bookmark.blockIndex)
-                      if (parentRef.current) {
-                        parentRef.current.scrollTop = bookmark.offset
-                      }
-                    }}
+                    onClick={jumpToBookmark}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault()
-                        if (bookmark.sectionId !== sectionId) {
-                          pendingScrollRef.current = bookmark.offset
-                          setActiveSectionId(bookmark.sectionId)
-                          return
-                        }
-                        scrollToChunk(bookmark.blockIndex)
-                        if (parentRef.current) {
-                          parentRef.current.scrollTop = bookmark.offset
-                        }
+                        jumpToBookmark()
                       }
                     }}
                   >
@@ -1416,25 +1414,14 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
                         {sectionTitle}
                       </div>
                     ) : null}
-                    {(() => {
-                      const chapterIndex = sections
-                        ? sections.findIndex(
-                            (section) => section._id === bookmark.sectionId,
-                          )
-                        : -1
-                      return (
-                        <div className="mt-1 text-[10px] uppercase tracking-[0.3em] text-[var(--muted-2)]">
-                          {chapterIndex >= 0 ? `Chapter ${chapterIndex + 1}` : 'Chapter'}
-                        </div>
-                      )
-                    })()}
+                    <div className="mt-1 text-[10px] uppercase tracking-[0.3em] text-[var(--muted-2)]">
+                      {`Chapter ${bookmark.sectionIndex + 1}`}
+                    </div>
                     <button
                       className="absolute bottom-3 right-3 inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/10 text-[var(--muted-2)] transition hover:border-rose-500/40 hover:text-rose-300"
                       onClick={(event) => {
                         event.stopPropagation()
-                        void deleteBookmark({
-                          bookmarkId: bookmark._id,
-                        })
+                        void deleteBookmark(bookmark.clientKey)
                       }}
                     >
                       <span className="sr-only">Remove bookmark</span>

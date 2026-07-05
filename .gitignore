@@ -26,3 +26,4 @@ jwt-secret.txt
 ### Local folders ###
 uploads/
 testbooks/
+web/src/test/__screenshots__/
