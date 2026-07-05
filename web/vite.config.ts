@@ -4,6 +4,7 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'url'
 
 const config = defineConfig({
@@ -23,6 +24,33 @@ const config = defineConfig({
     // File-based routing (must come before the React plugin).
     tanstackRouter({ target: 'react', autoCodeSplitting: true }),
     viteReact(),
+
+    // Offline-capable app shell: precache the built assets so the app boots
+    // with no network (content comes from IndexedDB — see src/lib/db.ts).
+    VitePWA({
+      registerType: 'autoUpdate',
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,ico,woff,woff2}'],
+        navigateFallback: '/index.html',
+      },
+      manifest: {
+        name: 'Librium',
+        short_name: 'Librium',
+        description: 'Your personal library, reimagined for focus and flow.',
+        start_url: '/',
+        display: 'standalone',
+        background_color: '#171412',
+        theme_color: '#171412',
+        icons: [
+          {
+            src: '/icon.svg',
+            sizes: 'any',
+            type: 'image/svg+xml',
+            purpose: 'any',
+          },
+        ],
+      },
+    }),
   ],
 })
 

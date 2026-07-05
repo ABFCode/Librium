@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- **PWA shell (ROADMAP Phase 3):** `vite-plugin-pwa` service worker precaches the app shell (JS/CSS/fonts/icon) with SPA navigation fallback — production builds boot fully offline (content already comes from IndexedDB). Installable: web app manifest + icon. Applies to `pnpm build` output only; the dev server does not emit the service worker.
 - **Local-first read path (ROADMAP Phase 2):** the reader now reads from the device. Import writes the parsed book (sections + blocks + images + cover) to IndexedDB (Dexie) before ingest — readable immediately; chapter turns, TOC, and images are served from IndexedDB with no network I/O. Books imported on another device fall back to Convex and cache-fill locally (section metadata, blocks, and images) so subsequent reads are local. Deleting a book purges the local copy. `RequireAuth` gains offline grace: a previously signed-in device renders local content when offline. Progress/bookmarks still sync via Convex (durable local progress lands with the Phase 4 sync layer).
 - **Static SPA (ROADMAP Phase 1):** removed TanStack Start and the nitro SSR server; the app is now a plain Vite + TanStack Router single-page app (`index.html` + `src/main.tsx` entry, route code-splitting via `@tanstack/router-plugin`). `vite build` emits a fully static `dist/` deployable to any static host. Auth is unaffected (Better Auth is served by Convex HTTP actions, not the removed Node server). Drops the `nitro` nightly pin and `@tanstack/react-start`/`react-router-ssr-query` dependencies.
 
