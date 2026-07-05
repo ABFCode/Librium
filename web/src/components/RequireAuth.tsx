@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useConvexAuth } from 'convex/react'
 
@@ -6,6 +6,13 @@ import { useConvexAuth } from 'convex/react'
 // while offline (Convex cannot confirm auth without a connection). Cleared on
 // a confirmed online sign-out.
 const WAS_AUTHENTICATED_KEY = 'librium:wasAuthenticated'
+
+// How long to wait for auth to resolve before falling back to local content.
+// navigator.onLine is not a reliable offline signal (it stays true whenever a
+// network interface is up — including against localhost), so the trigger is
+// "auth still unresolved after the grace window", which is what offline
+// actually looks like: the Convex websocket retrying forever.
+const AUTH_GRACE_MS = 2500
 
 type RequireAuthProps = {
   children: React.ReactNode
@@ -18,6 +25,19 @@ export const RequireAuth = ({ children }: RequireAuthProps) => {
   const wasAuthenticated =
     typeof window !== 'undefined' &&
     window.localStorage.getItem(WAS_AUTHENTICATED_KEY) === 'true'
+
+  const [authWaitExpired, setAuthWaitExpired] = useState(false)
+  useEffect(() => {
+    if (!isLoading) {
+      setAuthWaitExpired(false)
+      return
+    }
+    const timeout = window.setTimeout(
+      () => setAuthWaitExpired(true),
+      AUTH_GRACE_MS,
+    )
+    return () => window.clearTimeout(timeout)
+  }, [isLoading])
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -32,10 +52,16 @@ export const RequireAuth = ({ children }: RequireAuthProps) => {
     }
   }, [isAuthenticated, isLoading, navigate, isOffline])
 
-  // Offline grace: auth cannot resolve without the server. If this device was
-  // previously signed in, render — content comes from IndexedDB and every
-  // Convex-dependent feature degrades gracefully.
-  if (!isAuthenticated && isOffline && wasAuthenticated) {
+  // Offline grace: if this device was previously signed in and auth cannot be
+  // confirmed (browser says offline, or the server is unreachable and auth is
+  // stuck resolving), render — content comes from IndexedDB and every
+  // Convex-dependent feature degrades gracefully. If auth later resolves to a
+  // real signed-out state while online, the effect above redirects.
+  if (
+    !isAuthenticated &&
+    wasAuthenticated &&
+    (isOffline || (isLoading && authWaitExpired))
+  ) {
     return <>{children}</>
   }
 
