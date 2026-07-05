@@ -93,6 +93,9 @@ const userBooks = defineTable({
   lastBlockIndex: v.optional(v.number()),
   lastBlockOffset: v.optional(v.number()),
   updatedAt: v.number(),
+  // Client edit time of the progress fields (device clock, same-user devices).
+  // Used to reject stale offline pushes; pull ordering uses updatedAt (server).
+  progressEditedAt: v.optional(v.number()),
 })
   .index("by_user_book", ["userId", "bookId"])
   .index("by_user_updated", ["userId", "updatedAt"])

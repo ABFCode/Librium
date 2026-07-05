@@ -61,6 +61,9 @@ export const updateProgress = mutation({
     lastSectionIndex: v.optional(v.number()),
     lastBlockIndex: v.optional(v.number()),
     lastBlockOffset: v.optional(v.number()),
+    // Client edit time — lets a reconnecting device push offline progress
+    // without a stale queued write clobbering newer progress from elsewhere.
+    editedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const userId = await requireViewerUserId(ctx);
@@ -72,6 +75,15 @@ export const updateProgress = mutation({
       )
       .first();
 
+    // LWW: reject writes older than what is already recorded.
+    if (
+      existing?.progressEditedAt !== undefined &&
+      args.editedAt !== undefined &&
+      args.editedAt < existing.progressEditedAt
+    ) {
+      return existing._id;
+    }
+
     const now = Date.now();
     const patch = {
       lastSectionId: args.lastSectionId ?? existing?.lastSectionId ?? undefined,
@@ -79,6 +91,7 @@ export const updateProgress = mutation({
       lastBlockIndex: args.lastBlockIndex ?? existing?.lastBlockIndex ?? undefined,
       lastBlockOffset: args.lastBlockOffset ?? existing?.lastBlockOffset ?? undefined,
       updatedAt: now,
+      progressEditedAt: args.editedAt ?? now,
     };
 
     if (existing) {

@@ -37,12 +37,28 @@ export type LocalImage = {
   contentType?: string
 }
 
+export type LocalProgress = {
+  bookId: string
+  sectionIndex: number
+  blockIndex: number
+  blockOffset: number
+  // Device wall-clock time of the edit — compared only against this same
+  // user's other devices (LWW ordering of edits).
+  editedAt: number
+  // 1 = not yet accepted by the server (offline or pending push).
+  dirty: 0 | 1
+  // Server updatedAt of the last remote state merged into this record; pull
+  // ordering compares against this, never against device clocks.
+  syncedServerTime: number
+}
+
 // ── Database ─────────────────────────────────────────────────────────────────
 
 class LibriumDB extends Dexie {
   books!: Table<LocalBook, string>
   sections!: Table<LocalSection, [string, number]>
   images!: Table<LocalImage, [string, string]>
+  progress!: Table<LocalProgress, string>
 
   constructor() {
     super('librium')
@@ -50,6 +66,9 @@ class LibriumDB extends Dexie {
       books: 'bookId',
       sections: '[bookId+orderIndex], bookId',
       images: '[bookId+href], bookId',
+    })
+    this.version(2).stores({
+      progress: 'bookId',
     })
   }
 }
@@ -180,9 +199,17 @@ export async function cacheImage(
 // ── Delete parity ────────────────────────────────────────────────────────────
 
 export async function deleteLocalBook(bookId: string) {
-  await db.transaction('rw', db.books, db.sections, db.images, async () => {
-    await db.books.delete(bookId)
-    await db.sections.where('bookId').equals(bookId).delete()
-    await db.images.where('bookId').equals(bookId).delete()
-  })
+  await db.transaction(
+    'rw',
+    db.books,
+    db.sections,
+    db.images,
+    db.progress,
+    async () => {
+      await db.books.delete(bookId)
+      await db.sections.where('bookId').equals(bookId).delete()
+      await db.images.where('bookId').equals(bookId).delete()
+      await db.progress.delete(bookId)
+    },
+  )
 }

@@ -1,10 +1,18 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useAction, useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { api } from '../../convex/_generated/api'
 import { RequireAuth } from './RequireAuth'
 import { useUserSettings } from '../hooks/useUserSettings'
+import { useProgressSync } from '../hooks/useProgressSync'
 import { ReaderPreferencesModal } from './ReaderPreferencesModal'
 import {
   backfillSectionIds,
@@ -129,11 +137,26 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   }, [remoteSections, localSectionRows, bookId])
 
   const getSectionContent = useAction(api.reader.getSectionContent)
-  const updateProgress = useMutation(api.userBooks.updateProgress)
-  const userBook = useQuery(
-    api.userBooks.getUserBook,
-    canQuery ? { bookId } : 'skip',
+
+  // Local-first progress (ROADMAP Phase 4): every edit lands in IndexedDB
+  // first and syncs to Convex via LWW. resolveSectionId maps a section index
+  // to its Convex id for pushes (null until backfilled — push waits).
+  const resolveSectionId = useCallback(
+    (sectionIndex: number) => {
+      const section = sections?.[sectionIndex]
+      if (!section || isLocalSectionKey(section._id)) {
+        return null
+      }
+      return section._id
+    },
+    [sections],
   )
+  const { effectiveProgress, saveProgress } = useProgressSync({
+    bookId,
+    canQuery,
+    resolveSectionId,
+  })
+
   const bookmarks = useQuery(
     api.bookmarks.listByUserBook,
     canQuery ? { bookId } : 'skip',
@@ -159,6 +182,10 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const loadingSectionRef = useRef<string | null>(null)
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(false)
   const restoredFromUserBookRef = useRef(false)
+  // Where the initial restore put the view, and when we mounted — used to
+  // allow a one-time cross-device hand-off correction (never a later yank).
+  const initialRestoreTargetRef = useRef<string | null>(null)
+  const mountedAtRef = useRef(Date.now())
   const tocInitRef = useRef(false)
   const initialProgressRef = useRef(false)
   const isRestoringRef = useRef(false)
@@ -235,20 +262,18 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     if (scrollRestoredRef.current === sectionId) {
       return
     }
-    if (userBook?.lastSectionId !== sectionId) {
+    if (
+      !effectiveProgress ||
+      sections?.[effectiveProgress.sectionIndex]?._id !== sectionId
+    ) {
       return
     }
     const shouldRestore =
-      (userBook.lastBlockIndex ?? 0) > 0 || (userBook.lastBlockOffset ?? 0) > 0
+      effectiveProgress.blockIndex > 0 || effectiveProgress.blockOffset > 0
     if (shouldRestore) {
       setIsRestoringView(true)
     }
-  }, [
-    sectionId,
-    userBook?.lastSectionId,
-    userBook?.lastBlockIndex,
-    userBook?.lastBlockOffset,
-  ])
+  }, [sectionId, effectiveProgress, sections])
 
   const fontSize = 16 + fontScale * 2
   const themeClass =
@@ -439,21 +464,57 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     if (!sections || sections.length === 0) {
       return
     }
-    if (userBook?.lastSectionId && !restoredFromUserBookRef.current) {
-      const match = sections.find(
-        (section) => section._id === userBook.lastSectionId,
-      )
+    // Wait for the merged progress view (local is instant; online adds a
+    // brief wait for the remote copy) so we restore to the right chapter.
+    if (effectiveProgress === undefined) {
+      return
+    }
+    if (effectiveProgress && !restoredFromUserBookRef.current) {
+      const match = sections[effectiveProgress.sectionIndex]
       if (match && match._id !== activeSectionId) {
         setActiveSectionId(match._id)
+        initialRestoreTargetRef.current = match._id
         restoredFromUserBookRef.current = true
         return
       }
       restoredFromUserBookRef.current = true
     }
     if (!activeSectionId) {
+      initialRestoreTargetRef.current = sections[0]._id
       setActiveSectionId(sections[0]._id)
     }
-  }, [sections, activeSectionId, userBook?.lastSectionId])
+  }, [sections, activeSectionId, effectiveProgress])
+
+  // Cross-device hand-off: if a newer remote position arrives moments after
+  // opening the book, and the user has not navigated away from where the
+  // initial restore put them, correct the view once. An engaged reader
+  // (navigated, or local edits pending) is never yanked.
+  useEffect(() => {
+    if (!sections || sections.length === 0 || !effectiveProgress) {
+      return
+    }
+    if (!restoredFromUserBookRef.current) {
+      return
+    }
+    if (effectiveProgress.source !== 'remote') {
+      return
+    }
+    if (Date.now() - mountedAtRef.current > 4000) {
+      return
+    }
+    if (
+      !activeSectionId ||
+      activeSectionId !== initialRestoreTargetRef.current
+    ) {
+      return
+    }
+    const target = sections[effectiveProgress.sectionIndex]
+    if (!target || target._id === activeSectionId) {
+      return
+    }
+    initialRestoreTargetRef.current = target._id
+    setActiveSectionId(target._id)
+  }, [sections, effectiveProgress, activeSectionId])
 
   const loadSection = async (targetId: string | null) => {
     if (!targetId) {
@@ -527,13 +588,14 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   }, [isLoading])
 
   const emitProgress = () => {
-    if (!canQuery || !sectionId || !parentRef.current) {
+    if (!sectionId || !parentRef.current || activeIndex < 0) {
       return
     }
-    if (userBook === undefined) {
+    // Do not overwrite saved progress before the initial restore has run.
+    if (effectiveProgress === undefined) {
       return
     }
-    if (userBook?.lastSectionId && !restoredFromUserBookRef.current) {
+    if (effectiveProgress && !restoredFromUserBookRef.current) {
       return
     }
     if (isRestoringRef.current) {
@@ -554,19 +616,12 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         break
       }
     }
-    if (isLocalSectionKey(sectionId)) {
-      // Convex id unknown for this section (not yet backfilled) — progress
-      // sync for it resumes once ids reconcile. Local reading is unaffected.
-      return
-    }
-    void updateProgress({
-      bookId,
-      lastSectionId: sectionId,
-      lastSectionIndex: activeIndex >= 0 ? activeIndex : 0,
-      lastBlockIndex: blockIndex,
-      lastBlockOffset: offsetWithin,
-    }).catch(() => {
-      // Offline — progress stays in-session; durable local progress is Phase 4.
+    // Local write is instant and offline-capable; the sync hook pushes to
+    // Convex (LWW) whenever a connection and the section's Convex id exist.
+    void saveProgress({
+      sectionIndex: activeIndex,
+      blockIndex,
+      blockOffset: offsetWithin,
     })
   }
 
@@ -612,7 +667,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       window.removeEventListener('pagehide', emitProgress)
       document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [sectionId, userBook])
+  }, [sectionId, effectiveProgress])
 
   useEffect(() => {
     restoredSectionRef.current = null
@@ -652,13 +707,17 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       scrollRestoredRef.current = sectionId
       return
     }
-    if (userBook?.lastSectionId === sectionId) {
+    if (
+      effectiveProgress &&
+      activeIndex >= 0 &&
+      effectiveProgress.sectionIndex === activeIndex
+    ) {
       if (scrollRestoredRef.current === sectionId) {
         setIsRestoringView(false)
         return
       }
-      const targetIndex = userBook.lastBlockIndex ?? 0
-      const targetOffset = userBook.lastBlockOffset ?? 0
+      const targetIndex = effectiveProgress.blockIndex
+      const targetOffset = effectiveProgress.blockOffset
       const shouldRestore = targetIndex > 0 || targetOffset > 0
       if (!shouldRestore) {
         container.scrollTop = 0
@@ -707,26 +766,20 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       })
       return
     }
-    if (
-      userBook === null &&
-      !initialProgressRef.current &&
-      !isLocalSectionKey(sectionId)
-    ) {
+    if (effectiveProgress === null && !initialProgressRef.current) {
       setIsRestoringView(false)
       initialProgressRef.current = true
-      void updateProgress({
-        bookId,
-        lastSectionId: sectionId,
-        lastSectionIndex: activeIndex >= 0 ? activeIndex : 0,
-        lastBlockIndex: 0,
-        lastBlockOffset: 0,
-      }).catch(() => {})
+      void saveProgress({
+        sectionIndex: activeIndex >= 0 ? activeIndex : 0,
+        blockIndex: 0,
+        blockOffset: 0,
+      })
     }
     container.scrollTop = 0
     setIsRestoringView(false)
     restoredSectionRef.current = sectionId
     scrollRestoredRef.current = null
-  }, [sectionId, chunks.length, blocks?.length, userBook, activeIndex])
+  }, [sectionId, chunks.length, blocks?.length, effectiveProgress, activeIndex])
 
   const searchMatches = useMemo(() => {
     const source = blocks && blocks.length > 0
@@ -1632,7 +1685,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
             <section
               className={`card relative overflow-hidden ${themeClass} text-[var(--reader-ink)] ${contentOrderClass}`}
             >
-              {canQuery && userBook === undefined && sectionId ? (
+              {effectiveProgress === undefined && sectionId ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                   <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-[var(--reader-muted)]">
                     Restoring
@@ -1651,10 +1704,10 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
                   </div>
                 </div>
               ) : null}
-              {/* Wait for saved progress only when it can actually load —
-                  offline (auth unresolved) the query stays skipped forever,
-                  and local content should render immediately. */}
-              {canQuery && userBook === undefined && sectionId ? (
+              {/* Wait for the merged progress view: local resolves instantly
+                  (offline included); online adds a brief wait for the remote
+                  copy so we restore to the right chapter. */}
+              {effectiveProgress === undefined && sectionId ? (
                 <div className="p-6 text-sm text-[var(--reader-muted)]">
                   Restoring your place…
                 </div>
