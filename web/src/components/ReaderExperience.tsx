@@ -1632,7 +1632,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
             <section
               className={`card relative overflow-hidden ${themeClass} text-[var(--reader-ink)] ${contentOrderClass}`}
             >
-              {userBook === undefined && sectionId ? (
+              {canQuery && userBook === undefined && sectionId ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                   <div className="rounded-full border border-white/10 bg-black/40 px-4 py-2 text-[10px] uppercase tracking-[0.3em] text-[var(--reader-muted)]">
                     Restoring
@@ -1651,7 +1651,10 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
                   </div>
                 </div>
               ) : null}
-              {userBook === undefined && sectionId ? (
+              {/* Wait for saved progress only when it can actually load —
+                  offline (auth unresolved) the query stays skipped forever,
+                  and local content should render immediately. */}
+              {canQuery && userBook === undefined && sectionId ? (
                 <div className="p-6 text-sm text-[var(--reader-muted)]">
                   Restoring your place…
                 </div>
