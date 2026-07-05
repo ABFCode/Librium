@@ -4,7 +4,14 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { api } from '../../convex/_generated/api'
 import { RequireAuth } from './RequireAuth'
 import { useEffect, useMemo, useState } from 'react'
-import { db, deleteLocalBook } from '../lib/db'
+import { db, deleteLocalBook, removeLocalContent } from '../lib/db'
+import { seedBookFromR2 } from '../lib/seedBook'
+
+const formatBytes = (bytes: number) => {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`
+  if (bytes >= 1024 ** 2) return `${Math.round(bytes / 1024 ** 2)} MB`
+  return `${Math.round(bytes / 1024)} KB`
+}
 
 type LibraryBook = {
   _id: string
@@ -64,6 +71,56 @@ export function Library() {
     api.userBooks.listRecentByUser,
     canQuery ? { limit: books?.length ?? 200 } : 'skip',
   )
+
+  // Which books have their content cached on this device (parserVersion set
+  // = full local parse; metadata-only shelf rows have it empty).
+  const downloadedIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const b of localBooks ?? []) {
+      if (b.parserVersion) {
+        set.add(b.bookId)
+      }
+    }
+    return set
+  }, [localBooks])
+
+  // Origin-wide storage usage (covers IndexedDB + service worker cache).
+  const [storageUsage, setStorageUsage] = useState<number | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    if (typeof navigator === 'undefined' || !navigator.storage?.estimate) {
+      return
+    }
+    void navigator.storage.estimate().then((est) => {
+      if (!cancelled && typeof est.usage === 'number') {
+        setStorageUsage(est.usage)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [localBooks])
+
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const handleDeviceDownload = async (bookId: string) => {
+    try {
+      setError(null)
+      setDownloadingId(bookId)
+      await seedBookFromR2(convex, bookId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Download failed')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+  const handleRemoveDownload = async (bookId: string) => {
+    try {
+      setError(null)
+      await removeLocalContent(bookId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove download')
+    }
+  }
 
   // Covers: object URLs from local blobs; ask the server only for the rest.
   const [localCoverUrls, setLocalCoverUrls] = useState<Record<string, string>>(
@@ -341,6 +398,15 @@ export function Library() {
               <span className="text-[11px] uppercase tracking-[0.3em] text-[var(--muted-2)]">
                 {books ? `${books.length} book${books.length === 1 ? '' : 's'}` : '...'}
               </span>
+              {books && books.length > 0 ? (
+                <span
+                  className="text-[11px] uppercase tracking-[0.3em] text-[var(--muted-2)]"
+                  title="Books whose content is stored on this device · total local storage used by Librium"
+                >
+                  {downloadedIds.size}/{books.length} on device
+                  {storageUsage !== null ? ` · ${formatBytes(storageUsage)}` : ''}
+                </span>
+              ) : null}
             </div>
             <div className="ml-auto flex flex-1 flex-wrap items-center justify-end gap-2">
               <input
@@ -427,6 +493,12 @@ export function Library() {
                         {showProgressBadge ? (
                           <div className="progress-badge">{`${progressPercent}%`}</div>
                         ) : null}
+                        {downloadedIds.has(book._id) ? (
+                          <div
+                            className="absolute bottom-2 left-2 h-2 w-2 rounded-full bg-emerald-400/90 shadow-[0_0_6px_rgba(52,211,153,0.7)]"
+                            title="On this device"
+                          />
+                        ) : null}
                       </div>
                     </Link>
                     <div
@@ -480,6 +552,30 @@ export function Library() {
                             onMouseLeave={() => setOpenMenuId(null)}
                             onClick={(event) => event.stopPropagation()}
                           >
+                            {downloadedIds.has(book._id) ? (
+                              <button
+                                className="book-menu-item"
+                                onClick={async () => {
+                                  setOpenMenuId(null)
+                                  await handleRemoveDownload(book._id)
+                                }}
+                              >
+                                Remove download
+                              </button>
+                            ) : (
+                              <button
+                                className="book-menu-item"
+                                disabled={downloadingId === book._id}
+                                onClick={async () => {
+                                  setOpenMenuId(null)
+                                  await handleDeviceDownload(book._id)
+                                }}
+                              >
+                                {downloadingId === book._id
+                                  ? 'Downloading…'
+                                  : 'Download to this device'}
+                              </button>
+                            )}
                             <button
                               className="book-menu-item"
                               onClick={async () => {
@@ -487,7 +583,7 @@ export function Library() {
                                 await handleDownload(book._id, book.title)
                               }}
                             >
-                              Download
+                              Save EPUB
                             </button>
                             <button
                               className="book-menu-item is-danger"
@@ -496,7 +592,7 @@ export function Library() {
                                 await handleDelete(book._id)
                               }}
                             >
-                              Remove
+                              Delete book
                             </button>
                           </div>
                         ) : null}

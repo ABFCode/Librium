@@ -149,6 +149,21 @@ export async function getLocalBlocks(
   return row?.blocks ?? null
 }
 
+// Remove this device's *content cache* for a book (sections + images) while
+// keeping the shelf row (title/cover), progress, and bookmarks — the book
+// stays in the library everywhere and re-seeds from R2 on demand.
+export async function removeLocalContent(bookId: string) {
+  await db.transaction('rw', db.books, db.sections, db.images, async () => {
+    await db.sections.where('bookId').equals(bookId).delete()
+    await db.images.where('bookId').equals(bookId).delete()
+    // parserVersion doubles as the "content is on this device" marker.
+    await db.books
+      .where('bookId')
+      .equals(bookId)
+      .modify({ parserVersion: '' })
+  })
+}
+
 // ── Delete parity ────────────────────────────────────────────────────────────
 
 export async function deleteLocalBook(bookId: string) {

@@ -9,15 +9,13 @@ import { useUserSettings } from '../hooks/useUserSettings'
 import { useProgressSync } from '../hooks/useProgressSync'
 import { useBookmarkSync } from '../hooks/useBookmarkSync'
 import { ReaderPreferencesModal } from './ReaderPreferencesModal'
-import { parseEpubToPayload } from '../lib/epub'
-import { payloadToLocalBookInput } from '../lib/localBook'
+import { seedBookFromR2 } from '../lib/seedBook'
 import {
   PARSER_VERSION,
   db,
   deleteLocalBook,
   getLocalBlocks,
   localSectionKey,
-  saveImportedBook,
 } from '../lib/db'
 
 type ReaderSection = {
@@ -148,24 +146,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       setIsSeeding(true)
       setSeedError(null)
       try {
-        const url = (await convex.query(api.books.getEpubUrl, {
-          bookId: bookId as never,
-        })) as string | null
-        if (!url) {
-          return
-        }
-        const res = await fetch(url)
-        if (!res.ok) {
-          throw new Error('EPUB download failed')
-        }
-        const bytes = new Uint8Array(await res.arrayBuffer())
-        const payload = parseEpubToPayload(bytes)
-        if (stale) {
-          // Replace the old parse wholesale (section counts may differ).
-          await db.sections.where('bookId').equals(bookId).delete()
-          await db.images.where('bookId').equals(bookId).delete()
-        }
-        await saveImportedBook(payloadToLocalBookInput(bookId, payload))
+        await seedBookFromR2(convex, bookId, { replace: stale })
       } catch (err) {
         setSeedError(
           err instanceof Error ? err.message : 'Failed to download book',
