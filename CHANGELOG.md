@@ -1,6 +1,7 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 - 2026-07-05
+- **Structured R2 keys:** objects live under `books/{bookId}/…` (book.epub + cover) via an ownership-checked upload-URL mutation — the bucket is self-documenting.
 - **Blobs → Cloudflare R2 (ROADMAP Phase 5):** raw EPUBs + covers now live in R2 (10 GB free, zero egress) via `@convex-dev/r2`; Convex storage holds no blobs. Parsed content is treated as derived data: new devices seed a book by downloading the EPUB from R2 and re-parsing it locally (`parserVersion` is stamped per book — a device with a stale parse re-seeds automatically, so parser improvements apply retroactively).
 - **Backend demolition:** with content derived client-side, the `sections`, `bookAssets`, `bookFiles`, and `importJobs` tables and their modules (`ingest`, `sections`, `reader`, `bookAssets`, `bookFiles`, `importJobs`, `storage`) are gone. Import is now: parse in browser → one `registerImport` mutation → readable immediately from IndexedDB → EPUB/cover upload to R2 in the background (`attachFiles`). No batched section ingest, no Convex-id backfill; progress and bookmarks reference section indexes only. `deleteBook` no longer needs chunked deletes and also removes the R2 objects.
 - **Breaking:** schema changed; dev data was reset (re-import books). Seeding now creates the demo user only (`make convex-seed`).

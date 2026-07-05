@@ -137,9 +137,10 @@ reading from local storage; total Convex storage usage is near-zero.
 - **Bulk import:** directory picker / multi-file drag-drop; queued
   parse→IDB→R2 pipeline with progress and per-file error skip (onboard a
   multi-GB books folder in one sitting).
-- **Per-device download management:** Kindle-style — full library visible
-  everywhere; each device holds only downloaded books; "remove from this device";
-  storage-used view.
+
+(Per-device downloads already work implicitly: a device fetches a book's
+content only when you first open it there. Explicit management — "remove from
+this device", storage-used view — is deferred; see below.)
 
 ### Phase 7 — Harden + deploy
 - Auth: close signups (allowlist / disable registration post-setup); remove
@@ -157,6 +158,8 @@ at current library size.
 
 - iOS PWA polish (install prompt, persistent-storage request, Safari eviction
   testing, mobile parse performance).
+- Per-device download management ("remove from this device", storage-used
+  view) — becomes relevant with phone-sized quotas, i.e. alongside iOS work.
 - Highlights + notes (ride the Phase 4 sync layer when added).
 - One-click full export (books + progress as a zip) — durability escape hatch.
 - Web Worker parsing (blocked on `DOMParser` in workers; needs a pure-JS DOM in
