@@ -78,8 +78,10 @@ function ImportPage() {
           </div>
 
           <section className="card p-6">
+            {/* min-w-0: grid children otherwise expand past their track to fit
+                long unbreakable content (e.g. a long title), killing truncate */}
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-              <div>
+              <div className="min-w-0">
                 <div
                   className={`flex min-h-[220px] flex-col items-center justify-center rounded-3xl border border-dashed px-6 py-10 text-center text-sm transition ${
                     isDragging
@@ -159,7 +161,7 @@ function ImportPage() {
                 ) : null}
               </div>
 
-              <div className="surface-soft rounded-2xl p-5">
+              <div className="min-w-0 surface-soft rounded-2xl p-5">
                 <div className="text-xs uppercase tracking-[0.35em] text-[var(--accent-3)]">
                   Queue
                 </div>
