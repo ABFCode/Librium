@@ -17,9 +17,15 @@ vi.mock('convex/react', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, ...props }: { children: ReactNode }) => (
-    <a {...props}>{children}</a>
-  ),
+  // Strip router-only props (activeProps) so they don't hit the DOM.
+  Link: ({
+    children,
+    activeProps: _activeProps,
+    ...props
+  }: {
+    children: ReactNode
+    activeProps?: Record<string, string>
+  }) => <a {...props}>{children}</a>,
 }))
 
 vi.mock('../hooks/useUserSettings', () => ({

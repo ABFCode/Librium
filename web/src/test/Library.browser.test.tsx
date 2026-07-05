@@ -112,11 +112,15 @@ describe('Library', () => {
 
   it('filters the library by search query', async () => {
     const screen = await render(<Library />)
-    await screen.getByPlaceholder('Search titles, authors...').fill('alice')
+    await screen.getByPlaceholder('Search titles, authors…').fill('alice')
 
     const cards = screen.container.querySelectorAll('.book-card')
     expect(cards.length).toBe(1)
-    await expect.element(screen.getByText('Alice in Wonderland')).toBeVisible()
+    // The title renders in both the no-cover placeholder and the meta line —
+    // assert on the meta line specifically.
+    expect(
+      screen.container.querySelector('.book-title')?.textContent,
+    ).toBe('Alice in Wonderland')
   })
 
   it('persists sort selection', async () => {

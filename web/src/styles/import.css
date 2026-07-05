@@ -1,48 +1,22 @@
 @layer components {
   .upload-control {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    border-radius: 999px;
-    border: 1px solid rgba(245, 239, 230, 0.16);
-    background: rgba(15, 18, 22, 0.7);
-    padding: 0.5rem 0.75rem 0.5rem 0.6rem;
-    cursor: pointer;
-    transition: border 150ms ease, background 150ms ease, transform 150ms ease;
-  }
-
-  .upload-control:hover {
-    border-color: rgba(209, 161, 92, 0.6);
-    background: rgba(15, 18, 22, 0.85);
-    transform: translateY(-1px);
-  }
-
-  .upload-label {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 0.85rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--outline);
+    background: transparent;
+    padding: 0.55rem 1.1rem;
+    font-size: 0.875rem;
     font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+    transition: border 150ms ease, background 150ms ease;
   }
 
-  .upload-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 999px;
-    border: 1px solid rgba(209, 161, 92, 0.4);
-    background: rgba(209, 161, 92, 0.18);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--accent);
-  }
-
-  .upload-meta {
-    font-size: 0.7rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--muted-2);
+  .upload-control:hover {
+    background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+    border-color: color-mix(in srgb, var(--muted-2) 40%, var(--outline));
   }
 
   .upload-input {
@@ -53,13 +27,48 @@
     height: 0;
   }
 
-  body[data-theme='paper'] .upload-control {
-    background: color-mix(in srgb, var(--surface) 92%, white);
-    border-color: color-mix(in srgb, var(--outline) 70%, transparent);
+  .dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border-radius: var(--radius-lg);
+    border: 1px dashed color-mix(in srgb, var(--muted-2) 40%, transparent);
+    background: color-mix(in srgb, var(--surface) 55%, transparent);
+    transition: border-color 150ms ease, background 150ms ease;
   }
 
-  body[data-theme='paper'] .upload-icon {
-    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-    background: color-mix(in srgb, var(--accent) 18%, white);
+  .dropzone.is-dragging {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--accent);
+  }
+
+  .queue-status {
+    border-radius: var(--radius-sm);
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .queue-status.is-done {
+    background: color-mix(in srgb, var(--ok) 18%, transparent);
+    color: var(--ok);
+  }
+
+  .queue-status.is-failed {
+    background: color-mix(in srgb, var(--danger) 18%, transparent);
+    color: var(--danger);
+  }
+
+  .queue-status.is-importing {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent);
+  }
+
+  .queue-status.is-queued {
+    background: color-mix(in srgb, var(--surface-3) 80%, transparent);
+    color: var(--muted);
   }
 }

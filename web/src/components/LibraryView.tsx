@@ -103,6 +103,7 @@ export function Library() {
 
   // Bulk operations (global; per-book actions live in each card's menu).
   const [bulkStatus, setBulkStatus] = useState<string | null>(null)
+  const [isBulkMenuOpen, setIsBulkMenuOpen] = useState(false)
 
   const handleDownloadAll = async () => {
     const targets = (books ?? []).filter((b) => !downloadedIds.has(b._id))
@@ -463,32 +464,25 @@ export function Library() {
     <RequireAuth>
       <div className="min-h-screen px-6 pb-16 pt-8">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-          <div className="surface flex flex-wrap items-center gap-3 rounded-[18px] px-4 py-3">
-            <div className="flex items-center gap-3">
-              <span className="text-xs uppercase tracking-[0.35em] text-[var(--muted-2)]">
-                Library
-              </span>
-              <span className="text-[11px] uppercase tracking-[0.3em] text-[var(--muted-2)]">
-                {books ? `${books.length} book${books.length === 1 ? '' : 's'}` : '...'}
-              </span>
-              {books && books.length > 0 ? (
-                <span
-                  className="text-[11px] uppercase tracking-[0.3em] text-[var(--muted-2)]"
-                  title="Books whose content is stored on this device · total local storage used by Librium"
-                >
-                  {downloadedIds.size}/{books.length} on device
-                  {storageUsage !== null ? ` · ${formatBytes(storageUsage)}` : ''}
-                </span>
-              ) : null}
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1 className="text-3xl">Library</h1>
+              <p className="mt-1 text-sm text-[var(--muted-2)]">
+                {!books
+                  ? 'Loading…'
+                  : books.length === 0
+                    ? 'No books yet'
+                    : `${books.length} book${books.length === 1 ? '' : 's'} · ${downloadedIds.size} on this device${storageUsage !== null ? ` · ${formatBytes(storageUsage)} used` : ''}`}
+              </p>
             </div>
-            <div className="ml-auto flex flex-1 flex-wrap items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <input
-                className="input h-10 max-w-[240px]"
-                placeholder="Search titles, authors..."
+                className="input h-9 w-[220px]"
+                placeholder="Search titles, authors…"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
-              <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.3em] text-[var(--muted-2)]">
+              <div className="flex items-center gap-1">
                 {[
                   { key: 'recent', label: 'Recent' },
                   { key: 'title', label: 'Title' },
@@ -497,58 +491,92 @@ export function Library() {
                 ].map((option) => (
                   <button
                     key={option.key}
-                    className={`rounded-full border px-3 py-1 transition ${
-                      sortBy === option.key
-                        ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--accent)]'
-                        : 'border-white/10 text-[var(--muted-2)]'
-                    }`}
+                    className={`chip ${sortBy === option.key ? 'is-active' : ''}`}
                     onClick={() => setSortBy(option.key as typeof sortBy)}
                   >
                     {option.label}
                   </button>
                 ))}
               </div>
-              <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.3em]">
+              <div
+                className="relative"
+                onMouseLeave={() => setIsBulkMenuOpen(false)}
+              >
                 <button
-                  className="rounded-full border border-white/10 px-3 py-1 text-[var(--muted-2)] transition hover:text-[var(--ink)] disabled:opacity-40"
-                  onClick={handleDownloadAll}
-                  disabled={
-                    bulkStatus !== null ||
-                    !books ||
-                    books.length === downloadedIds.size
-                  }
-                  title="Store every book's content on this device (e.g. before going offline)"
+                  className={`icon-btn ${isBulkMenuOpen ? 'is-active' : ''}`}
+                  onClick={() => setIsBulkMenuOpen((prev) => !prev)}
                 >
-                  Download all
+                  <span className="sr-only">Library actions</span>
+                  <svg
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="5" cy="12" r="1.5" />
+                    <circle cx="12" cy="12" r="1.5" />
+                    <circle cx="19" cy="12" r="1.5" />
+                  </svg>
                 </button>
-                <button
-                  className="rounded-full border border-white/10 px-3 py-1 text-[var(--muted-2)] transition hover:text-[var(--ink)] disabled:opacity-40"
-                  onClick={handleRemoveAllDownloads}
-                  disabled={bulkStatus !== null || downloadedIds.size === 0}
-                  title="Free this device's storage; the library itself is untouched"
-                >
-                  Clear downloads
-                </button>
-                <button
-                  className="rounded-full border border-rose-500/20 px-3 py-1 text-rose-300/80 transition hover:text-rose-300 disabled:opacity-40"
-                  onClick={handleDeleteAllBooks}
-                  disabled={bulkStatus !== null || !books || books.length === 0}
-                  title="Permanently delete every book, everywhere"
-                >
-                  Delete all
-                </button>
+                {isBulkMenuOpen ? (
+                  <div className="menu absolute right-0 top-9 z-20">
+                    <button
+                      className="menu-item"
+                      onClick={() => {
+                        setIsBulkMenuOpen(false)
+                        void handleDownloadAll()
+                      }}
+                      disabled={
+                        bulkStatus !== null ||
+                        !books ||
+                        books.length === downloadedIds.size
+                      }
+                      title="Store every book's content on this device (e.g. before going offline)"
+                    >
+                      Download all to this device
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={() => {
+                        setIsBulkMenuOpen(false)
+                        void handleRemoveAllDownloads()
+                      }}
+                      disabled={bulkStatus !== null || downloadedIds.size === 0}
+                      title="Free this device's storage; the library itself is untouched"
+                    >
+                      Clear downloads
+                    </button>
+                    <button
+                      className="menu-item is-danger"
+                      onClick={() => {
+                        setIsBulkMenuOpen(false)
+                        void handleDeleteAllBooks()
+                      }}
+                      disabled={bulkStatus !== null || !books || books.length === 0}
+                      title="Permanently delete every book, everywhere"
+                    >
+                      Delete all books…
+                    </button>
+                  </div>
+                ) : null}
               </div>
-              <Link className="btn btn-primary h-10 px-4" to="/import">
+              <Link className="btn btn-primary h-9" to="/import">
                 Upload books
               </Link>
             </div>
-            {bulkStatus ? (
-              <p className="w-full text-sm text-[var(--muted)]">{bulkStatus}</p>
-            ) : null}
-            {error ? (
-              <p className="w-full text-sm text-[var(--danger)]">{error}</p>
-            ) : null}
           </div>
+          {bulkStatus ? (
+            <p className="text-sm text-[var(--muted)]">{bulkStatus}</p>
+          ) : null}
+          {error ? (
+            <p className="text-sm text-[var(--danger)]">{error}</p>
+          ) : null}
 
           {!books ? (
             <p className="text-sm text-[var(--muted)]">Loading...</p>
@@ -559,7 +587,7 @@ export function Library() {
               </p>
             </div>
           ) : (
-            <div className="grid justify-items-center gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {sortedBooks.map((book) => {
                 const coverUrl = coverUrls?.[book._id]
                 const progress = progressByBookId.get(book._id)
@@ -569,10 +597,7 @@ export function Library() {
                 const showProgressBadge =
                   progressPercent !== null && progressPercent > 0
                 return (
-                  <div
-                    key={book._id}
-                    className="book-card group w-full max-w-[190px]"
-                  >
+                  <div key={book._id} className="book-card group w-full">
                     <Link
                       className="block"
                       to="/reader/$bookId"
@@ -592,18 +617,17 @@ export function Library() {
                             />
                           </div>
                         ) : (
-                          <div className="h-full w-full bg-[linear-gradient(135deg,rgba(209,161,92,0.22),rgba(143,181,166,0.2))]">
-                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.25),transparent_70%)]" />
+                          <div className="flex h-full w-full items-center justify-center bg-[var(--surface-2)] p-3">
+                            <span className="line-clamp-4 text-center font-[family-name:var(--font-display)] text-sm text-[var(--muted)]">
+                              {book.title}
+                            </span>
                           </div>
                         )}
                         {showProgressBadge ? (
                           <div className="progress-badge">{`${progressPercent}%`}</div>
                         ) : null}
                         {downloadedIds.has(book._id) ? (
-                          <div
-                            className="absolute bottom-2 left-2 h-2 w-2 rounded-full bg-emerald-400/90 shadow-[0_0_6px_rgba(52,211,153,0.7)]"
-                            title="On this device"
-                          />
+                          <div className="device-dot" title="On this device" />
                         ) : null}
                       </div>
                     </Link>
@@ -625,7 +649,7 @@ export function Library() {
                       </div>
                       <div className="book-menu-shell">
                         <button
-                          className="book-menu-btn"
+                          className="icon-btn"
                           onMouseEnter={() => setOpenMenuId(book._id)}
                           onClick={(event) => {
                             event.stopPropagation()
@@ -654,13 +678,13 @@ export function Library() {
                         </button>
                         {openMenuId === book._id ? (
                           <div
-                            className="book-menu"
+                            className="menu book-menu"
                             onMouseLeave={() => setOpenMenuId(null)}
                             onClick={(event) => event.stopPropagation()}
                           >
                             {downloadedIds.has(book._id) ? (
                               <button
-                                className="book-menu-item"
+                                className="menu-item"
                                 onClick={async () => {
                                   setOpenMenuId(null)
                                   await handleRemoveDownload(book._id)
@@ -670,7 +694,7 @@ export function Library() {
                               </button>
                             ) : (
                               <button
-                                className="book-menu-item"
+                                className="menu-item"
                                 disabled={downloadingId === book._id}
                                 onClick={async () => {
                                   setOpenMenuId(null)
@@ -683,7 +707,7 @@ export function Library() {
                               </button>
                             )}
                             <button
-                              className="book-menu-item"
+                              className="menu-item"
                               onClick={async () => {
                                 setOpenMenuId(null)
                                 await handleDownload(book._id, book.title)
@@ -692,7 +716,7 @@ export function Library() {
                               Save EPUB
                             </button>
                             <button
-                              className="book-menu-item is-danger"
+                              className="menu-item is-danger"
                               onClick={async () => {
                                 setOpenMenuId(null)
                                 await handleDelete(book._id)

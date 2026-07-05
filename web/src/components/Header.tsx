@@ -25,31 +25,39 @@ export default function Header() {
     setTheme(next)
   }
   return (
-    <header className="app-header sticky top-0 z-40 px-4 py-4 backdrop-blur">
+    <header className="app-header sticky top-0 z-40 px-4 py-3 backdrop-blur">
       <nav className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-6">
-          <Link className="flex items-center gap-3" to="/">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[rgba(209,161,92,0.5)] bg-[rgba(209,161,92,0.18)] text-lg font-semibold text-[var(--accent)]">
+          <Link className="flex items-center gap-2.5" to="/">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] bg-[color-mix(in_srgb,var(--accent)_16%,transparent)] font-[family-name:var(--font-display)] text-base font-semibold text-[var(--accent)]">
               L
             </div>
-            <div className="text-lg font-semibold tracking-wide">
+            <div className="font-[family-name:var(--font-display)] text-lg font-semibold">
               Librium
             </div>
           </Link>
           {showNav ? (
-            <div className="hidden items-center gap-4 text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted-2)] md:flex">
-              <Link className="hover:text-[var(--ink)]" to="/library">
+            <div className="hidden items-center gap-1 text-sm font-medium text-[var(--muted-2)] md:flex">
+              <Link
+                className="rounded-[var(--radius-sm)] px-2.5 py-1 transition hover:text-[var(--ink)]"
+                to="/library"
+                activeProps={{ className: 'text-[var(--ink)]' }}
+              >
                 Library
               </Link>
-              <Link className="hover:text-[var(--ink)]" to="/import">
+              <Link
+                className="rounded-[var(--radius-sm)] px-2.5 py-1 transition hover:text-[var(--ink)]"
+                to="/import"
+                activeProps={{ className: 'text-[var(--ink)]' }}
+              >
                 Upload
               </Link>
             </div>
           ) : null}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
-            className="btn btn-ghost text-xs tooltip"
+            className="icon-btn tooltip"
             data-tooltip="Toggle theme"
             data-tooltip-position="bottom"
             onClick={toggleTheme}
@@ -97,7 +105,7 @@ export default function Header() {
           </button>
           {user ? (
             <>
-              <span className="hidden rounded-full border border-white/10 px-3 py-1 text-xs text-[var(--muted)] md:inline-flex">
+              <span className="hidden text-sm text-[var(--muted-2)] md:inline">
                 {user.email ?? user.name ?? 'Signed in'}
               </span>
               <button

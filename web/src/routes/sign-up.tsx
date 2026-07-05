@@ -52,93 +52,60 @@ function SignUp() {
   }
 
   return (
-    <div className="min-h-screen px-6 py-12">
-      <div className="mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="surface flex flex-col justify-between rounded-[28px] p-8">
-          <div>
-            <span className="pill">New Volume</span>
-            <h1 className="mt-6 text-4xl leading-tight">
-              Build a library that feels handmade.
-            </h1>
-            <p className="mt-4 text-sm text-[var(--muted)]">
-              Your collection stays yours. Upload, parse, and read without
-              the clutter.
+    <div className="flex min-h-[calc(100vh-120px)] items-center justify-center px-6 py-12">
+      <div className="surface w-full max-w-sm p-8">
+        {signupEnabled === false ? (
+          <>
+            <h1 className="text-2xl">Registration is closed</h1>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              Librium isn't open for new accounts right now. If you already
+              have an account, you can sign in.
             </p>
-          </div>
-          <div className="mt-10 grid gap-4 text-sm text-[var(--muted)]">
-            <div className="surface-soft rounded-2xl p-4">
-              <div className="text-xs uppercase tracking-[0.3em] text-[var(--accent-3)]">
-                Designed for focus
-              </div>
-              <div className="mt-2 text-base text-[var(--ink)]">
-                Minimal, responsive layouts tuned for long-form reading.
-              </div>
+            <Link className="btn btn-primary mt-6 w-full" to="/sign-in">
+              Go to sign in
+            </Link>
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl">Create an account</h1>
+            <p className="mt-1 text-sm text-[var(--muted-2)]">
+              Sign up with email and password.
+            </p>
+            <div className="mt-6 space-y-3">
+              <input
+                className="input"
+                type="text"
+                placeholder="Name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+              <input
+                className="input"
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+              <input
+                className="input"
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+              <button
+                className="btn btn-primary w-full"
+                onClick={submit}
+                disabled={isLoading || !name || !email || !password}
+              >
+                {isLoading ? 'Creating account…' : 'Create account'}
+              </button>
+              {error ? (
+                <p className="text-sm text-[var(--danger)]">{error}</p>
+              ) : null}
             </div>
-            <div className="surface-soft rounded-2xl p-4">
-              <div className="text-xs uppercase tracking-[0.3em] text-[var(--accent)]">
-                Own your library
-              </div>
-              <div className="mt-2 text-base text-[var(--ink)]">
-                Your EPUBs live with you — no vendor lock-in.
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="surface flex flex-col justify-center rounded-[28px] p-8">
-          {signupEnabled === false ? (
-            <>
-              <h2 className="text-2xl">Registration is closed</h2>
-              <p className="mt-2 text-sm text-[var(--muted)]">
-                Librium isn't open for new accounts right now. If you already
-                have an account, you can sign in.
-              </p>
-              <Link className="btn btn-primary mt-6 w-full" to="/sign-in">
-                Go to sign in
-              </Link>
-            </>
-          ) : (
-            <>
-              <h2 className="text-2xl">Create an account</h2>
-              <p className="mt-2 text-sm text-[var(--muted)]">
-                Sign up with email and password.
-              </p>
-              <div className="mt-6 space-y-4">
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="Name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                />
-                <input
-                  className="input"
-                  type="email"
-                  placeholder="Email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                />
-                <input
-                  className="input"
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                />
-                <button
-                  className="btn btn-primary w-full"
-                  onClick={submit}
-                  disabled={isLoading || !name || !email || !password}
-                >
-                  {isLoading ? 'Creating account...' : 'Create account'}
-                </button>
-                {error ? (
-                  <p className="text-sm text-[var(--danger)]">{error}</p>
-                ) : null}
-              </div>
-            </>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   )
