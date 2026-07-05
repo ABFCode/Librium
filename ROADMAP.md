@@ -95,9 +95,10 @@ Conflict policy per record type:
 
 ## Phases
 
-*Status: Phases 1–4 shipped in v0.4.0; Phase 5 landed after it (unreleased).
-Remaining: Phase 6 (bulk import, per-device downloads) and Phase 7 (harden +
-deploy).*
+*Status: complete. Phases 1–4 shipped in v0.4.0, Phase 5 in v0.5.0, Phase 6 in
+v0.6.0, and Phase 7 (harden + deploy) in v0.7.0 — Librium runs at librium.dev on
+Cloudflare Pages + Convex Cloud + R2, with registration closed and auth rate
+limiting. Deferred items below remain the future backlog.*
 
 ### Phase 1 — Static SPA conversion
 Drop TanStack Start/nitro; ship a plain Vite + TanStack Router SPA. Keep all

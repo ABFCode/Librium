@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.0 - 2026-07-05
+- **Deployed (ROADMAP Phase 7 — complete):** Librium now runs at a real URL, **[librium.dev](https://librium.dev)**, on the target zero-ops stack — Cloudflare Pages (static app, auto-deploy on push to `main`) + Convex Cloud (auth + sync) + Cloudflare R2 (raw EPUBs/covers), with a dedicated prod R2 bucket and CORS. Infra cost is $0/mo at current library size.
+- **Closed registration:** sign-up is disabled by default on deployed instances (`emailAndPassword.disableSignUp`); reopen at release by setting `ALLOW_SIGNUP=true` on the Convex deployment (env-only, no redeploy) — same convention as `ALLOW_ADMIN_RESET` / `ALLOW_SEED`, which keep the admin-reset and seed functions inert on prod. Sign-in is unaffected. The UI reflects the state via a public `config.signupEnabled` query: the sign-up page shows a "Registration is closed" panel and the Sign up / Create account links are hidden.
+- **Auth rate limiting:** auth endpoints are throttled on deployed instances via Better Auth's rate limiter with `storage: "database"` (counters persist in the component's `rateLimit` table — serverless-safe), sign-in capped tighter (20/60s) than the 100/60s global default. Disabled locally so dev/tests aren't throttled.
+
 ## 0.6.0 - 2026-07-05
 - **Import queue UI fix:** long titles truncate instead of blowing out the layout.
 - **Bulk library operations:** toolbar actions — "Download all" (pre-load every book onto this device), "Clear downloads" (confirm; frees local storage, library untouched), and "Delete all" (type-DELETE confirmation; removes every book + cloud backup everywhere), each with progress feedback.
