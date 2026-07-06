@@ -8,14 +8,22 @@ import Header from '../components/Header'
 import { convexClient } from '../convexClient'
 import { authClient } from '../lib/auth-client'
 
+// Route-config-driven chrome: any route can opt out of the app header via
+// staticData.chrome, which travels with the route regardless of its path.
+declare module '@tanstack/react-router' {
+  interface StaticDataRouteOption {
+    chrome?: boolean
+  }
+}
+
 export const Route = createRootRoute({
   component: RootLayout,
 })
 
 function RootLayout() {
-  // The reader owns the full viewport; its own top bar has the way back.
-  const isReaderRoute = useRouterState({
-    select: (state) => state.location.pathname.startsWith('/reader'),
+  const hideChrome = useRouterState({
+    select: (state) =>
+      state.matches.some((match) => match.staticData.chrome === false),
   })
   return (
     <>
@@ -30,7 +38,7 @@ function RootLayout() {
           >['authClient']
         }
       >
-        {isReaderRoute ? null : <Header />}
+        {hideChrome ? null : <Header />}
         <Outlet />
       </ConvexBetterAuthProvider>
       <TanStackDevtools
