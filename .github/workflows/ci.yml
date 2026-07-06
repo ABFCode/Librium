@@ -80,7 +80,10 @@ jobs:
         env:
           CONVEX_AGENT_MODE: anonymous
         run: |
-          npx convex dev > /tmp/convex.log 2>&1 &
+          # --typecheck disable: the `checks` job already runs tsc over the
+          # whole project (convex/ included); re-checking here just re-resolves
+          # tsconfig in a fresh env and flakes on the node `process` global.
+          npx convex dev --typecheck disable > /tmp/convex.log 2>&1 &
           echo $! > /tmp/convex.pid
           # Wait for functions to finish pushing (env.local is written at
           # configure time, before the push completes — so gate on both).
