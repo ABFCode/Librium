@@ -65,6 +65,7 @@ export const updateProgress = mutation({
     lastSectionIndex: v.optional(v.number()),
     lastBlockIndex: v.optional(v.number()),
     lastBlockOffset: v.optional(v.number()),
+    lastSectionFraction: v.optional(v.number()),
     // Client edit time — lets a reconnecting device push offline progress
     // without a stale queued write clobbering newer progress from elsewhere.
     editedAt: v.optional(v.number()),
@@ -93,6 +94,8 @@ export const updateProgress = mutation({
       lastSectionIndex: args.lastSectionIndex ?? existing?.lastSectionIndex ?? 0,
       lastBlockIndex: args.lastBlockIndex ?? existing?.lastBlockIndex ?? undefined,
       lastBlockOffset: args.lastBlockOffset ?? existing?.lastBlockOffset ?? undefined,
+      lastSectionFraction:
+        args.lastSectionFraction ?? existing?.lastSectionFraction ?? undefined,
       updatedAt: now,
       progressEditedAt: args.editedAt ?? now,
     };
@@ -161,9 +164,16 @@ export const listByUser = query({
       }
       const totalSections = book.sectionCount ?? 0;
       const lastIndex = entry.lastSectionIndex ?? 0;
-      // Chapters *completed* — counting the current chapter would show a
-      // freshly opened book as already started (1/32 ≈ 3%).
-      const progress = totalSections > 0 ? lastIndex / totalSections : 0;
+      // Completed chapters plus the fraction of the current one — a fresh
+      // book reads 0%, a 1-chapter book can progress, and finishing the last
+      // chapter reaches 100%.
+      const progress =
+        totalSections > 0
+          ? Math.min(
+              (lastIndex + (entry.lastSectionFraction ?? 0)) / totalSections,
+              1,
+            )
+          : 0;
       results.push({
         bookId: entry.bookId,
         lastSectionTitle: null,

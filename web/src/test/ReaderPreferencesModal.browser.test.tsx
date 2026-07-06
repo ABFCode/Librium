@@ -16,6 +16,8 @@ describe('ReaderPreferencesModal', () => {
         setContentWidth={() => {}}
         theme="night"
         setTheme={() => {}}
+        fontFamily="sans"
+        setFontFamily={() => {}}
       />,
     )
 
@@ -36,6 +38,8 @@ describe('ReaderPreferencesModal', () => {
         setContentWidth={() => {}}
         theme="night"
         setTheme={() => {}}
+        fontFamily="sans"
+        setFontFamily={() => {}}
       />,
     )
 
@@ -61,6 +65,8 @@ describe('ReaderPreferencesModal', () => {
         setContentWidth={() => {}}
         theme="night"
         setTheme={() => {}}
+        fontFamily="sans"
+        setFontFamily={() => {}}
       />,
     )
 
@@ -82,6 +88,8 @@ describe('ReaderPreferencesModal', () => {
         setContentWidth={() => {}}
         theme="night"
         setTheme={() => {}}
+        fontFamily="sans"
+        setFontFamily={() => {}}
       />,
     )
 

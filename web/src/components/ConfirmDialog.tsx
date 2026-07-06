@@ -24,18 +24,20 @@ export const ConfirmDialog = ({
   const [typed, setTyped] = useState('')
   const armed = !requireText || typed === requireText
 
+  // Escape cancels globally. Enter is deliberately NOT handled at the window
+  // level: a global Enter-to-confirm fires even with focus on the Cancel
+  // button, turning "Enter on Cancel" into the destructive action. Buttons
+  // handle Enter natively when focused; the type-to-confirm input opts in
+  // below.
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onCancel()
       }
-      if (event.key === 'Enter' && armed) {
-        onConfirm()
-      }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [armed, onCancel, onConfirm])
+  }, [onCancel])
 
   return (
     <div
@@ -55,6 +57,11 @@ export const ConfirmDialog = ({
             value={typed}
             autoFocus
             onChange={(event) => setTyped(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && armed) {
+                onConfirm()
+              }
+            }}
           />
         ) : null}
         <div className="mt-5 flex justify-end gap-2">

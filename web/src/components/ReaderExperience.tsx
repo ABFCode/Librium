@@ -182,16 +182,21 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const [isTocOpen, setIsTocOpen] = useState(false)
   const [activeSideTab, setActiveSideTab] = useState<'toc' | 'search' | 'bookmarks'>('toc')
   const [isPrefsOpen, setIsPrefsOpen] = useState(false)
-  const [isHydrated, setIsHydrated] = useState(false)
   const [tocReady, setTocReady] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  // Which section the currently rendered blocks belong to. Restore/jump
+  // effects must not touch the DOM until it matches sectionId — otherwise a
+  // cross-section jump anchors against the previous chapter's content.
+  const [loadedSectionId, setLoadedSectionId] = useState<string | null>(null)
   const parentRef = useRef<HTMLDivElement | null>(null)
   const activeSectionRef = useRef<string | null>(null)
   const lastProgressAtRef = useRef<number>(0)
-  const restoredSectionRef = useRef<string | null>(null)
-  const pendingScrollRef = useRef<number | null>(null)
-  // Block index to scroll to after a cross-section search-result jump.
-  const pendingChunkRef = useRef<number | null>(null)
+  const trailingEmitRef = useRef<number | null>(null)
+  // Anchor to apply after a cross-section jump (search result / bookmark).
+  const pendingChunkRef = useRef<{
+    blockIndex: number
+    fraction: number
+  } | null>(null)
   const loadingSectionRef = useRef<string | null>(null)
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(false)
   const restoredFromUserBookRef = useRef(false)
@@ -203,9 +208,11 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const initialProgressRef = useRef(false)
   const scrollRestoredRef = useRef<string | null>(null)
   // Restore is applied synchronously, then silently re-anchored while fonts
-  // and images settle — unless the user has scrolled in the meantime.
+  // and images settle — unless the user has scrolled in the meantime, or a
+  // newer restore has bumped the token (invalidates stale async closures).
   const lastAppliedScrollTopRef = useRef(0)
   const userScrolledSinceRestoreRef = useRef(false)
+  const anchorTokenRef = useRef(0)
   const tocListRef = useRef<HTMLDivElement | null>(null)
   const fontsReadyRef = useRef<Promise<void> | null>(null)
   const {
@@ -220,10 +227,6 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     setTheme,
     setFontFamily,
   } = useUserSettings({ pauseSync: isPrefsOpen })
-
-  useEffect(() => {
-    setIsHydrated(true)
-  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -470,6 +473,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       if (local && activeSectionRef.current === targetId) {
         setBlocks(local as BlockPayload[])
         setChunks([])
+        setLoadedSectionId(targetId)
       }
     }
     if (loadingSectionRef.current === targetId) {
@@ -497,6 +501,58 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     }
   }, [isLoading])
 
+  const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1)
+
+  // The anchor is (block index, fraction 0–1 within it): layout-independent,
+  // so positions survive font/width changes and other devices. These two
+  // helpers are the single source of the anchor math for progress, restore,
+  // re-anchoring, bookmarks, and search jumps.
+  const findAnchor = (container: HTMLElement) => {
+    const scrollTop = container.scrollTop
+    let blockIndex = 0
+    let fraction = 0
+    // Also derive how far through the whole section we are (block position
+    // plus intra-block fraction) so percent displays can count partial
+    // chapters instead of pinning 1-chapter books at 0%.
+    let sectionFraction = 0
+    const nodes = Array.from(container.querySelectorAll('[data-chunk-index]'))
+    for (let i = 0; i < nodes.length; i++) {
+      const element = nodes[i] as HTMLElement
+      if (element.offsetTop + element.clientHeight > scrollTop) {
+        blockIndex = Number(element.dataset.chunkIndex ?? 0)
+        fraction =
+          element.clientHeight > 0
+            ? clamp01((scrollTop - element.offsetTop) / element.clientHeight)
+            : 0
+        sectionFraction =
+          nodes.length > 0 ? clamp01((i + fraction) / nodes.length) : 0
+        // Bottom of the viewport at the end of the content = finished.
+        if (
+          container.scrollTop + container.clientHeight >=
+          container.scrollHeight - 4
+        ) {
+          sectionFraction = 1
+        }
+        break
+      }
+    }
+    return { blockIndex, fraction, sectionFraction }
+  }
+
+  const anchorScrollTop = (
+    container: HTMLElement,
+    blockIndex: number,
+    fraction: number,
+  ) => {
+    const target = container.querySelector(
+      `[data-chunk-index="${blockIndex}"]`,
+    ) as HTMLElement | null
+    if (!target) {
+      return null
+    }
+    return target.offsetTop + clamp01(fraction) * target.clientHeight
+  }
+
   const emitProgress = () => {
     if (!sectionId || !parentRef.current || activeIndex < 0) {
       return
@@ -508,35 +564,14 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     if (effectiveProgress && !restoredFromUserBookRef.current) {
       return
     }
-    const container = parentRef.current
-    const scrollTop = container.scrollTop
-    let blockIndex = 0
-    // Fraction of the way through the anchor block (0–1): layout-independent,
-    // so positions survive font/width changes and other devices.
-    let blockFraction = 0
-    const nodes = Array.from(
-      container.querySelectorAll('[data-chunk-index]'),
-    )
-    for (const node of nodes) {
-      const element = node as HTMLElement
-      if (element.offsetTop + element.clientHeight > scrollTop) {
-        blockIndex = Number(element.dataset.chunkIndex ?? 0)
-        blockFraction =
-          element.clientHeight > 0
-            ? Math.min(
-                Math.max((scrollTop - element.offsetTop) / element.clientHeight, 0),
-                1,
-              )
-            : 0
-        break
-      }
-    }
+    const anchor = findAnchor(parentRef.current)
     // Local write is instant and offline-capable; the sync hook pushes to
     // Convex (LWW) whenever a connection and the section's Convex id exist.
     void saveProgress({
       sectionIndex: activeIndex,
-      blockIndex,
-      blockOffset: blockFraction,
+      blockIndex: anchor.blockIndex,
+      blockOffset: anchor.fraction,
+      sectionFraction: anchor.sectionFraction,
     })
   }
 
@@ -564,6 +599,17 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       if (Math.abs(container.scrollTop - lastAppliedScrollTopRef.current) > 4) {
         userScrolledSinceRestoreRef.current = true
       }
+      // Trailing emit: without it the throttle can leave the saved anchor
+      // several screens behind after a fast scroll, and anything that
+      // re-applies saved progress (font-size change) yanks the view back.
+      if (trailingEmitRef.current !== null) {
+        window.clearTimeout(trailingEmitRef.current)
+      }
+      trailingEmitRef.current = window.setTimeout(() => {
+        trailingEmitRef.current = null
+        lastProgressAtRef.current = Date.now()
+        emitProgress()
+      }, 300)
       const now = Date.now()
       if (now - lastProgressAtRef.current < 800) {
         return
@@ -572,7 +618,13 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       emitProgress()
     }
     container.addEventListener('scroll', handleScroll)
-    return () => container.removeEventListener('scroll', handleScroll)
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+      if (trailingEmitRef.current !== null) {
+        window.clearTimeout(trailingEmitRef.current)
+        trailingEmitRef.current = null
+      }
+    }
   }, [sectionId])
 
   useEffect(() => {
@@ -605,23 +657,25 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     if (effectiveProgress.sectionIndex !== activeIndex) {
       return
     }
-    const target = container.querySelector(
-      `[data-chunk-index="${effectiveProgress.blockIndex}"]`,
-    ) as HTMLElement | null
-    if (!target) {
+    const top = anchorScrollTop(
+      container,
+      effectiveProgress.blockIndex,
+      effectiveProgress.blockOffset,
+    )
+    if (top === null) {
       return
     }
-    const fraction = Math.min(Math.max(effectiveProgress.blockOffset, 0), 1)
-    container.scrollTop = target.offsetTop + fraction * target.clientHeight
+    container.scrollTop = top
     lastAppliedScrollTopRef.current = container.scrollTop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fontSize, lineHeight, contentWidth, fontFamily])
 
   // Persist position on arrival at a section — a chapter switch with no
   // scrolling would otherwise never save (progress only emitted on scroll
-  // and tab-hide before this).
+  // and tab-hide before this). Wait for the section's own content: emitting
+  // against the previous chapter's DOM would save a bogus anchor.
   useEffect(() => {
-    if (!isHydrated) {
+    if (loadedSectionId !== sectionId) {
       return
     }
     if (!blocks || blocks.length === 0) {
@@ -629,11 +683,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     }
     emitProgress()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHydrated, sectionId, blocks])
-
-  useEffect(() => {
-    restoredSectionRef.current = null
-  }, [sectionId])
+  }, [loadedSectionId, sectionId, blocks])
 
   const tocVirtualizer = useVirtualizer({
     count: sections?.length ?? 0,
@@ -657,6 +707,12 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     if (!container || !sectionId) {
       return
     }
+    // Never anchor against another section's DOM: after a section switch the
+    // old blocks stay mounted until loadSection finishes, and consuming a
+    // pending jump (or restoring) against them lands at a bogus position.
+    if (loadedSectionId !== sectionId) {
+      return
+    }
     const hasContent = (blocks && blocks.length > 0) || chunks.length > 0
     if (!hasContent) {
       return
@@ -666,20 +722,12 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       lastAppliedScrollTopRef.current = container.scrollTop
     }
     if (pendingChunkRef.current !== null) {
-      const chunkIndex = pendingChunkRef.current
+      const pending = pendingChunkRef.current
       pendingChunkRef.current = null
-      const target = container.querySelector(
-        `[data-chunk-index="${chunkIndex}"]`,
-      ) as HTMLElement | null
-      applyScroll(target ? target.offsetTop : 0)
-      restoredSectionRef.current = sectionId
-      scrollRestoredRef.current = sectionId
-      return
-    }
-    if (pendingScrollRef.current !== null) {
-      applyScroll(pendingScrollRef.current)
-      pendingScrollRef.current = null
-      restoredSectionRef.current = sectionId
+      anchorTokenRef.current++
+      applyScroll(
+        anchorScrollTop(container, pending.blockIndex, pending.fraction) ?? 0,
+      )
       scrollRestoredRef.current = sectionId
       return
     }
@@ -692,17 +740,13 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         return
       }
       const targetIndex = effectiveProgress.blockIndex
-      // blockOffset is a fraction (0–1) of the way through the anchor block —
-      // layout-independent, so it restores correctly on any device/font size.
-      const targetFraction = Math.min(Math.max(effectiveProgress.blockOffset, 0), 1)
+      const targetFraction = effectiveProgress.blockOffset
       const applyAnchor = () => {
-        const target = container.querySelector(
-          `[data-chunk-index="${targetIndex}"]`,
-        ) as HTMLElement | null
-        if (!target) {
+        const top = anchorScrollTop(container, targetIndex, targetFraction)
+        if (top === null) {
           return false
         }
-        applyScroll(target.offsetTop + targetFraction * target.clientHeight)
+        applyScroll(top)
         return true
       }
       userScrolledSinceRestoreRef.current = false
@@ -710,13 +754,14 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         applyScroll(0)
       }
       scrollRestoredRef.current = sectionId
-      restoredSectionRef.current = sectionId
       // Content stays visible; if fonts or images settle and shift layout,
-      // silently re-apply the anchor — unless the user has scrolled away.
-      const sectionAtRestore = sectionId
+      // silently re-apply the anchor — unless the user has scrolled away or
+      // a newer restore has run (token invalidates stale async closures,
+      // e.g. navigating A→B→A before A's fonts/images resolved).
+      const token = ++anchorTokenRef.current
       const reanchor = () => {
         if (
-          scrollRestoredRef.current === sectionAtRestore &&
+          anchorTokenRef.current === token &&
           !userScrolledSinceRestoreRef.current
         ) {
           applyAnchor()
@@ -742,10 +787,10 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         blockOffset: 0,
       })
     }
+    anchorTokenRef.current++
     applyScroll(0)
-    restoredSectionRef.current = sectionId
     scrollRestoredRef.current = null
-  }, [sectionId, chunks.length, blocks?.length, effectiveProgress, activeIndex])
+  }, [sectionId, loadedSectionId, chunks.length, blocks?.length, effectiveProgress, activeIndex])
 
   // ── Whole-book search ──────────────────────────────────────────────────────
   // Scans every section's text from IndexedDB. Built to stay responsive on
@@ -757,26 +802,37 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     Array<{ sectionIndex: number; blockIndex: number; snippet: string }>
   >([])
   const [isSearching, setIsSearching] = useState(false)
+  // Keyed by the live-query rows' identity: a re-parse or seeding batch
+  // yields a new array, invalidating the cache even when the section count
+  // is unchanged. Text is cached pre-lowercased so scans are pure indexOf.
   const bookTextCacheRef = useRef<{
-    key: string
-    perSection: string[][]
+    rows: unknown
+    perSection: { texts: string[]; lower: string[] }[]
   } | null>(null)
   const searchTokenRef = useRef(0)
 
+  // Drop the previous book's cache on navigation so ~MBs of strings don't
+  // linger while reading a different book.
+  useEffect(() => {
+    bookTextCacheRef.current = null
+  }, [bookId])
+
   const ensureBookText = async (token: number) => {
-    const key = `${bookId}:${sections?.length ?? 0}`
-    if (bookTextCacheRef.current?.key === key) {
+    const rows = localSectionRows
+    if (!rows || rows.length === 0) {
+      return null
+    }
+    if (bookTextCacheRef.current?.rows === rows) {
       return bookTextCacheRef.current.perSection
     }
-    const rows = await db.sections
-      .where('bookId')
-      .equals(bookId)
-      .sortBy('orderIndex')
-    const perSection: string[][] = []
+    // The rows (with blocks) are already in memory via the live query — no
+    // second IndexedDB read.
+    const perSection: { texts: string[]; lower: string[] }[] = []
     for (let i = 0; i < rows.length; i++) {
-      perSection[i] = (rows[i].blocks ?? []).map((block) =>
+      const texts = (rows[i].blocks ?? []).map((block) =>
         blockToText(block as BlockPayload),
       )
+      perSection[i] = { texts, lower: texts.map((t) => t.toLowerCase()) }
       if (i % 100 === 99) {
         await new Promise((resolve) => setTimeout(resolve))
         if (searchTokenRef.current !== token) {
@@ -784,7 +840,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         }
       }
     }
-    bookTextCacheRef.current = { key, perSection }
+    bookTextCacheRef.current = { rows, perSection }
     return perSection
   }
 
@@ -810,13 +866,13 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
             snippet: string
           }> = []
           for (let s = 0; s < perSection.length; s++) {
-            const texts = perSection[s]
+            const { texts, lower } = perSection[s]
             for (
               let b = 0;
               b < texts.length && out.length < SEARCH_RESULT_CAP;
               b++
             ) {
-              const pos = texts[b].toLowerCase().indexOf(query)
+              const pos = lower[b].indexOf(query)
               if (pos >= 0) {
                 const start = Math.max(0, pos - 40)
                 const end = Math.min(texts[b].length, pos + query.length + 40)
@@ -849,7 +905,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     }, 250)
     return () => window.clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, bookId, sections?.length])
+  }, [searchQuery, bookId, localSectionRows])
 
   const jumpToSearchResult = (result: {
     sectionIndex: number
@@ -864,7 +920,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       scrollToChunk(result.blockIndex)
       return
     }
-    pendingChunkRef.current = result.blockIndex
+    pendingChunkRef.current = { blockIndex: result.blockIndex, fraction: 0 }
     setActiveSectionId(targetId)
   }
 
@@ -1207,24 +1263,14 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     if (!sectionId || !parentRef.current || activeIndex < 0) {
       return
     }
-    const container = parentRef.current
-    const scrollTop = container.scrollTop
-    let blockIndex = 0
-    const nodes = Array.from(
-      container.querySelectorAll('[data-chunk-index]'),
-    )
-    for (const node of nodes) {
-      const element = node as HTMLElement
-      if (element.offsetTop + element.clientHeight > scrollTop) {
-        blockIndex = Number(element.dataset.chunkIndex ?? 0)
-        break
-      }
-    }
+    // Same layout-independent anchor as progress: block index + fraction
+    // within it ("offset" carries the fraction).
+    const anchor = findAnchor(parentRef.current)
     const label = window.prompt('Bookmark label (optional)') ?? undefined
     await createBookmark({
       sectionIndex: activeIndex,
-      blockIndex,
-      offset: scrollTop,
+      blockIndex: anchor.blockIndex,
+      offset: anchor.fraction,
       label: label && label.length > 0 ? label : undefined,
     })
     setActiveSideTab('bookmarks')
@@ -1248,14 +1294,17 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         event.preventDefault()
         goPrev()
       }
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !isPrefsOpen) {
+        // The prefs modal has its own Escape handling — don't also close
+        // the chapters panel underneath it.
         setIsTocOpen(false)
       }
     }
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [goNext, goPrev])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goNext, goPrev, isPrefsOpen])
 
   const tabItems = [
     {
@@ -1446,14 +1495,29 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
                 const label = bookmark.label?.trim()
                 const title = label || sectionTitle
                 const jumpToBookmark = () => {
+                  // Legacy rows stored absolute pixels; treat >1 as "top of
+                  // the anchor block" instead of a bogus fraction.
+                  const fraction =
+                    bookmark.offset <= 1 ? bookmark.offset : 0
                   if (targetSectionId && targetSectionId !== sectionId) {
-                    pendingScrollRef.current = bookmark.offset
+                    pendingChunkRef.current = {
+                      blockIndex: bookmark.blockIndex,
+                      fraction,
+                    }
                     setActiveSectionId(targetSectionId)
                     return
                   }
-                  scrollToChunk(bookmark.blockIndex)
-                  if (parentRef.current) {
-                    parentRef.current.scrollTop = bookmark.offset
+                  const container = parentRef.current
+                  if (container) {
+                    const top = anchorScrollTop(
+                      container,
+                      bookmark.blockIndex,
+                      fraction,
+                    )
+                    if (top !== null) {
+                      container.scrollTop = top
+                      lastAppliedScrollTopRef.current = container.scrollTop
+                    }
                   }
                 }
                 return (
@@ -1596,7 +1660,16 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
               className="hidden shrink-0 text-xs text-[var(--muted-2)] sm:block"
               title={`Chapter ${activeIndex + 1} of ${sections.length}`}
             >
-              {`${activeIndex + 1} / ${sections.length} · ${Math.round((activeIndex / sections.length) * 100)}%`}
+              {`${activeIndex + 1} / ${sections.length} · ${Math.round(
+                (Math.min(
+                  (activeIndex +
+                    (effectiveProgress?.sectionIndex === activeIndex
+                      ? effectiveProgress.sectionFraction
+                      : 0)) /
+                    sections.length,
+                  1,
+                )) * 100,
+              )}%`}
             </div>
           ) : null}
           <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -1724,14 +1797,32 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
           style={{ '--reader-content-w': `${contentWidth}px` } as CSSProperties}
         >
           <button
-            className="reader-edge-nav is-left"
+            // Not `disabled`: browsers suppress wheel events on disabled
+            // controls, which would deaden the margin for scrolling on the
+            // first/last chapter. Inert state is styled + guarded instead.
+            className={`reader-edge-nav is-left ${
+              !sections || activeIndex <= 0 ? 'is-inert' : ''
+            }`}
             aria-label="Previous chapter"
-            onClick={goPrev}
-            disabled={!sections || activeIndex <= 0}
-            // Margins overlay the scroll container — hand wheel motion through
-            // so scrolling doesn't go dead at the screen edges.
+            aria-disabled={!sections || activeIndex <= 0}
+            onClick={() => {
+              if (sections && activeIndex > 0) {
+                goPrev()
+              }
+            }}
+            // Margins overlay the scroll container — hand wheel motion
+            // through so scrolling doesn't go dead at the screen edges.
+            // deltaMode: Firefox reports line-based deltas (~3 per notch).
             onWheel={(event) =>
-              parentRef.current?.scrollBy({ top: event.deltaY })
+              parentRef.current?.scrollBy({
+                top:
+                  event.deltaY *
+                  (event.deltaMode === 1
+                    ? 32
+                    : event.deltaMode === 2
+                      ? parentRef.current.clientHeight
+                      : 1),
+              })
             }
           >
             <span className="reader-edge-chevron" aria-hidden="true">
@@ -1751,14 +1842,30 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
             </span>
           </button>
           <button
-            className="reader-edge-nav is-right"
+            className={`reader-edge-nav is-right ${
+              !sections || activeIndex < 0 || activeIndex >= sections.length - 1
+                ? 'is-inert'
+                : ''
+            }`}
             aria-label="Next chapter"
-            onClick={goNext}
-            disabled={
+            aria-disabled={
               !sections || activeIndex < 0 || activeIndex >= sections.length - 1
             }
+            onClick={() => {
+              if (sections && activeIndex >= 0 && activeIndex < sections.length - 1) {
+                goNext()
+              }
+            }}
             onWheel={(event) =>
-              parentRef.current?.scrollBy({ top: event.deltaY })
+              parentRef.current?.scrollBy({
+                top:
+                  event.deltaY *
+                  (event.deltaMode === 1
+                    ? 32
+                    : event.deltaMode === 2
+                      ? parentRef.current.clientHeight
+                      : 1),
+              })
             }
           >
             <span className="reader-edge-chevron" aria-hidden="true">

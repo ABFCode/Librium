@@ -21,6 +21,7 @@ export type EffectiveProgress = {
   sectionIndex: number
   blockIndex: number
   blockOffset: number
+  sectionFraction: number
   source: 'local' | 'remote'
 }
 
@@ -50,6 +51,7 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
       sectionIndex: remote.lastSectionIndex ?? 0,
       blockIndex: remote.lastBlockIndex ?? 0,
       blockOffset: remote.lastBlockOffset ?? 0,
+      sectionFraction: remote.lastSectionFraction ?? 0,
       editedAt: remote.progressEditedAt ?? remote.updatedAt ?? 0,
       dirty: 0,
       syncedServerTime: remote.updatedAt ?? 0,
@@ -88,6 +90,7 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
       sectionIndex: rec.sectionIndex,
       blockIndex: rec.blockIndex,
       blockOffset: rec.blockOffset,
+      sectionFraction: rec.sectionFraction ?? 0,
       source: pick,
     }
   }, [local, remoteRecord, remote, canQuery])
@@ -119,6 +122,7 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
       lastSectionIndex: local.sectionIndex,
       lastBlockIndex: local.blockIndex,
       lastBlockOffset: local.blockOffset,
+      lastSectionFraction: local.sectionFraction ?? 0,
       editedAt,
     })
       .then(async () => {
@@ -145,6 +149,7 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
       sectionIndex: number
       blockIndex: number
       blockOffset: number
+      sectionFraction?: number
     }) => {
       try {
         const existing = await db.progress.get(bookId)
@@ -153,6 +158,7 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
           sectionIndex: args.sectionIndex,
           blockIndex: args.blockIndex,
           blockOffset: args.blockOffset,
+          sectionFraction: args.sectionFraction ?? 0,
           editedAt: Date.now(),
           dirty: 1,
           syncedServerTime: existing?.syncedServerTime ?? 0,

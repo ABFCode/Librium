@@ -29,7 +29,6 @@
     "dexie": "^4.4.4",
     "dexie-react-hooks": "^4.4.0",
     "fflate": "^0.8.3",
-    "lucide-react": "^1.23.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "vite-tsconfig-paths": "^6.0.5",

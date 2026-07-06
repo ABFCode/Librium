@@ -61,6 +61,9 @@ export type LocalProgress = {
   // Fraction (0–1) of the way through the anchor block — layout-independent,
   // so a position saved on one device/font size restores exactly on another.
   blockOffset: number
+  // Fraction (0–1) of the way through the whole section — used by percent
+  // displays so partial chapters count (a 1-chapter book isn't pinned at 0%).
+  sectionFraction?: number
   // Device wall-clock time of the edit — compared only against this same
   // user's other devices (LWW ordering of edits).
   editedAt: number

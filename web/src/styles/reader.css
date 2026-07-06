@@ -110,12 +110,17 @@
     right: 14px;
   }
 
-  .reader-edge-nav:hover:not(:disabled) {
+  .reader-edge-nav:hover {
     opacity: 1;
   }
 
-  .reader-edge-nav:disabled {
+  /* Inert (first/last chapter): no affordance, but still wheel-transparent —
+     a real `disabled` attr would swallow wheel events over the margin. */
+  .reader-edge-nav.is-inert {
     cursor: default;
+  }
+
+  .reader-edge-nav.is-inert:hover {
     opacity: 0;
   }
 

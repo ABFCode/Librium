@@ -34,11 +34,16 @@ export const upsert = mutation({
     const lineHeight = clamp(args.lineHeight, 1.4, 2.4);
     const contentWidth = clamp(args.contentWidth, 520, 960);
     const theme = allowedThemes.has(args.theme) ? args.theme : "night";
-    const fontFamily = args.fontFamily === "serif" ? "serif" : "sans";
     const existing = await ctx.db
       .query("userSettings")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
+    // Preserve the stored value when the arg is omitted (e.g. a stale client
+    // bundle) — defaulting would silently reset the preference.
+    const fontFamily =
+      args.fontFamily === "serif" || args.fontFamily === "sans"
+        ? args.fontFamily
+        : (existing?.fontFamily ?? "sans");
 
     const now = Date.now();
     const payload = {

@@ -144,7 +144,12 @@ export function Library() {
   )
   const askConfirm = (opts: Omit<ConfirmRequest, 'resolve'>) =>
     new Promise<boolean>((resolve) =>
-      setConfirmRequest({ ...opts, resolve }),
+      setConfirmRequest((prev) => {
+        // Never strand a pending caller: replacing an open dialog resolves
+        // the displaced request as cancelled.
+        prev?.resolve(false)
+        return { ...opts, resolve }
+      }),
     )
 
   // Multi-select: covers toggle selection instead of opening the reader.
@@ -170,16 +175,22 @@ export function Library() {
       return
     }
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      // Escape while a confirm dialog is open belongs to the dialog —
+      // exiting selection too would wipe the user's picks.
+      if (event.key === 'Escape' && confirmRequest === null) {
         exitSelection()
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [isSelecting])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSelecting, confirmRequest])
 
-  const handleDownloadAll = async () => {
-    const targets = (books ?? []).filter((b) => !downloadedIds.has(b._id))
+  // One list-parameterized implementation per bulk operation — the
+  // whole-library and selection paths are thin wrappers, so behavior and
+  // copy can't drift between them.
+  const downloadBooks = async (list: LibraryBook[]) => {
+    const targets = list.filter((b) => !downloadedIds.has(b._id))
     if (targets.length === 0 || bulkStatus) {
       return
     }
@@ -197,14 +208,14 @@ export function Library() {
     setBulkStatus(null)
   }
 
-  const handleRemoveAllDownloads = async () => {
-    const ids = Array.from(downloadedIds)
-    if (ids.length === 0 || bulkStatus) {
+  const removeDownloadsFor = async (list: LibraryBook[], title: string) => {
+    const targets = list.filter((b) => downloadedIds.has(b._id))
+    if (targets.length === 0 || bulkStatus) {
       return
     }
     const ok = await askConfirm({
-      title: 'Clear downloads',
-      message: `Remove ${ids.length} downloaded book${ids.length === 1 ? '' : 's'} from this device? Your library, progress, and bookmarks are unaffected — books re-download when opened.`,
+      title,
+      message: `Remove ${targets.length} downloaded book${targets.length === 1 ? '' : 's'} from this device? Your library, progress, and bookmarks are unaffected — books re-download when opened.`,
       confirmLabel: 'Remove',
     })
     if (!ok) {
@@ -212,9 +223,9 @@ export function Library() {
     }
     setError(null)
     setBulkStatus('Removing downloads…')
-    for (const id of ids) {
+    for (const book of targets) {
       try {
-        await removeLocalContent(id)
+        await removeLocalContent(book._id)
       } catch {
         // Continue; the reconcile pass can retry later.
       }
@@ -222,20 +233,19 @@ export function Library() {
     setBulkStatus(null)
   }
 
-  const handleDeleteAllBooks = async () => {
-    const list = books ?? []
+  const deleteBooks = async (list: LibraryBook[], title: string) => {
     if (list.length === 0 || bulkStatus) {
-      return
+      return false
     }
     const ok = await askConfirm({
-      title: 'Delete all books',
-      message: `This permanently deletes all ${list.length} book${list.length === 1 ? '' : 's'} from your library and cloud backup, on every device.`,
-      confirmLabel: 'Delete all',
+      title,
+      message: `This permanently deletes ${list.length} book${list.length === 1 ? '' : 's'} from your library and cloud backup, on every device.`,
+      confirmLabel: 'Delete',
       danger: true,
       requireText: 'DELETE',
     })
     if (!ok) {
-      return
+      return false
     }
     setError(null)
     let done = 0
@@ -252,7 +262,13 @@ export function Library() {
       done += 1
     }
     setBulkStatus(null)
+    return true
   }
+
+  const handleDownloadAll = () => downloadBooks(books ?? [])
+  const handleRemoveAllDownloads = () =>
+    removeDownloadsFor(books ?? [], 'Clear downloads')
+  const handleDeleteAllBooks = () => deleteBooks(books ?? [], 'Delete all books')
 
   // Durability escape hatch: pull raw EPUBs back out of R2 (egress is
   // free). Sequential to keep the browser's multi-download prompt tame.
@@ -282,83 +298,15 @@ export function Library() {
   const selectedBooks = () =>
     (books ?? []).filter((book) => selectedIds.has(book._id))
 
-  const handleSelectedDownload = async () => {
-    const targets = selectedBooks().filter((b) => !downloadedIds.has(b._id))
-    if (targets.length === 0 || bulkStatus) {
-      return
-    }
-    setError(null)
-    let done = 0
-    for (const book of targets) {
-      setBulkStatus(`Downloading… ${done}/${targets.length}`)
-      try {
-        await seedBookFromR2(convex, book._id)
-      } catch {
-        // Skip failures; continue with the rest.
-      }
-      done += 1
-    }
-    setBulkStatus(null)
-  }
-
+  const handleSelectedDownload = () => downloadBooks(selectedBooks())
   const handleSelectedExport = () => exportBooks(selectedBooks())
-
-  const handleSelectedRemoveDownloads = async () => {
-    const targets = selectedBooks().filter((b) => downloadedIds.has(b._id))
-    if (targets.length === 0 || bulkStatus) {
-      return
-    }
-    const ok = await askConfirm({
-      title: 'Remove downloads',
-      message: `Remove ${targets.length} downloaded book${targets.length === 1 ? '' : 's'} from this device? Your library, progress, and bookmarks are unaffected.`,
-      confirmLabel: 'Remove',
-    })
-    if (!ok) {
-      return
-    }
-    setError(null)
-    setBulkStatus('Removing downloads…')
-    for (const book of targets) {
-      try {
-        await removeLocalContent(book._id)
-      } catch {
-        // Retried by the reconcile pass.
-      }
-    }
-    setBulkStatus(null)
-  }
-
+  const handleSelectedRemoveDownloads = () =>
+    removeDownloadsFor(selectedBooks(), 'Remove downloads')
   const handleSelectedDelete = async () => {
-    const targets = selectedBooks()
-    if (targets.length === 0 || bulkStatus) {
-      return
+    const deleted = await deleteBooks(selectedBooks(), 'Delete selected books')
+    if (deleted) {
+      exitSelection()
     }
-    const ok = await askConfirm({
-      title: 'Delete selected books',
-      message: `This permanently deletes the ${targets.length} selected book${targets.length === 1 ? '' : 's'} from your library and cloud backup, on every device.`,
-      confirmLabel: 'Delete',
-      danger: true,
-      requireText: 'DELETE',
-    })
-    if (!ok) {
-      return
-    }
-    setError(null)
-    let done = 0
-    for (const book of targets) {
-      setBulkStatus(`Deleting… ${done}/${targets.length}`)
-      try {
-        await deleteBook({ bookId: book._id as never })
-        await deleteLocalBook(book._id).catch(() => {})
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : `Failed to delete ${book.title}`,
-        )
-      }
-      done += 1
-    }
-    setBulkStatus(null)
-    exitSelection()
   }
 
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
@@ -459,15 +407,18 @@ export function Library() {
           }
         }
       }
-      // Sweep content rows with no shelf row (interrupted deletes, legacy
-      // dev data) so the storage figure reflects the actual library.
-      try {
-        await purgeOrphanedContent()
-      } catch {
-        // Best-effort hygiene; retried on the next reconcile.
-      }
     })()
   }, [remoteBooks, localBooks])
+
+  // Sweep content rows with no shelf row (interrupted deletes, legacy dev
+  // data) so the storage figure reflects the actual library. Once per visit:
+  // running it inside the reconcile effect would re-scan the indexes on
+  // every books-table write (each seed/delete in a bulk operation).
+  useEffect(() => {
+    void purgeOrphanedContent().catch(() => {
+      // Best-effort hygiene; retried on the next visit.
+    })
+  }, [])
 
   // Cache-fill remote covers into IndexedDB so the shelf has art offline.
   useEffect(() => {
@@ -549,8 +500,12 @@ export function Library() {
       for (const p of localProgress) {
         const total = counts.get(p.bookId) ?? 0
         map.set(p.bookId, {
-          // Chapters completed — mirrors userBooks.listByUser.
-          progress: total > 0 ? p.sectionIndex / total : 0,
+          // Completed chapters + fraction of the current one — mirrors
+          // userBooks.listByUser.
+          progress:
+            total > 0
+              ? Math.min((p.sectionIndex + (p.sectionFraction ?? 0)) / total, 1)
+              : 0,
           updatedAt: p.editedAt,
         })
       }

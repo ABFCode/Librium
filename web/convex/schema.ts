@@ -52,6 +52,9 @@ const userBooks = defineTable({
   lastBlockIndex: v.optional(v.number()),
   // Fraction (0–1) within the anchor block (layout-independent).
   lastBlockOffset: v.optional(v.number()),
+  // Fraction (0–1) through the whole section — lets percent displays count
+  // partial chapters (completed + fraction) instead of whole chapters only.
+  lastSectionFraction: v.optional(v.number()),
   updatedAt: v.number(),
   // Client edit time of the progress fields (device clock, same-user devices).
   // Used to reject stale offline pushes; pull ordering uses updatedAt (server).
