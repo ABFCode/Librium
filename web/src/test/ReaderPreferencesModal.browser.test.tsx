@@ -90,6 +90,7 @@ describe('ReaderPreferencesModal', () => {
     const updater = setFontScale.mock.calls[0]?.[0]
     expect(typeof updater).toBe('function')
     expect(updater(2)).toBe(3)
-    expect(updater(3)).toBe(3)
+    expect(updater(7)).toBe(8)
+    expect(updater(8)).toBe(8)
   })
 })

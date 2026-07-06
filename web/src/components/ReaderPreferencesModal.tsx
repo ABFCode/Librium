@@ -84,7 +84,7 @@ export const ReaderPreferencesModal = ({
             <div className="flex items-center gap-2">
               <button
                 className="chip is-framed"
-                onClick={() => setFontScale((prev) => Math.max(prev - 1, -1))}
+                onClick={() => setFontScale((prev) => Math.max(prev - 1, -3))}
               >
                 A-
               </button>
@@ -93,7 +93,7 @@ export const ReaderPreferencesModal = ({
               </div>
               <button
                 className="chip is-framed"
-                onClick={() => setFontScale((prev) => Math.min(prev + 1, 3))}
+                onClick={() => setFontScale((prev) => Math.min(prev + 1, 8))}
               >
                 A+
               </button>

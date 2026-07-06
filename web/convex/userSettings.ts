@@ -29,7 +29,8 @@ export const upsert = mutation({
     const clamp = (value: number, min: number, max: number) =>
       Math.min(Math.max(value, min), max);
     const allowedThemes = new Set(["night", "paper", "sepia"]);
-    const fontScale = clamp(args.fontScale, -1, 3);
+    // 16px base ± 2px per step → 10px–32px.
+    const fontScale = clamp(args.fontScale, -3, 8);
     const lineHeight = clamp(args.lineHeight, 1.4, 2.4);
     const contentWidth = clamp(args.contentWidth, 520, 960);
     const theme = allowedThemes.has(args.theme) ? args.theme : "night";
