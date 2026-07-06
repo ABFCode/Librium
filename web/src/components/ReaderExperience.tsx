@@ -182,7 +182,6 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const [isTocOpen, setIsTocOpen] = useState(false)
   const [activeSideTab, setActiveSideTab] = useState<'toc' | 'search' | 'bookmarks'>('toc')
   const [isPrefsOpen, setIsPrefsOpen] = useState(false)
-  const [isRestoringView, setIsRestoringView] = useState(false)
   const [isHydrated, setIsHydrated] = useState(false)
   const [tocReady, setTocReady] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -202,9 +201,11 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const mountedAtRef = useRef(Date.now())
   const tocInitRef = useRef(false)
   const initialProgressRef = useRef(false)
-  const isRestoringRef = useRef(false)
   const scrollRestoredRef = useRef<string | null>(null)
-  const restoreTokenRef = useRef(0)
+  // Restore is applied synchronously, then silently re-anchored while fonts
+  // and images settle — unless the user has scrolled in the meantime.
+  const lastAppliedScrollTopRef = useRef(0)
+  const userScrolledSinceRestoreRef = useRef(false)
   const tocListRef = useRef<HTMLDivElement | null>(null)
   const fontsReadyRef = useRef<Promise<void> | null>(null)
   const {
@@ -270,26 +271,6 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     }
     return sections.find((section) => section._id === sectionId) ?? null
   }, [sections, sectionId])
-
-  useLayoutEffect(() => {
-    if (!sectionId) {
-      return
-    }
-    if (scrollRestoredRef.current === sectionId) {
-      return
-    }
-    if (
-      !effectiveProgress ||
-      sections?.[effectiveProgress.sectionIndex]?._id !== sectionId
-    ) {
-      return
-    }
-    const shouldRestore =
-      effectiveProgress.blockIndex > 0 || effectiveProgress.blockOffset > 0
-    if (shouldRestore) {
-      setIsRestoringView(true)
-    }
-  }, [sectionId, effectiveProgress, sections])
 
   const fontSize = 16 + fontScale * 2
   const themeClass =
@@ -527,13 +508,12 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     if (effectiveProgress && !restoredFromUserBookRef.current) {
       return
     }
-    if (isRestoringRef.current) {
-      return
-    }
     const container = parentRef.current
     const scrollTop = container.scrollTop
     let blockIndex = 0
-    let offsetWithin = 0
+    // Fraction of the way through the anchor block (0–1): layout-independent,
+    // so positions survive font/width changes and other devices.
+    let blockFraction = 0
     const nodes = Array.from(
       container.querySelectorAll('[data-chunk-index]'),
     )
@@ -541,7 +521,13 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       const element = node as HTMLElement
       if (element.offsetTop + element.clientHeight > scrollTop) {
         blockIndex = Number(element.dataset.chunkIndex ?? 0)
-        offsetWithin = Math.max(0, scrollTop - element.offsetTop)
+        blockFraction =
+          element.clientHeight > 0
+            ? Math.min(
+                Math.max((scrollTop - element.offsetTop) / element.clientHeight, 0),
+                1,
+              )
+            : 0
         break
       }
     }
@@ -550,7 +536,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     void saveProgress({
       sectionIndex: activeIndex,
       blockIndex,
-      blockOffset: offsetWithin,
+      blockOffset: blockFraction,
     })
   }
 
@@ -573,6 +559,11 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       return
     }
     const handleScroll = () => {
+      // Programmatic restores land exactly on lastAppliedScrollTop; anything
+      // else is the user, which cancels pending silent re-anchors.
+      if (Math.abs(container.scrollTop - lastAppliedScrollTopRef.current) > 4) {
+        userScrolledSinceRestoreRef.current = true
+      }
       const now = Date.now()
       if (now - lastProgressAtRef.current < 800) {
         return
@@ -598,11 +589,39 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     }
   }, [sectionId, effectiveProgress])
 
+  // Layout inputs (font size/family, line height, width) reflow the text and
+  // strand the scroll position — including on load, when synced settings
+  // arrive a beat after the initial restore. Re-apply the saved anchor; the
+  // fraction makes it exact in the new layout.
+  useLayoutEffect(() => {
+    const container = parentRef.current
+    if (!container || !sectionId || !effectiveProgress) {
+      return
+    }
+    // Only after the initial restore has anchored this section.
+    if (scrollRestoredRef.current !== sectionId) {
+      return
+    }
+    if (effectiveProgress.sectionIndex !== activeIndex) {
+      return
+    }
+    const target = container.querySelector(
+      `[data-chunk-index="${effectiveProgress.blockIndex}"]`,
+    ) as HTMLElement | null
+    if (!target) {
+      return
+    }
+    const fraction = Math.min(Math.max(effectiveProgress.blockOffset, 0), 1)
+    container.scrollTop = target.offsetTop + fraction * target.clientHeight
+    lastAppliedScrollTopRef.current = container.scrollTop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fontSize, lineHeight, contentWidth, fontFamily])
+
   // Persist position on arrival at a section — a chapter switch with no
   // scrolling would otherwise never save (progress only emitted on scroll
   // and tab-hide before this).
   useEffect(() => {
-    if (!isHydrated || isRestoringView) {
+    if (!isHydrated) {
       return
     }
     if (!blocks || blocks.length === 0) {
@@ -610,7 +629,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     }
     emitProgress()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isHydrated, isRestoringView, sectionId, blocks])
+  }, [isHydrated, sectionId, blocks])
 
   useEffect(() => {
     restoredSectionRef.current = null
@@ -642,21 +661,23 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     if (!hasContent) {
       return
     }
+    const applyScroll = (top: number) => {
+      container.scrollTop = top
+      lastAppliedScrollTopRef.current = container.scrollTop
+    }
     if (pendingChunkRef.current !== null) {
       const chunkIndex = pendingChunkRef.current
       pendingChunkRef.current = null
-      setIsRestoringView(false)
       const target = container.querySelector(
         `[data-chunk-index="${chunkIndex}"]`,
       ) as HTMLElement | null
-      container.scrollTop = target ? target.offsetTop : 0
+      applyScroll(target ? target.offsetTop : 0)
       restoredSectionRef.current = sectionId
       scrollRestoredRef.current = sectionId
       return
     }
     if (pendingScrollRef.current !== null) {
-      setIsRestoringView(false)
-      container.scrollTop = pendingScrollRef.current
+      applyScroll(pendingScrollRef.current)
       pendingScrollRef.current = null
       restoredSectionRef.current = sectionId
       scrollRestoredRef.current = sectionId
@@ -668,61 +689,52 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       effectiveProgress.sectionIndex === activeIndex
     ) {
       if (scrollRestoredRef.current === sectionId) {
-        setIsRestoringView(false)
         return
       }
       const targetIndex = effectiveProgress.blockIndex
-      const targetOffset = effectiveProgress.blockOffset
-      const shouldRestore = targetIndex > 0 || targetOffset > 0
-      if (!shouldRestore) {
-        container.scrollTop = 0
-        setIsRestoringView(false)
-        scrollRestoredRef.current = sectionId
-        restoredSectionRef.current = sectionId
-        return
-      }
-      setIsRestoringView(true)
-      const restoreByBlock = () => {
+      // blockOffset is a fraction (0–1) of the way through the anchor block —
+      // layout-independent, so it restores correctly on any device/font size.
+      const targetFraction = Math.min(Math.max(effectiveProgress.blockOffset, 0), 1)
+      const applyAnchor = () => {
         const target = container.querySelector(
           `[data-chunk-index="${targetIndex}"]`,
         ) as HTMLElement | null
         if (!target) {
           return false
         }
-        container.scrollTop = target.offsetTop + targetOffset
+        applyScroll(target.offsetTop + targetFraction * target.clientHeight)
         return true
       }
-      if (!restoreByBlock()) {
-        container.scrollTop = 0
-        setIsRestoringView(false)
-        scrollRestoredRef.current = sectionId
-        restoredSectionRef.current = sectionId
-        return
+      userScrolledSinceRestoreRef.current = false
+      if (!applyAnchor()) {
+        applyScroll(0)
       }
       scrollRestoredRef.current = sectionId
       restoredSectionRef.current = sectionId
-      isRestoringRef.current = true
-      const restoreToken = ++restoreTokenRef.current
-      void waitForFonts().then(() => {
-        if (restoreTokenRef.current !== restoreToken) {
-          return
+      // Content stays visible; if fonts or images settle and shift layout,
+      // silently re-apply the anchor — unless the user has scrolled away.
+      const sectionAtRestore = sectionId
+      const reanchor = () => {
+        if (
+          scrollRestoredRef.current === sectionAtRestore &&
+          !userScrolledSinceRestoreRef.current
+        ) {
+          applyAnchor()
         }
-        window.requestAnimationFrame(() => {
-          restoreByBlock()
-          window.requestAnimationFrame(() => {
-            if (restoreTokenRef.current !== restoreToken) {
-              return
-            }
-            restoreByBlock()
-            isRestoringRef.current = false
-            setIsRestoringView(false)
-          })
-        })
-      })
+      }
+      void waitForFonts().then(reanchor)
+      const onAssetLoad = (event: Event) => {
+        if ((event.target as HTMLElement | null)?.tagName === 'IMG') {
+          reanchor()
+        }
+      }
+      container.addEventListener('load', onAssetLoad, true)
+      window.setTimeout(() => {
+        container.removeEventListener('load', onAssetLoad, true)
+      }, 3000)
       return
     }
     if (effectiveProgress === null && !initialProgressRef.current) {
-      setIsRestoringView(false)
       initialProgressRef.current = true
       void saveProgress({
         sectionIndex: activeIndex >= 0 ? activeIndex : 0,
@@ -730,8 +742,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         blockOffset: 0,
       })
     }
-    container.scrollTop = 0
-    setIsRestoringView(false)
+    applyScroll(0)
     restoredSectionRef.current = sectionId
     scrollRestoredRef.current = null
   }, [sectionId, chunks.length, blocks?.length, effectiveProgress, activeIndex])
@@ -1771,13 +1782,6 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
               Loading chapter…
             </div>
           ) : null}
-          {!isHydrated || isRestoringView ? (
-            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-              <div className="rounded-[var(--radius-sm)] bg-[color-mix(in_srgb,var(--surface-3)_90%,transparent)] px-4 py-2 text-xs text-[var(--reader-muted)]">
-                {isHydrated ? 'Restoring position…' : 'Preparing reader…'}
-              </div>
-            </div>
-          ) : null}
           {/* Wait for the merged progress view: local resolves instantly
               (offline included); online adds a brief wait for the remote
               copy so we restore to the right chapter. */}
@@ -1788,9 +1792,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
           ) : (
             <div
               ref={parentRef}
-              className={`reader-scroll h-full overflow-auto px-6 py-10 text-left ${
-                !isHydrated || isRestoringView ? 'reader-restoring' : ''
-              }`}
+              className="reader-scroll h-full overflow-auto px-6 py-10 text-left"
               style={{
                 fontSize: `${fontSize}px`,
                 lineHeight: lineHeight,

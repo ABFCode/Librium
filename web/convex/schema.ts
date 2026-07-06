@@ -50,6 +50,7 @@ const userBooks = defineTable({
   bookId: v.id("books"),
   lastSectionIndex: v.number(),
   lastBlockIndex: v.optional(v.number()),
+  // Fraction (0–1) within the anchor block (layout-independent).
   lastBlockOffset: v.optional(v.number()),
   updatedAt: v.number(),
   // Client edit time of the progress fields (device clock, same-user devices).

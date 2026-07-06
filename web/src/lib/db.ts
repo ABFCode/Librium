@@ -58,6 +58,8 @@ export type LocalProgress = {
   bookId: string
   sectionIndex: number
   blockIndex: number
+  // Fraction (0–1) of the way through the anchor block — layout-independent,
+  // so a position saved on one device/font size restores exactly on another.
   blockOffset: number
   // Device wall-clock time of the edit — compared only against this same
   // user's other devices (LWW ordering of edits).

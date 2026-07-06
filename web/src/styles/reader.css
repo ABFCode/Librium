@@ -303,12 +303,6 @@
     background: transparent;
   }
 
-  .reader-restoring {
-    opacity: 0;
-    pointer-events: none;
-    visibility: hidden;
-  }
-
   body[data-theme='paper'] .reader-scroll {
     scrollbar-color: color-mix(in srgb, var(--outline) 85%, transparent) transparent;
   }
