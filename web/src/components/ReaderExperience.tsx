@@ -153,7 +153,6 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const [isTocOpen, setIsTocOpen] = useState(false)
   const [activeSideTab, setActiveSideTab] = useState<'toc' | 'search' | 'bookmarks'>('toc')
   const [isPrefsOpen, setIsPrefsOpen] = useState(false)
-  const [tocReady, setTocReady] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   // Which section the currently rendered blocks belong to. Restore/jump
   // effects must not touch the DOM until it matches sectionId — otherwise a
@@ -175,7 +174,6 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   // allow a one-time cross-device hand-off correction (never a later yank).
   const initialRestoreTargetRef = useRef<string | null>(null)
   const mountedAtRef = useRef(Date.now())
-  const tocInitRef = useRef(false)
   const initialProgressRef = useRef(false)
   const scrollRestoredRef = useRef<string | null>(null)
   // Restore is applied synchronously, then silently re-anchored while fonts
@@ -199,45 +197,15 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     setFontFamily,
   } = useUserSettings({ pauseSync: isPrefsOpen })
 
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-    const media = window.matchMedia('(min-width: 1024px)')
-    if (!tocInitRef.current) {
-      const saved = window.localStorage.getItem('reader:tocOpen')
-      if (saved !== null) {
-        setIsTocOpen(saved === 'true')
-      } else {
-        setIsTocOpen(media.matches)
-      }
-      tocInitRef.current = true
-      setTocReady(true)
-    }
-    const handleChange = () => {
-      const stored = window.localStorage.getItem('reader:tocOpen')
-      if (stored !== null) {
-        setIsTocOpen(stored === 'true')
-      } else {
-        setIsTocOpen(media.matches)
-      }
-    }
-    media.addEventListener('change', handleChange)
-    return () => media.removeEventListener('change', handleChange)
-  }, [])
+  // Note: the chapters panel is a transient popover — it always starts
+  // closed. (The old docked sidebar persisted open-state to localStorage and
+  // defaulted open on desktop; that machinery is gone.)
 
   const sectionId = activeSectionId ?? null
 
   useEffect(() => {
     activeSectionRef.current = sectionId
   }, [sectionId])
-
-  useEffect(() => {
-    if (!tocReady || typeof window === 'undefined') {
-      return
-    }
-    window.localStorage.setItem('reader:tocOpen', String(isTocOpen))
-  }, [isTocOpen, tocReady])
 
   const activeSection = useMemo(() => {
     if (!sections || !sectionId) {
