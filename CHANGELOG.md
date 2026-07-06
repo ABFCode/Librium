@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.8.1 - 2026-07-06
+- **Adopt Biome:** replaces the absent lint/format setup with Biome 2.5 (recommended rules + type-aware promise-safety rules) as a single dependency; `biome ci` gates CI ahead of the typecheck. One-time reformat + lint fixes across 76 files — missing button `type` attributes, non-null assertions replaced with real narrowing (surfaced one latent type hole in `authHelpers.ts`), module-scoped pure helpers pulled out of `ReaderExperience`, a11y suppressions documented where pointer-only affordances (backdrop click-to-close, hover-out menus) are intentional.
+
 ## 0.8.0 - 2026-07-06
 - **UX refresh (design system):** one accent color (gold; red is destructive-only, muted green is semantic success), flat surfaces on a single radius/shadow scale, no pill shapes or tracked-uppercase micro-labels, calmer background. Every screen reflowed: library gets a page heading + quiet stats line and a denser cover grid; import is a single centered drop zone with the queue appearing beneath; auth/landing are single centered cards with the marketing filler removed.
 - **Reader rework:** the reader owns the full viewport (app header hidden on `/reader`) — slim top bar with back-to-library, chapter title, and position ("N / M · X%"); full-height text column (no more 70vh box). Chapters/search/bookmarks live in a compact popover under the ☰ button (book title + "Chapter N of M" header, auto-scrolls to the current chapter, closes on selection/Esc/click-outside). Kindle-style page-turn zones in the margins (hover chevrons, wheel-transparent, deltaMode-aware for Firefox).
