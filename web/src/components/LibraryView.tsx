@@ -12,10 +12,12 @@ import {
 } from '../lib/db'
 import { seedBookFromR2 } from '../lib/seedBook'
 
+// Whole-MB floor: browser storage estimates wobble at KB granularity
+// (SQLite WAL churn, estimate padding), which reads as jumpy noise.
 const formatBytes = (bytes: number) => {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`
   if (bytes >= 1024 ** 2) return `${Math.round(bytes / 1024 ** 2)} MB`
-  return `${Math.round(bytes / 1024)} KB`
+  return '< 1 MB'
 }
 
 type LibraryBook = {
@@ -111,7 +113,9 @@ export function Library() {
     return () => {
       cancelled = true
     }
-  }, [localBooks])
+    // Re-measure only when the shelf actually changes — measuring on every
+    // IndexedDB write makes the figure visibly jitter.
+  }, [downloadedIds.size, books?.length])
 
   // Bulk operations (global; per-book actions live in each card's menu).
   const [bulkStatus, setBulkStatus] = useState<string | null>(null)
