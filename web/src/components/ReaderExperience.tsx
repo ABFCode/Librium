@@ -191,6 +191,8 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
   const lastProgressAtRef = useRef<number>(0)
   const restoredSectionRef = useRef<string | null>(null)
   const pendingScrollRef = useRef<number | null>(null)
+  // Block index to scroll to after a cross-section search-result jump.
+  const pendingChunkRef = useRef<number | null>(null)
   const loadingSectionRef = useRef<string | null>(null)
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(false)
   const restoredFromUserBookRef = useRef(false)
@@ -638,6 +640,18 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     if (!hasContent) {
       return
     }
+    if (pendingChunkRef.current !== null) {
+      const chunkIndex = pendingChunkRef.current
+      pendingChunkRef.current = null
+      setIsRestoringView(false)
+      const target = container.querySelector(
+        `[data-chunk-index="${chunkIndex}"]`,
+      ) as HTMLElement | null
+      container.scrollTop = target ? target.offsetTop : 0
+      restoredSectionRef.current = sectionId
+      scrollRestoredRef.current = sectionId
+      return
+    }
     if (pendingScrollRef.current !== null) {
       setIsRestoringView(false)
       container.scrollTop = pendingScrollRef.current
@@ -720,27 +734,126 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     scrollRestoredRef.current = null
   }, [sectionId, chunks.length, blocks?.length, effectiveProgress, activeIndex])
 
-  const searchMatches = useMemo(() => {
-    const source = blocks && blocks.length > 0
-      ? blocks.map((block) => blockToText(block))
-      : chunks.map((chunk) => chunk.content)
-    if (!searchQuery.trim() || source.length === 0) {
-      return []
+  // ── Whole-book search ──────────────────────────────────────────────────────
+  // Scans every section's text from IndexedDB. Built to stay responsive on
+  // 2,000-chapter novels: the text cache is built once per book (blocks →
+  // plain strings, chunked with event-loop yields), scans are debounced,
+  // cancellable, capped, and also yield between chunks.
+  const SEARCH_RESULT_CAP = 50
+  const [searchResults, setSearchResults] = useState<
+    Array<{ sectionIndex: number; blockIndex: number; snippet: string }>
+  >([])
+  const [isSearching, setIsSearching] = useState(false)
+  const bookTextCacheRef = useRef<{
+    key: string
+    perSection: string[][]
+  } | null>(null)
+  const searchTokenRef = useRef(0)
+
+  const ensureBookText = async (token: number) => {
+    const key = `${bookId}:${sections?.length ?? 0}`
+    if (bookTextCacheRef.current?.key === key) {
+      return bookTextCacheRef.current.perSection
     }
-    const query = searchQuery.toLowerCase()
-    return source
-      .map((content, index) => {
-        const pos = content.toLowerCase().indexOf(query)
-        if (pos < 0) {
+    const rows = await db.sections
+      .where('bookId')
+      .equals(bookId)
+      .sortBy('orderIndex')
+    const perSection: string[][] = []
+    for (let i = 0; i < rows.length; i++) {
+      perSection[i] = (rows[i].blocks ?? []).map((block) =>
+        blockToText(block as BlockPayload),
+      )
+      if (i % 100 === 99) {
+        await new Promise((resolve) => setTimeout(resolve))
+        if (searchTokenRef.current !== token) {
           return null
         }
-        const start = Math.max(0, pos - 40)
-        const end = Math.min(content.length, pos + query.length + 40)
-        const snippet = content.slice(start, end)
-        return { index, snippet }
-      })
-      .filter((match): match is { index: number; snippet: string } => !!match)
-  }, [searchQuery, chunks, blocks])
+      }
+    }
+    bookTextCacheRef.current = { key, perSection }
+    return perSection
+  }
+
+  useEffect(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (query.length < 2) {
+      setSearchResults([])
+      setIsSearching(false)
+      return
+    }
+    const token = ++searchTokenRef.current
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setIsSearching(true)
+        try {
+          const perSection = await ensureBookText(token)
+          if (!perSection || searchTokenRef.current !== token) {
+            return
+          }
+          const out: Array<{
+            sectionIndex: number
+            blockIndex: number
+            snippet: string
+          }> = []
+          for (let s = 0; s < perSection.length; s++) {
+            const texts = perSection[s]
+            for (
+              let b = 0;
+              b < texts.length && out.length < SEARCH_RESULT_CAP;
+              b++
+            ) {
+              const pos = texts[b].toLowerCase().indexOf(query)
+              if (pos >= 0) {
+                const start = Math.max(0, pos - 40)
+                const end = Math.min(texts[b].length, pos + query.length + 40)
+                out.push({
+                  sectionIndex: s,
+                  blockIndex: b,
+                  snippet: texts[b].slice(start, end),
+                })
+              }
+            }
+            if (out.length >= SEARCH_RESULT_CAP) {
+              break
+            }
+            if (s % 100 === 99) {
+              await new Promise((resolve) => setTimeout(resolve))
+              if (searchTokenRef.current !== token) {
+                return
+              }
+            }
+          }
+          if (searchTokenRef.current === token) {
+            setSearchResults(out)
+          }
+        } finally {
+          if (searchTokenRef.current === token) {
+            setIsSearching(false)
+          }
+        }
+      })()
+    }, 250)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, bookId, sections?.length])
+
+  const jumpToSearchResult = (result: {
+    sectionIndex: number
+    blockIndex: number
+  }) => {
+    const targetId = sections?.[result.sectionIndex]?._id ?? null
+    if (!targetId) {
+      return
+    }
+    setIsTocOpen(false)
+    if (targetId === sectionId) {
+      scrollToChunk(result.blockIndex)
+      return
+    }
+    pendingChunkRef.current = result.blockIndex
+    setActiveSectionId(targetId)
+  }
 
   const scrollToChunk = (index: number) => {
     const container = parentRef.current
@@ -1267,25 +1380,38 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           <input
             className="input"
-            placeholder="Search this chapter..."
+            placeholder="Search the whole book…"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
           />
-          {searchMatches.length === 0 ? (
+          {searchResults.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">
-              {searchQuery ? 'No matches.' : 'Type to search.'}
+              {isSearching
+                ? 'Searching…'
+                : searchQuery.trim().length >= 2
+                  ? 'No matches.'
+                  : 'Type at least two characters.'}
             </p>
           ) : (
             <div className="reader-scroll flex min-h-0 flex-1 flex-col overflow-auto">
-              {searchMatches.map((match) => (
+              {searchResults.map((match) => (
                 <button
-                  key={`${match.index}-${match.snippet}`}
+                  key={`${match.sectionIndex}-${match.blockIndex}`}
                   className="reader-row text-[13px]"
-                  onClick={() => scrollToChunk(match.index)}
+                  onClick={() => jumpToSearchResult(match)}
                 >
+                  <span className="block truncate text-[11px] text-[var(--muted-2)]">
+                    {sections?.[match.sectionIndex]?.title ??
+                      `Chapter ${match.sectionIndex + 1}`}
+                  </span>
                   {match.snippet}
                 </button>
               ))}
+              {searchResults.length >= SEARCH_RESULT_CAP ? (
+                <p className="px-3 py-2 text-xs text-[var(--muted-2)]">
+                  Showing the first {SEARCH_RESULT_CAP} matches.
+                </p>
+              ) : null}
             </div>
           )}
         </div>
@@ -1452,6 +1578,14 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
           <div className="reader-topbar-title">
             {activeSection?.title ?? 'Reading'}
           </div>
+          {sections && sections.length > 0 && activeIndex >= 0 ? (
+            <div
+              className="hidden shrink-0 text-xs text-[var(--muted-2)] sm:block"
+              title={`Chapter ${activeIndex + 1} of ${sections.length}`}
+            >
+              {`${activeIndex + 1} / ${sections.length} · ${Math.round(((activeIndex + 1) / sections.length) * 100)}%`}
+            </div>
+          ) : null}
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <button
               className="icon-btn tooltip"

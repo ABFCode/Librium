@@ -209,6 +209,16 @@
     border-color: color-mix(in srgb, var(--accent) 35%, transparent);
   }
 
+  /* Stepper chips (A− / A+): always framed so they read as buttons. */
+  .chip.is-framed {
+    border-color: var(--outline);
+    color: var(--ink);
+  }
+
+  .chip.is-framed:hover {
+    background: color-mix(in srgb, var(--surface-3) 80%, transparent);
+  }
+
   /* Dropdown menu shared by library cards and toolbar overflow. */
   .menu {
     min-width: 170px;

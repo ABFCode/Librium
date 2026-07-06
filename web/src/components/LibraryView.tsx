@@ -187,6 +187,29 @@ export function Library() {
     setBulkStatus(null)
   }
 
+  // Durability escape hatch: pull every raw EPUB back out of R2 (egress is
+  // free). Sequential to keep the browser's multi-download prompt tame.
+  const handleExportAll = async () => {
+    const list = books ?? []
+    if (list.length === 0 || bulkStatus) {
+      return
+    }
+    setError(null)
+    let done = 0
+    for (const book of list) {
+      setBulkStatus(`Exporting… ${done}/${list.length}`)
+      try {
+        await handleDownload(book._id, book.title)
+        // Give the browser breathing room between download triggers.
+        await new Promise((resolve) => setTimeout(resolve, 600))
+      } catch {
+        // Skip failures (e.g. upload still pending); continue with the rest.
+      }
+      done += 1
+    }
+    setBulkStatus(null)
+  }
+
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const handleDeviceDownload = async (bookId: string) => {
     try {
@@ -570,6 +593,17 @@ export function Library() {
                       title="Free this device's storage; the library itself is untouched"
                     >
                       Clear downloads
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={() => {
+                        setIsBulkMenuOpen(false)
+                        void handleExportAll()
+                      }}
+                      disabled={bulkStatus !== null || !books || books.length === 0}
+                      title="Download every book's EPUB file (cloud backup copy)"
+                    >
+                      Export all EPUBs
                     </button>
                     <button
                       className="menu-item is-danger"
