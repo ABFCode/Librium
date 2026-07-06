@@ -1,4 +1,6 @@
 import { internalMutation, action } from "./_generated/server";
+import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 
 const deploymentName = process.env.CONVEX_DEPLOYMENT ?? "";
@@ -58,7 +60,12 @@ export const createDemoUser = action({
     password: v.string(),
     name: v.string(),
   },
-  handler: async (ctx, args) => {
+  // Explicit return type breaks the self-referential inference cycle from
+  // calling internal.seed within this module (standard Convex pattern).
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ userId: Id<"users">; authUserId: string; email: string }> => {
     if (!allowSeed) {
       throw new Error("Seeding is disabled in this environment.");
     }
@@ -113,7 +120,7 @@ export const createDemoUser = action({
     };
 
     const authUser = await createOrSignIn();
-    const userId = await ctx.runMutation("seed:upsertBetterAuthUserInternal", {
+    const userId = await ctx.runMutation(internal.seed.upsertBetterAuthUserInternal, {
       externalId: authUser.id,
       email: authUser.email ?? args.email,
       name: authUser.name ?? args.name,

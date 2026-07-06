@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, JSX } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useConvex, useConvexAuth, useQuery } from 'convex/react'

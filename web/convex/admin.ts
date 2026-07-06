@@ -1,4 +1,5 @@
 import { internalMutation, mutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
 const deploymentName = process.env.CONVEX_DEPLOYMENT ?? "";
@@ -84,13 +85,16 @@ export const resetAllData = mutation({
   args: {
     confirm: v.string(),
   },
-  handler: async (ctx, args) => {
+  // Explicit return type: referencing internal.admin from inside this module
+  // is self-referential for inference and needs the annotation to break the
+  // cycle (standard Convex pattern).
+  handler: async (ctx, args): Promise<{ ok: boolean }> => {
     if (args.confirm !== "RESET") {
       throw new Error("Confirmation required.");
     }
     if (!allowAdminReset) {
       throw new Error("Reset is disabled in this environment.");
     }
-    return await ctx.runMutation("admin:resetAllDataInternal", {});
+    return await ctx.runMutation(internal.admin.resetAllDataInternal, {});
   },
 });

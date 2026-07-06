@@ -1,7 +1,12 @@
-import type { Id } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import type { ActionCtx, MutationCtx, QueryCtx } from "./_generated/server";
 
 type Ctx = MutationCtx | QueryCtx | ActionCtx;
+
+// The canRead/canWrite guards below establish at runtime that ctx has a db,
+// but TypeScript can't narrow a union on a probed property — this cast is
+// the typed counterpart of those guards.
+const dbOf = (ctx: Ctx) => (ctx as MutationCtx).db;
 
 const resolveIdentity = (identity: {
   subject?: string | null;
@@ -33,7 +38,7 @@ export const getViewerUserId = async (ctx: Ctx) => {
     if (!resolved.externalId) {
       return null;
     }
-    const existing = await ctx.db
+    const existing = await dbOf(ctx)
       .query("users")
       .withIndex("by_external_id", (q) =>
         q.eq("authProvider", "better-auth").eq("externalId", resolved.externalId!),
@@ -42,7 +47,7 @@ export const getViewerUserId = async (ctx: Ctx) => {
 
     if (existing) {
       if ((resolved.email || resolved.name) && canWrite(ctx)) {
-        await ctx.db.patch(existing._id, {
+        await dbOf(ctx).patch(existing._id, {
           email: resolved.email ?? existing.email,
           name: resolved.name ?? existing.name,
         });
@@ -50,7 +55,7 @@ export const getViewerUserId = async (ctx: Ctx) => {
       return existing._id;
     }
     if (canWrite(ctx)) {
-      return await ctx.db.insert("users", {
+      return await dbOf(ctx).insert("users", {
         authProvider: "better-auth",
         externalId: resolved.externalId,
         email: resolved.email ?? undefined,
@@ -73,7 +78,7 @@ export const requireViewerUserId = async (ctx: Ctx) => {
 
 export const requireBookOwner = async (ctx: Ctx, bookId: Id<"books">) => {
   const viewerId = await requireViewerUserId(ctx);
-  const book = await ctx.db.get(bookId);
+  const book = await dbOf(ctx).get(bookId);
   if (!book) {
     throw new Error("Book not found.");
   }

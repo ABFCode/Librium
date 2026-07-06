@@ -584,7 +584,7 @@ export function Library() {
     }
     try {
       setError(null)
-      await deleteBook({ bookId })
+      await deleteBook({ bookId: bookId as never })
       // Delete parity: purge this device's local copy too.
       await deleteLocalBook(bookId).catch(() => {})
     } catch (err) {
