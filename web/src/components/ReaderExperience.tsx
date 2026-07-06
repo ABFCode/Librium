@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useConvex, useConvexAuth, useQuery } from 'convex/react'
@@ -1179,7 +1180,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     },
   ]
 
-  const tocListClass = 'reader-scroll h-full overflow-auto pr-1'
+  const tocListClass = 'reader-scroll min-h-0 flex-1 overflow-auto pr-1'
 
   const tabControls = (
     <div className="flex gap-1">
@@ -1246,7 +1247,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       ) : null}
 
       {activeSideTab === 'search' ? (
-        <div className="flex h-full flex-col gap-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-3">
           <input
             className="input"
             placeholder="Search this chapter..."
@@ -1274,13 +1275,13 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       ) : null}
 
       {activeSideTab === 'bookmarks' ? (
-        <div className="h-full">
+        <div className="flex min-h-0 flex-1 flex-col">
           {!bookmarks ? (
             <p className="text-sm text-[var(--muted)]">Loading bookmarks...</p>
           ) : bookmarks.length === 0 ? (
             <p className="text-sm text-[var(--muted)]">No bookmarks yet.</p>
           ) : (
-            <div className="reader-scroll flex h-full flex-col gap-2 overflow-auto">
+            <div className="reader-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-auto">
               {bookmarks.map((bookmark) => {
                 const targetSectionId =
                   sections?.[bookmark.sectionIndex]?._id ?? null
@@ -1399,7 +1400,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
           </div>
           <div className="mt-2">{tabControls}</div>
         </div>
-        <div className="min-h-0 flex-1 p-3">{sidebarPanels}</div>
+        <div className="flex min-h-0 flex-1 flex-col p-3">{sidebarPanels}</div>
       </aside>
     </>
   )
@@ -1554,7 +1555,64 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
           </div>
         </div>
 
-        <div className="reader-content relative">
+        <div
+          className="reader-content relative"
+          style={{ '--reader-content-w': `${contentWidth}px` } as CSSProperties}
+        >
+          <button
+            className="reader-edge-nav is-left"
+            aria-label="Previous chapter"
+            onClick={goPrev}
+            disabled={!sections || activeIndex <= 0}
+            // Margins overlay the scroll container — hand wheel motion through
+            // so scrolling doesn't go dead at the screen edges.
+            onWheel={(event) =>
+              parentRef.current?.scrollBy({ top: event.deltaY })
+            }
+          >
+            <span className="reader-edge-chevron" aria-hidden="true">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+            </span>
+          </button>
+          <button
+            className="reader-edge-nav is-right"
+            aria-label="Next chapter"
+            onClick={goNext}
+            disabled={
+              !sections || activeIndex < 0 || activeIndex >= sections.length - 1
+            }
+            onWheel={(event) =>
+              parentRef.current?.scrollBy({ top: event.deltaY })
+            }
+          >
+            <span className="reader-edge-chevron" aria-hidden="true">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </span>
+          </button>
           {showLoadingOverlay ? (
             <div className="pointer-events-none absolute right-6 top-4 z-10 rounded-[var(--radius-sm)] bg-[color-mix(in_srgb,var(--surface-3)_90%,transparent)] px-3 py-1 text-xs text-[var(--reader-muted)]">
               Loading chapter…
