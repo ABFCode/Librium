@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Icon } from './Icon'
 
 type ReaderPreferencesModalProps = {
   isOpen: boolean
@@ -61,21 +62,7 @@ export const ReaderPreferencesModal = ({
           <h2 className="text-xl">Reader preferences</h2>
           <button className="icon-btn -mr-1" onClick={onClose}>
             <span className="sr-only">Close</span>
-            <svg
-              aria-hidden="true"
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M18 6L6 18" />
-              <path d="M6 6l12 12" />
-            </svg>
+            <Icon name="close" />
           </button>
         </div>
         <div className="mt-5 space-y-5 text-sm">

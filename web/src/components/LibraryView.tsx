@@ -3,7 +3,7 @@ import { useAction, useConvex, useConvexAuth, useQuery } from 'convex/react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { api } from '../../convex/_generated/api'
 import { RequireAuth } from './RequireAuth'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   db,
   deleteLocalBook,
@@ -13,6 +13,8 @@ import {
 import { seedBookFromR2 } from '../lib/seedBook'
 import { bookProgress } from '../lib/progress'
 import { ConfirmDialog } from './ConfirmDialog'
+import { Icon } from './Icon'
+import { BookCard, type LibraryBook } from './BookCard'
 
 // Whole-MB floor: browser storage estimates wobble at KB granularity
 // (SQLite WAL churn, estimate padding), which reads as jumpy noise.
@@ -20,15 +22,6 @@ const formatBytes = (bytes: number) => {
   if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`
   if (bytes >= 1024 ** 2) return `${Math.round(bytes / 1024 ** 2)} MB`
   return '< 1 MB'
-}
-
-type LibraryBook = {
-  _id: string
-  title: string
-  author?: string | null
-  sectionCount?: number
-  createdAt?: number
-  updatedAt?: number
 }
 
 // Grace period before purging a local book missing from the remote list —
@@ -143,15 +136,20 @@ export function Library() {
   const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(
     null,
   )
-  const askConfirm = (opts: Omit<ConfirmRequest, 'resolve'>) =>
-    new Promise<boolean>((resolve) =>
-      setConfirmRequest((prev) => {
-        // Never strand a pending caller: replacing an open dialog resolves
-        // the displaced request as cancelled.
-        prev?.resolve(false)
-        return { ...opts, resolve }
-      }),
-    )
+  // Stable (useCallback) so the memoized BookCard's shallow prop compare
+  // holds — otherwise every card re-renders on any Library state change.
+  const askConfirm = useCallback(
+    (opts: Omit<ConfirmRequest, 'resolve'>) =>
+      new Promise<boolean>((resolve) =>
+        setConfirmRequest((prev) => {
+          // Never strand a pending caller: replacing an open dialog resolves
+          // the displaced request as cancelled.
+          prev?.resolve(false)
+          return { ...opts, resolve }
+        }),
+      ),
+    [],
+  )
 
   // Multi-select: covers toggle selection instead of opening the reader.
   const [isSelecting, setIsSelecting] = useState(false)
@@ -160,7 +158,7 @@ export function Library() {
     setIsSelecting(false)
     setSelectedIds(new Set())
   }
-  const toggleSelected = (bookId: string) => {
+  const toggleSelected = useCallback((bookId: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(bookId)) {
@@ -170,7 +168,7 @@ export function Library() {
       }
       return next
     })
-  }
+  }, [])
   useEffect(() => {
     if (!isSelecting) {
       return
@@ -311,25 +309,28 @@ export function Library() {
   }
 
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
-  const handleDeviceDownload = async (bookId: string) => {
-    try {
-      setError(null)
-      setDownloadingId(bookId)
-      await seedBookFromR2(convex, bookId)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Download failed')
-    } finally {
-      setDownloadingId(null)
-    }
-  }
-  const handleRemoveDownload = async (bookId: string) => {
+  const handleDeviceDownload = useCallback(
+    async (bookId: string) => {
+      try {
+        setError(null)
+        setDownloadingId(bookId)
+        await seedBookFromR2(convex, bookId)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Download failed')
+      } finally {
+        setDownloadingId(null)
+      }
+    },
+    [convex],
+  )
+  const handleRemoveDownload = useCallback(async (bookId: string) => {
     try {
       setError(null)
       await removeLocalContent(bookId)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove download')
     }
-  }
+  }, [])
 
   // Covers: object URLs from local blobs; ask the server only for the rest.
   const [localCoverUrls, setLocalCoverUrls] = useState<Record<string, string>>(
@@ -569,28 +570,32 @@ export function Library() {
     return next
   }, [filteredBooks, progressByBookId, recentOrder, sortBy])
 
-  const handleDelete = async (bookId: string) => {
-    const confirmDelete = await askConfirm({
-      title: 'Delete book',
-      message:
-        'Delete this book and its stored files? This removes it from your library and cloud backup, on every device.',
-      confirmLabel: 'Delete',
-      danger: true,
-    })
-    if (!confirmDelete) {
-      return
-    }
-    try {
-      setError(null)
-      await deleteBook({ bookId: bookId as never })
-      // Delete parity: purge this device's local copy too.
-      await deleteLocalBook(bookId).catch(() => {})
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete book')
-    }
-  }
+  const handleDelete = useCallback(
+    async (bookId: string) => {
+      const confirmDelete = await askConfirm({
+        title: 'Delete book',
+        message:
+          'Delete this book and its stored files? This removes it from your library and cloud backup, on every device.',
+        confirmLabel: 'Delete',
+        danger: true,
+      })
+      if (!confirmDelete) {
+        return
+      }
+      try {
+        setError(null)
+        await deleteBook({ bookId: bookId as never })
+        // Delete parity: purge this device's local copy too.
+        await deleteLocalBook(bookId).catch(() => {})
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to delete book')
+      }
+    },
+    [askConfirm, deleteBook],
+  )
 
-  const handleDownload = async (bookId: string, title: string) => {
+  const handleDownload = useCallback(
+    async (bookId: string, title: string) => {
     try {
       setError(null)
       const url = (await convex.query(api.books.getEpubUrl, {
@@ -621,7 +626,9 @@ export function Library() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Download failed')
     }
-  }
+    },
+    [convex],
+  )
 
   return (
     <RequireAuth>
@@ -697,22 +704,7 @@ export function Library() {
                   onClick={() => setIsBulkMenuOpen((prev) => !prev)}
                 >
                   <span className="sr-only">Library actions</span>
-                  <svg
-                    aria-hidden="true"
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="5" cy="12" r="1.5" />
-                    <circle cx="12" cy="12" r="1.5" />
-                    <circle cx="19" cy="12" r="1.5" />
-                  </svg>
+                  <Icon name="dots-horizontal" />
                 </button>
                 {isBulkMenuOpen ? (
                   <div className="menu absolute right-0 top-9 z-20">
@@ -839,184 +831,27 @@ export function Library() {
           ) : (
             <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {sortedBooks.map((book) => {
-                const coverUrl = coverUrls?.[book._id]
                 const progress = progressByBookId.get(book._id)
-                const progressPercent = progress
-                  ? Math.round(progress.progress * 100)
-                  : null
-                const showProgressBadge =
-                  progressPercent !== null && progressPercent > 0
-                const isSelected = selectedIds.has(book._id)
                 return (
-                  <div
+                  <BookCard
                     key={book._id}
-                    className={`book-card group w-full ${isSelected ? 'is-selected' : ''}`}
-                  >
-                    <Link
-                      className="block"
-                      to="/reader/$bookId"
-                      params={{ bookId: book._id }}
-                      onClick={(event) => {
-                        if (isSelecting) {
-                          event.preventDefault()
-                          toggleSelected(book._id)
-                        }
-                      }}
-                    >
-                      <div
-                        className={`book-cover-frame relative aspect-[2/3] w-full overflow-hidden ${
-                          coverUrl ? 'has-cover' : ''
-                        }`}
-                      >
-                        {coverUrl ? (
-                          <div className="absolute inset-0 overflow-hidden">
-                            <img
-                              src={coverUrl}
-                              alt={book.title}
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center bg-[var(--surface-2)] p-3">
-                            <span className="line-clamp-4 text-center font-[family-name:var(--font-display)] text-sm text-[var(--muted)]">
-                              {book.title}
-                            </span>
-                          </div>
-                        )}
-                        {showProgressBadge ? (
-                          <div className="progress-badge">{`${progressPercent}%`}</div>
-                        ) : null}
-                        {downloadedIds.has(book._id) ? (
-                          <div className="device-dot" title="On this device" />
-                        ) : null}
-                        {isSelecting ? (
-                          <div
-                            className={`select-badge ${isSelected ? 'is-selected' : ''}`}
-                            aria-hidden="true"
-                          >
-                            {isSelected ? (
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="13"
-                                height="13"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M20 6L9 17l-5-5" />
-                              </svg>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </div>
-                    </Link>
-                    <div
-                      className="book-meta"
-                      onMouseLeave={() => setOpenMenuId(null)}
-                    >
-                      <div className="book-text">
-                        <Link
-                          className="book-title truncate text-sm font-semibold"
-                          to="/reader/$bookId"
-                          params={{ bookId: book._id }}
-                          onClick={(event) => {
-                            if (isSelecting) {
-                              event.preventDefault()
-                              toggleSelected(book._id)
-                            }
-                          }}
-                        >
-                          {book.title}
-                        </Link>
-                        <div className="book-author truncate text-xs text-[var(--muted)]">
-                          {book.author ?? 'Unknown author'}
-                        </div>
-                      </div>
-                      <div className="book-menu-shell">
-                        <button
-                          className="icon-btn"
-                          onMouseEnter={() => setOpenMenuId(book._id)}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            setOpenMenuId((prev) =>
-                              prev === book._id ? null : book._id,
-                            )
-                          }}
-                        >
-                          <span className="sr-only">Open menu</span>
-                          <svg
-                            aria-hidden="true"
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <circle cx="12" cy="5" r="1.5" />
-                            <circle cx="12" cy="12" r="1.5" />
-                            <circle cx="12" cy="19" r="1.5" />
-                          </svg>
-                        </button>
-                        {openMenuId === book._id ? (
-                          <div
-                            className="menu book-menu"
-                            onMouseLeave={() => setOpenMenuId(null)}
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            {downloadedIds.has(book._id) ? (
-                              <button
-                                className="menu-item"
-                                onClick={async () => {
-                                  setOpenMenuId(null)
-                                  await handleRemoveDownload(book._id)
-                                }}
-                              >
-                                Remove download
-                              </button>
-                            ) : (
-                              <button
-                                className="menu-item"
-                                disabled={downloadingId === book._id}
-                                onClick={async () => {
-                                  setOpenMenuId(null)
-                                  await handleDeviceDownload(book._id)
-                                }}
-                              >
-                                {downloadingId === book._id
-                                  ? 'Downloading…'
-                                  : 'Download to this device'}
-                              </button>
-                            )}
-                            <button
-                              className="menu-item"
-                              onClick={async () => {
-                                setOpenMenuId(null)
-                                await handleDownload(book._id, book.title)
-                              }}
-                            >
-                              Save EPUB
-                            </button>
-                            <button
-                              className="menu-item is-danger"
-                              onClick={async () => {
-                                setOpenMenuId(null)
-                                await handleDelete(book._id)
-                              }}
-                            >
-                              Delete book
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
+                    book={book}
+                    coverUrl={coverUrls?.[book._id]}
+                    progressPercent={
+                      progress ? Math.round(progress.progress * 100) : null
+                    }
+                    isDownloaded={downloadedIds.has(book._id)}
+                    isDownloading={downloadingId === book._id}
+                    isSelecting={isSelecting}
+                    isSelected={selectedIds.has(book._id)}
+                    isMenuOpen={openMenuId === book._id}
+                    onToggleSelect={toggleSelected}
+                    onMenuOpenChange={setOpenMenuId}
+                    onDeviceDownload={handleDeviceDownload}
+                    onRemoveDownload={handleRemoveDownload}
+                    onSaveEpub={handleDownload}
+                    onDelete={handleDelete}
+                  />
                 )
               })}
             </div>
