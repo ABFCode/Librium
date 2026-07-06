@@ -95,9 +95,23 @@ export const ReaderPreferencesModal = ({
                   setFontScale((Number(event.target.value) - 16) / 2)
                 }
               />
-              <div className="w-10 text-right text-sm text-[var(--muted-2)]">
-                {fontSize}px
-              </div>
+              <input
+                className="input w-16 px-2 py-1 text-center text-sm"
+                type="number"
+                min={12}
+                max={36}
+                value={fontSize}
+                aria-label="Font size in pixels"
+                onChange={(event) => {
+                  const value = Number(event.target.value)
+                  if (!Number.isFinite(value)) {
+                    return
+                  }
+                  setFontScale(
+                    (Math.min(Math.max(value, 12), 36) - 16) / 2,
+                  )
+                }}
+              />
             </div>
           </div>
           {setFontFamily ? (

@@ -11,6 +11,7 @@ import {
   removeLocalContent,
 } from '../lib/db'
 import { seedBookFromR2 } from '../lib/seedBook'
+import { ConfirmDialog } from './ConfirmDialog'
 
 // Whole-MB floor: browser storage estimates wobble at KB granularity
 // (SQLite WAL churn, estimate padding), which reads as jumpy noise.
@@ -101,17 +102,25 @@ export function Library() {
     if (typeof navigator === 'undefined' || !navigator.storage?.estimate) {
       return
     }
-    void navigator.storage.estimate().then((est) => {
-      const detailed = (
-        est as { usageDetails?: { indexedDB?: number } }
-      ).usageDetails?.indexedDB
-      const usage = detailed ?? est.usage
-      if (!cancelled && typeof usage === 'number') {
-        setStorageUsage(usage)
-      }
-    })
+    const sample = () => {
+      void navigator.storage.estimate().then((est) => {
+        const detailed = (
+          est as { usageDetails?: { indexedDB?: number } }
+        ).usageDetails?.indexedDB
+        const usage = detailed ?? est.usage
+        if (!cancelled && typeof usage === 'number') {
+          setStorageUsage(usage)
+        }
+      })
+    }
+    // Sample twice: an immediate estimate reads pre-compaction numbers right
+    // after bulk deletes; a delayed second pass catches the settled value.
+    const first = window.setTimeout(sample, 500)
+    const second = window.setTimeout(sample, 4000)
     return () => {
       cancelled = true
+      window.clearTimeout(first)
+      window.clearTimeout(second)
     }
     // Re-measure only when the shelf actually changes — measuring on every
     // IndexedDB write makes the figure visibly jitter.
@@ -120,6 +129,23 @@ export function Library() {
   // Bulk operations (global; per-book actions live in each card's menu).
   const [bulkStatus, setBulkStatus] = useState<string | null>(null)
   const [isBulkMenuOpen, setIsBulkMenuOpen] = useState(false)
+
+  // In-app confirmation dialog (replaces native window.confirm/prompt).
+  type ConfirmRequest = {
+    title: string
+    message: string
+    confirmLabel: string
+    danger?: boolean
+    requireText?: string
+    resolve: (ok: boolean) => void
+  }
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(
+    null,
+  )
+  const askConfirm = (opts: Omit<ConfirmRequest, 'resolve'>) =>
+    new Promise<boolean>((resolve) =>
+      setConfirmRequest({ ...opts, resolve }),
+    )
 
   // Multi-select: covers toggle selection instead of opening the reader.
   const [isSelecting, setIsSelecting] = useState(false)
@@ -176,9 +202,11 @@ export function Library() {
     if (ids.length === 0 || bulkStatus) {
       return
     }
-    const ok = window.confirm(
-      `Remove ${ids.length} downloaded book(s) from this device? Your library, progress, and bookmarks are unaffected — books re-download when opened.`,
-    )
+    const ok = await askConfirm({
+      title: 'Clear downloads',
+      message: `Remove ${ids.length} downloaded book${ids.length === 1 ? '' : 's'} from this device? Your library, progress, and bookmarks are unaffected — books re-download when opened.`,
+      confirmLabel: 'Remove',
+    })
     if (!ok) {
       return
     }
@@ -199,10 +227,14 @@ export function Library() {
     if (list.length === 0 || bulkStatus) {
       return
     }
-    const typed = window.prompt(
-      `This permanently deletes all ${list.length} book(s) from your library and cloud backup, on every device. Type DELETE to confirm.`,
-    )
-    if (typed !== 'DELETE') {
+    const ok = await askConfirm({
+      title: 'Delete all books',
+      message: `This permanently deletes all ${list.length} book${list.length === 1 ? '' : 's'} from your library and cloud backup, on every device.`,
+      confirmLabel: 'Delete all',
+      danger: true,
+      requireText: 'DELETE',
+    })
+    if (!ok) {
       return
     }
     setError(null)
@@ -276,9 +308,11 @@ export function Library() {
     if (targets.length === 0 || bulkStatus) {
       return
     }
-    const ok = window.confirm(
-      `Remove ${targets.length} downloaded book(s) from this device? Your library, progress, and bookmarks are unaffected.`,
-    )
+    const ok = await askConfirm({
+      title: 'Remove downloads',
+      message: `Remove ${targets.length} downloaded book${targets.length === 1 ? '' : 's'} from this device? Your library, progress, and bookmarks are unaffected.`,
+      confirmLabel: 'Remove',
+    })
     if (!ok) {
       return
     }
@@ -299,10 +333,14 @@ export function Library() {
     if (targets.length === 0 || bulkStatus) {
       return
     }
-    const typed = window.prompt(
-      `This permanently deletes the ${targets.length} selected book(s) from your library and cloud backup, on every device. Type DELETE to confirm.`,
-    )
-    if (typed !== 'DELETE') {
+    const ok = await askConfirm({
+      title: 'Delete selected books',
+      message: `This permanently deletes the ${targets.length} selected book${targets.length === 1 ? '' : 's'} from your library and cloud backup, on every device.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      requireText: 'DELETE',
+    })
+    if (!ok) {
       return
     }
     setError(null)
@@ -579,9 +617,13 @@ export function Library() {
   }, [filteredBooks, progressByBookId, recentOrder, sortBy])
 
   const handleDelete = async (bookId: string) => {
-    const confirmDelete = window.confirm(
-      'Delete this book and its stored files?',
-    )
+    const confirmDelete = await askConfirm({
+      title: 'Delete book',
+      message:
+        'Delete this book and its stored files? This removes it from your library and cloud backup, on every device.',
+      confirmLabel: 'Delete',
+      danger: true,
+    })
     if (!confirmDelete) {
       return
     }
@@ -595,7 +637,7 @@ export function Library() {
     }
   }
 
-  const handleDownload = async (bookId: string, fileName: string) => {
+  const handleDownload = async (bookId: string, title: string) => {
     try {
       setError(null)
       const url = (await convex.query(api.books.getEpubUrl, {
@@ -605,12 +647,24 @@ export function Library() {
         setError('Unable to generate download link.')
         return
       }
+      // Fetch to a blob: the download attribute is ignored on cross-origin
+      // URLs, so a direct link would save every book as the R2 key's
+      // basename ("book.epub"). A blob URL is same-origin and names cleanly.
+      const res = await fetch(url)
+      if (!res.ok) {
+        throw new Error('Download failed')
+      }
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const safeTitle =
+        title.replace(/[\\/:*?"<>|]/g, '_').trim().slice(0, 120) || 'book'
       const link = document.createElement('a')
-      link.href = url
-      link.download = fileName
+      link.href = objectUrl
+      link.download = `${safeTitle}.epub`
       document.body.appendChild(link)
       link.click()
       link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 5000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Download failed')
     }
@@ -618,6 +672,23 @@ export function Library() {
 
   return (
     <RequireAuth>
+      {confirmRequest ? (
+        <ConfirmDialog
+          title={confirmRequest.title}
+          message={confirmRequest.message}
+          confirmLabel={confirmRequest.confirmLabel}
+          danger={confirmRequest.danger}
+          requireText={confirmRequest.requireText}
+          onConfirm={() => {
+            confirmRequest.resolve(true)
+            setConfirmRequest(null)
+          }}
+          onCancel={() => {
+            confirmRequest.resolve(false)
+            setConfirmRequest(null)
+          }}
+        />
+      ) : null}
       <div className="min-h-screen px-6 pb-16 pt-8">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
           <div className="flex flex-wrap items-end justify-between gap-4">
