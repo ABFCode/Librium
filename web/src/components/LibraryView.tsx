@@ -11,6 +11,7 @@ import {
   removeLocalContent,
 } from '../lib/db'
 import { seedBookFromR2 } from '../lib/seedBook'
+import { bookProgress } from '../lib/progress'
 import { ConfirmDialog } from './ConfirmDialog'
 
 // Whole-MB floor: browser storage estimates wobble at KB granularity
@@ -502,10 +503,7 @@ export function Library() {
         map.set(p.bookId, {
           // Completed chapters + fraction of the current one — mirrors
           // userBooks.listByUser.
-          progress:
-            total > 0
-              ? Math.min((p.sectionIndex + (p.sectionFraction ?? 0)) / total, 1)
-              : 0,
+          progress: bookProgress(p.sectionIndex, p.sectionFraction ?? 0, total),
           updatedAt: p.editedAt,
         })
       }

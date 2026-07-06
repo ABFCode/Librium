@@ -1,0 +1,96 @@
+import { describe, it, expect, vi } from 'vitest'
+import { render } from 'vitest-browser-react'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+
+const renderDialog = async (
+  overrides: Partial<Parameters<typeof ConfirmDialog>[0]> = {},
+) => {
+  const onConfirm = vi.fn()
+  const onCancel = vi.fn()
+  const screen = await render(
+    <ConfirmDialog
+      title="Delete book"
+      message="This permanently deletes the book."
+      confirmLabel="Delete"
+      danger
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+      {...overrides}
+    />,
+  )
+  return { screen, onConfirm, onCancel }
+}
+
+describe('ConfirmDialog', () => {
+  it('does NOT confirm on a window-level Enter (Enter on Cancel regression)', async () => {
+    // Regression: a global Enter-to-confirm handler executed the destructive
+    // action even with focus on the Cancel button.
+    const { onConfirm } = await renderDialog()
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+    )
+    expect(onConfirm).not.toHaveBeenCalled()
+  })
+
+  it('cancels on Escape', async () => {
+    const { onConfirm, onCancel } = await renderDialog()
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+    )
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    expect(onConfirm).not.toHaveBeenCalled()
+  })
+
+  it('cancels on backdrop click but not on panel click', async () => {
+    const { screen, onCancel } = await renderDialog()
+    await screen.getByText('Delete book').click()
+    expect(onCancel).not.toHaveBeenCalled()
+    ;(screen.container.firstElementChild as HTMLElement).click()
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the confirm button disarmed until the required text is typed', async () => {
+    const { screen, onConfirm } = await renderDialog({ requireText: 'DELETE' })
+    const confirmBtn = [
+      ...screen.container.querySelectorAll('button'),
+    ].find((b) => b.textContent === 'Delete') as HTMLButtonElement
+    expect(confirmBtn.disabled).toBe(true)
+    confirmBtn.click()
+    expect(onConfirm).not.toHaveBeenCalled()
+
+    const input = screen.container.querySelector('input') as HTMLInputElement
+    const setValue = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value',
+    )!.set!
+    setValue.call(input, 'DELET')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    expect(confirmBtn.disabled).toBe(true)
+
+    setValue.call(input, 'DELETE')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    expect(confirmBtn.disabled).toBe(false)
+  })
+
+  it('confirms on Enter only from the armed type-to-confirm input', async () => {
+    const { screen, onConfirm } = await renderDialog({ requireText: 'DELETE' })
+    const input = screen.container.querySelector('input') as HTMLInputElement
+    const setValue = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value',
+    )!.set!
+
+    // Not armed: Enter in the input does nothing.
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+    )
+    expect(onConfirm).not.toHaveBeenCalled()
+
+    setValue.call(input, 'DELETE')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+    )
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+  })
+})

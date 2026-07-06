@@ -32,7 +32,6 @@ export default defineConfig({
     viteReact(),
   ],
   test: {
-    setupFiles: ['./src/test/setup.ts'],
     testTimeout: 10_000,
     projects: [
       {
@@ -46,6 +45,9 @@ export default defineConfig({
       {
         test: {
           name: 'browser',
+          // Browser-only setup (vitest-browser-react) must not load in the
+          // node project.
+          setupFiles: ['./src/test/setup.ts'],
           include: ['src/test/**/*.browser.test.{ts,tsx}'],
           browser: {
             enabled: true,

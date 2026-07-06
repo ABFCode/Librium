@@ -12,6 +12,14 @@ import { useBookmarkSync } from '../hooks/useBookmarkSync'
 import { ReaderPreferencesModal } from './ReaderPreferencesModal'
 import { seedBookFromR2 } from '../lib/seedBook'
 import {
+  blockToText,
+  type BlockPayload,
+  type InlinePayload,
+} from '../lib/blockText'
+import { anchorScrollTop, findAnchor } from '../lib/readerAnchors'
+import { bookProgress } from '../lib/progress'
+import { scanSections } from '../lib/searchScan'
+import {
   PARSER_VERSION,
   db,
   deleteLocalBook,
@@ -30,43 +38,6 @@ type ReaderSection = {
 type ReaderChunk = {
   id: string
   content: string
-}
-
-type InlinePayload = {
-  kind: string
-  text?: string
-  href?: string
-  src?: string
-  alt?: string
-  width?: number
-  height?: number
-  emph?: boolean
-  strong?: boolean
-}
-
-type TableCellPayload = {
-  inlines: InlinePayload[]
-  header?: boolean
-}
-
-type TablePayload = {
-  rows: { cells: TableCellPayload[] }[]
-}
-
-type FigurePayload = {
-  images: InlinePayload[]
-  caption: InlinePayload[]
-}
-
-type BlockPayload = {
-  kind: string
-  level?: number
-  ordered?: boolean
-  listIndex?: number
-  inlines?: InlinePayload[]
-  table?: TablePayload
-  figure?: FigurePayload
-  anchors?: string[]
 }
 
 type ReaderExperienceProps = {
@@ -501,58 +472,6 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     }
   }, [isLoading])
 
-  const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1)
-
-  // The anchor is (block index, fraction 0–1 within it): layout-independent,
-  // so positions survive font/width changes and other devices. These two
-  // helpers are the single source of the anchor math for progress, restore,
-  // re-anchoring, bookmarks, and search jumps.
-  const findAnchor = (container: HTMLElement) => {
-    const scrollTop = container.scrollTop
-    let blockIndex = 0
-    let fraction = 0
-    // Also derive how far through the whole section we are (block position
-    // plus intra-block fraction) so percent displays can count partial
-    // chapters instead of pinning 1-chapter books at 0%.
-    let sectionFraction = 0
-    const nodes = Array.from(container.querySelectorAll('[data-chunk-index]'))
-    for (let i = 0; i < nodes.length; i++) {
-      const element = nodes[i] as HTMLElement
-      if (element.offsetTop + element.clientHeight > scrollTop) {
-        blockIndex = Number(element.dataset.chunkIndex ?? 0)
-        fraction =
-          element.clientHeight > 0
-            ? clamp01((scrollTop - element.offsetTop) / element.clientHeight)
-            : 0
-        sectionFraction =
-          nodes.length > 0 ? clamp01((i + fraction) / nodes.length) : 0
-        // Bottom of the viewport at the end of the content = finished.
-        if (
-          container.scrollTop + container.clientHeight >=
-          container.scrollHeight - 4
-        ) {
-          sectionFraction = 1
-        }
-        break
-      }
-    }
-    return { blockIndex, fraction, sectionFraction }
-  }
-
-  const anchorScrollTop = (
-    container: HTMLElement,
-    blockIndex: number,
-    fraction: number,
-  ) => {
-    const target = container.querySelector(
-      `[data-chunk-index="${blockIndex}"]`,
-    ) as HTMLElement | null
-    if (!target) {
-      return null
-    }
-    return target.offsetTop + clamp01(fraction) * target.clientHeight
-  }
-
   const emitProgress = () => {
     if (!sectionId || !parentRef.current || activeIndex < 0) {
       return
@@ -865,32 +784,26 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
             blockIndex: number
             snippet: string
           }> = []
-          for (let s = 0; s < perSection.length; s++) {
-            const { texts, lower } = perSection[s]
-            for (
-              let b = 0;
-              b < texts.length && out.length < SEARCH_RESULT_CAP;
-              b++
-            ) {
-              const pos = lower[b].indexOf(query)
-              if (pos >= 0) {
-                const start = Math.max(0, pos - 40)
-                const end = Math.min(texts[b].length, pos + query.length + 40)
-                out.push({
-                  sectionIndex: s,
-                  blockIndex: b,
-                  snippet: texts[b].slice(start, end),
-                })
-              }
-            }
-            if (out.length >= SEARCH_RESULT_CAP) {
-              break
-            }
-            if (s % 100 === 99) {
-              await new Promise((resolve) => setTimeout(resolve))
-              if (searchTokenRef.current !== token) {
-                return
-              }
+          // Scan in section windows, yielding to the event loop between
+          // them so huge books never block the main thread.
+          const WINDOW = 200
+          for (
+            let s = 0;
+            s < perSection.length && out.length < SEARCH_RESULT_CAP;
+            s += WINDOW
+          ) {
+            out.push(
+              ...scanSections(
+                perSection,
+                query,
+                SEARCH_RESULT_CAP - out.length,
+                s,
+                Math.min(s + WINDOW, perSection.length),
+              ),
+            )
+            await new Promise((resolve) => setTimeout(resolve))
+            if (searchTokenRef.current !== token) {
+              return
             }
           }
           if (searchTokenRef.current === token) {
@@ -935,39 +848,6 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     if (target) {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
-  }
-
-  function inlineToText(inline: InlinePayload) {
-    if (inline.kind === 'image') {
-      return inline.alt ?? ''
-    }
-    return inline.text ?? ''
-  }
-
-  function inlinesToText(inlines?: InlinePayload[]) {
-    if (!inlines || inlines.length === 0) {
-      return ''
-    }
-    return inlines.map(inlineToText).join(' ').trim()
-  }
-
-  function blockToText(block: BlockPayload) {
-    if (block.table?.rows) {
-      return block.table.rows
-        .map((row) =>
-          row.cells.map((cell) => inlinesToText(cell.inlines)).join(' '),
-        )
-        .join('\n')
-        .trim()
-    }
-    if (block.figure) {
-      const caption = inlinesToText(block.figure.caption)
-      if (caption) {
-        return caption
-      }
-      return inlinesToText(block.figure.images)
-    }
-    return inlinesToText(block.inlines)
   }
 
   const renderInlines = (inlines?: InlinePayload[], keyPrefix = 'inline') => {
@@ -1661,14 +1541,13 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
               title={`Chapter ${activeIndex + 1} of ${sections.length}`}
             >
               {`${activeIndex + 1} / ${sections.length} · ${Math.round(
-                (Math.min(
-                  (activeIndex +
-                    (effectiveProgress?.sectionIndex === activeIndex
-                      ? effectiveProgress.sectionFraction
-                      : 0)) /
-                    sections.length,
-                  1,
-                )) * 100,
+                bookProgress(
+                  activeIndex,
+                  effectiveProgress?.sectionIndex === activeIndex
+                    ? effectiveProgress.sectionFraction
+                    : 0,
+                  sections.length,
+                ) * 100,
               )}%`}
             </div>
           ) : null}
