@@ -68,7 +68,7 @@ describe('ReaderPreferencesModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('invokes the font size controls', async () => {
+  it('maps the font size slider to fontScale half-steps', async () => {
     const setFontScale = vi.fn()
     const screen = await render(
       <ReaderPreferencesModal
@@ -85,12 +85,18 @@ describe('ReaderPreferencesModal', () => {
       />,
     )
 
-    await screen.getByText('A+').click()
-    expect(setFontScale).toHaveBeenCalledTimes(1)
-    const updater = setFontScale.mock.calls[0]?.[0]
-    expect(typeof updater).toBe('function')
-    expect(updater(2)).toBe(3)
-    expect(updater(7)).toBe(8)
-    expect(updater(8)).toBe(8)
+    const slider = screen.container.querySelector(
+      'input[type="range"]',
+    ) as HTMLInputElement
+    expect(slider).toBeTruthy()
+    expect(slider.min).toBe('12')
+    expect(slider.max).toBe('36')
+    const setValue = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value',
+    )!.set!
+    setValue.call(slider, '23')
+    slider.dispatchEvent(new Event('input', { bubbles: true }))
+    expect(setFontScale).toHaveBeenCalledWith((23 - 16) / 2)
   })
 })

@@ -121,6 +121,37 @@ export function Library() {
   const [bulkStatus, setBulkStatus] = useState<string | null>(null)
   const [isBulkMenuOpen, setIsBulkMenuOpen] = useState(false)
 
+  // Multi-select: covers toggle selection instead of opening the reader.
+  const [isSelecting, setIsSelecting] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const exitSelection = () => {
+    setIsSelecting(false)
+    setSelectedIds(new Set())
+  }
+  const toggleSelected = (bookId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(bookId)) {
+        next.delete(bookId)
+      } else {
+        next.add(bookId)
+      }
+      return next
+    })
+  }
+  useEffect(() => {
+    if (!isSelecting) {
+      return
+    }
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        exitSelection()
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [isSelecting])
+
   const handleDownloadAll = async () => {
     const targets = (books ?? []).filter((b) => !downloadedIds.has(b._id))
     if (targets.length === 0 || bulkStatus) {
@@ -191,10 +222,9 @@ export function Library() {
     setBulkStatus(null)
   }
 
-  // Durability escape hatch: pull every raw EPUB back out of R2 (egress is
+  // Durability escape hatch: pull raw EPUBs back out of R2 (egress is
   // free). Sequential to keep the browser's multi-download prompt tame.
-  const handleExportAll = async () => {
-    const list = books ?? []
+  const exportBooks = async (list: LibraryBook[]) => {
     if (list.length === 0 || bulkStatus) {
       return
     }
@@ -212,6 +242,85 @@ export function Library() {
       done += 1
     }
     setBulkStatus(null)
+  }
+
+  const handleExportAll = () => exportBooks(books ?? [])
+
+  // ── Selection bulk actions ─────────────────────────────────────────────────
+  const selectedBooks = () =>
+    (books ?? []).filter((book) => selectedIds.has(book._id))
+
+  const handleSelectedDownload = async () => {
+    const targets = selectedBooks().filter((b) => !downloadedIds.has(b._id))
+    if (targets.length === 0 || bulkStatus) {
+      return
+    }
+    setError(null)
+    let done = 0
+    for (const book of targets) {
+      setBulkStatus(`Downloading… ${done}/${targets.length}`)
+      try {
+        await seedBookFromR2(convex, book._id)
+      } catch {
+        // Skip failures; continue with the rest.
+      }
+      done += 1
+    }
+    setBulkStatus(null)
+  }
+
+  const handleSelectedExport = () => exportBooks(selectedBooks())
+
+  const handleSelectedRemoveDownloads = async () => {
+    const targets = selectedBooks().filter((b) => downloadedIds.has(b._id))
+    if (targets.length === 0 || bulkStatus) {
+      return
+    }
+    const ok = window.confirm(
+      `Remove ${targets.length} downloaded book(s) from this device? Your library, progress, and bookmarks are unaffected.`,
+    )
+    if (!ok) {
+      return
+    }
+    setError(null)
+    setBulkStatus('Removing downloads…')
+    for (const book of targets) {
+      try {
+        await removeLocalContent(book._id)
+      } catch {
+        // Retried by the reconcile pass.
+      }
+    }
+    setBulkStatus(null)
+  }
+
+  const handleSelectedDelete = async () => {
+    const targets = selectedBooks()
+    if (targets.length === 0 || bulkStatus) {
+      return
+    }
+    const typed = window.prompt(
+      `This permanently deletes the ${targets.length} selected book(s) from your library and cloud backup, on every device. Type DELETE to confirm.`,
+    )
+    if (typed !== 'DELETE') {
+      return
+    }
+    setError(null)
+    let done = 0
+    for (const book of targets) {
+      setBulkStatus(`Deleting… ${done}/${targets.length}`)
+      try {
+        await deleteBook({ bookId: book._id as never })
+        await deleteLocalBook(book._id).catch(() => {})
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : `Failed to delete ${book.title}`,
+        )
+      }
+      done += 1
+    }
+    setBulkStatus(null)
+    exitSelection()
   }
 
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
@@ -545,6 +654,16 @@ export function Library() {
                   </button>
                 ))}
               </div>
+              {books && books.length > 0 ? (
+                <button
+                  className={`chip is-framed ${isSelecting ? 'is-active' : ''}`}
+                  onClick={() =>
+                    isSelecting ? exitSelection() : setIsSelecting(true)
+                  }
+                >
+                  {isSelecting ? 'Done' : 'Select'}
+                </button>
+              ) : null}
               <div
                 className="relative"
                 onMouseLeave={() => setIsBulkMenuOpen(false)}
@@ -629,6 +748,55 @@ export function Library() {
               </Link>
             </div>
           </div>
+          {isSelecting ? (
+            <div className="surface-soft flex flex-wrap items-center gap-2 px-3 py-2">
+              <span className="text-sm text-[var(--muted)]">
+                {selectedIds.size} selected
+              </span>
+              <button
+                className="chip"
+                onClick={() =>
+                  setSelectedIds(new Set((books ?? []).map((b) => b._id)))
+                }
+              >
+                Select all
+              </button>
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <button
+                  className="btn btn-ghost text-xs"
+                  disabled={bulkStatus !== null || selectedIds.size === 0}
+                  title="Store the selected books' content on this device"
+                  onClick={() => void handleSelectedDownload()}
+                >
+                  Download
+                </button>
+                <button
+                  className="btn btn-ghost text-xs"
+                  disabled={bulkStatus !== null || selectedIds.size === 0}
+                  title="Save the selected books' EPUB files"
+                  onClick={() => void handleSelectedExport()}
+                >
+                  Export EPUBs
+                </button>
+                <button
+                  className="btn btn-ghost text-xs"
+                  disabled={bulkStatus !== null || selectedIds.size === 0}
+                  title="Free this device's storage; the books stay in the library"
+                  onClick={() => void handleSelectedRemoveDownloads()}
+                >
+                  Remove downloads
+                </button>
+                <button
+                  className="btn btn-danger text-xs"
+                  disabled={bulkStatus !== null || selectedIds.size === 0}
+                  title="Permanently delete the selected books, everywhere"
+                  onClick={() => void handleSelectedDelete()}
+                >
+                  Delete…
+                </button>
+              </div>
+            </div>
+          ) : null}
           {bulkStatus ? (
             <p className="text-sm text-[var(--muted)]">{bulkStatus}</p>
           ) : null}
@@ -654,12 +822,22 @@ export function Library() {
                   : null
                 const showProgressBadge =
                   progressPercent !== null && progressPercent > 0
+                const isSelected = selectedIds.has(book._id)
                 return (
-                  <div key={book._id} className="book-card group w-full">
+                  <div
+                    key={book._id}
+                    className={`book-card group w-full ${isSelected ? 'is-selected' : ''}`}
+                  >
                     <Link
                       className="block"
                       to="/reader/$bookId"
                       params={{ bookId: book._id }}
+                      onClick={(event) => {
+                        if (isSelecting) {
+                          event.preventDefault()
+                          toggleSelected(book._id)
+                        }
+                      }}
                     >
                       <div
                         className={`book-cover-frame relative aspect-[2/3] w-full overflow-hidden ${
@@ -687,6 +865,28 @@ export function Library() {
                         {downloadedIds.has(book._id) ? (
                           <div className="device-dot" title="On this device" />
                         ) : null}
+                        {isSelecting ? (
+                          <div
+                            className={`select-badge ${isSelected ? 'is-selected' : ''}`}
+                            aria-hidden="true"
+                          >
+                            {isSelected ? (
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="13"
+                                height="13"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M20 6L9 17l-5-5" />
+                              </svg>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
                     </Link>
                     <div
@@ -698,6 +898,12 @@ export function Library() {
                           className="book-title truncate text-sm font-semibold"
                           to="/reader/$bookId"
                           params={{ bookId: book._id }}
+                          onClick={(event) => {
+                            if (isSelecting) {
+                              event.preventDefault()
+                              toggleSelected(book._id)
+                            }
+                          }}
                         >
                           {book.title}
                         </Link>

@@ -81,22 +81,23 @@ export const ReaderPreferencesModal = ({
         <div className="mt-5 space-y-5 text-sm">
           <div className="flex items-center justify-between gap-4">
             <div className="text-[var(--muted)]">Font size</div>
-            <div className="flex items-center gap-2">
-              <button
-                className="chip is-framed"
-                onClick={() => setFontScale((prev) => Math.max(prev - 1, -3))}
-              >
-                A-
-              </button>
-              <div className="w-10 text-center text-sm text-[var(--muted-2)]">
+            <div className="flex items-center gap-3">
+              <input
+                className="slider"
+                type="range"
+                min={12}
+                max={36}
+                step={1}
+                value={fontSize}
+                aria-label="Font size"
+                onChange={(event) =>
+                  // fontSize = 16 + 2 * fontScale → scale in half-steps.
+                  setFontScale((Number(event.target.value) - 16) / 2)
+                }
+              />
+              <div className="w-10 text-right text-sm text-[var(--muted-2)]">
                 {fontSize}px
               </div>
-              <button
-                className="chip is-framed"
-                onClick={() => setFontScale((prev) => Math.min(prev + 1, 8))}
-              >
-                A+
-              </button>
             </div>
           </div>
           {setFontFamily ? (

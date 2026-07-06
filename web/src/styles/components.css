@@ -219,6 +219,11 @@
     background: color-mix(in srgb, var(--surface-3) 80%, transparent);
   }
 
+  .slider {
+    accent-color: var(--accent);
+    width: 170px;
+  }
+
   /* Dropdown menu shared by library cards and toolbar overflow. */
   .menu {
     min-width: 170px;

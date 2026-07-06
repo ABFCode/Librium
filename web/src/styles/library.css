@@ -92,6 +92,33 @@
     backdrop-filter: blur(6px);
   }
 
+  /* Multi-select: badge on each cover while selecting; ring when selected. */
+  .select-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    background: rgba(10, 12, 16, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1a1208;
+    backdrop-filter: blur(4px);
+  }
+
+  .select-badge.is-selected {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .book-card.is-selected .book-cover-frame {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   /* Content cached on this device. */
   .device-dot {
     position: absolute;
