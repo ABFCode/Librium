@@ -594,6 +594,20 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     }
   }, [sectionId, effectiveProgress])
 
+  // Persist position on arrival at a section — a chapter switch with no
+  // scrolling would otherwise never save (progress only emitted on scroll
+  // and tab-hide before this).
+  useEffect(() => {
+    if (!isHydrated || isRestoringView) {
+      return
+    }
+    if (!blocks || blocks.length === 0) {
+      return
+    }
+    emitProgress()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHydrated, isRestoringView, sectionId, blocks])
+
   useEffect(() => {
     restoredSectionRef.current = null
   }, [sectionId])
@@ -1107,6 +1121,9 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
       if (event.key === 'ArrowLeft') {
         event.preventDefault()
         goPrev()
+      }
+      if (event.key === 'Escape') {
+        setIsTocOpen(false)
       }
     }
 

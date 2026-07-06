@@ -164,6 +164,31 @@ export async function removeLocalContent(bookId: string) {
   })
 }
 
+// Delete content rows whose book no longer has a shelf row — a safety net
+// for interrupted deletes and for legacy dev data (sections/images are pure
+// derived content with no sync semantics, so removal is always safe; they
+// re-seed from R2 if ever needed). Orphans otherwise accumulate forever and
+// inflate the storage figure.
+export async function purgeOrphanedContent() {
+  await db.transaction('rw', db.books, db.sections, db.images, async () => {
+    const known = new Set(
+      (await db.books.toCollection().primaryKeys()) as string[],
+    )
+    const sectionOwners = (await db.sections
+      .orderBy('bookId')
+      .uniqueKeys()) as string[]
+    const imageOwners = (await db.images
+      .orderBy('bookId')
+      .uniqueKeys()) as string[]
+    for (const bookId of new Set([...sectionOwners, ...imageOwners])) {
+      if (!known.has(bookId)) {
+        await db.sections.where('bookId').equals(bookId).delete()
+        await db.images.where('bookId').equals(bookId).delete()
+      }
+    }
+  })
+}
+
 // ── Delete parity ────────────────────────────────────────────────────────────
 
 export async function deleteLocalBook(bookId: string) {

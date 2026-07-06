@@ -4,7 +4,12 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { api } from '../../convex/_generated/api'
 import { RequireAuth } from './RequireAuth'
 import { useEffect, useMemo, useState } from 'react'
-import { db, deleteLocalBook, removeLocalContent } from '../lib/db'
+import {
+  db,
+  deleteLocalBook,
+  purgeOrphanedContent,
+  removeLocalContent,
+} from '../lib/db'
 import { seedBookFromR2 } from '../lib/seedBook'
 
 const formatBytes = (bytes: number) => {
@@ -84,7 +89,10 @@ export function Library() {
     return set
   }, [localBooks])
 
-  // Origin-wide storage usage (covers IndexedDB + service worker cache).
+  // Local storage usage. The estimate is origin-wide, so prefer the
+  // IndexedDB portion when the browser breaks it down (Chrome) — the
+  // total also counts service-worker caches and anything else ever
+  // stored on this origin.
   const [storageUsage, setStorageUsage] = useState<number | null>(null)
   useEffect(() => {
     let cancelled = false
@@ -92,8 +100,12 @@ export function Library() {
       return
     }
     void navigator.storage.estimate().then((est) => {
-      if (!cancelled && typeof est.usage === 'number') {
-        setStorageUsage(est.usage)
+      const detailed = (
+        est as { usageDetails?: { indexedDB?: number } }
+      ).usageDetails?.indexedDB
+      const usage = detailed ?? est.usage
+      if (!cancelled && typeof usage === 'number') {
+        setStorageUsage(usage)
       }
     })
     return () => {
@@ -272,6 +284,13 @@ export function Library() {
             // IndexedDB unavailable — shelf still renders from the server.
           }
         }
+      }
+      // Sweep content rows with no shelf row (interrupted deletes, legacy
+      // dev data) so the storage figure reflects the actual library.
+      try {
+        await purgeOrphanedContent()
+      } catch {
+        // Best-effort hygiene; retried on the next reconcile.
       }
     })()
   }, [remoteBooks, localBooks])

@@ -22,6 +22,52 @@ describe('ReaderPreferencesModal', () => {
     expect(screen.container.childElementCount).toBe(0)
   })
 
+  it('closes on backdrop click but not on panel click', async () => {
+    const onClose = vi.fn()
+    const screen = await render(
+      <ReaderPreferencesModal
+        isOpen
+        onClose={onClose}
+        fontSize={16}
+        setFontScale={() => {}}
+        lineHeight={1.7}
+        setLineHeight={() => {}}
+        contentWidth={720}
+        setContentWidth={() => {}}
+        theme="night"
+        setTheme={() => {}}
+      />,
+    )
+
+    // Click inside the panel: stays open.
+    await screen.getByText('Reader preferences').click()
+    expect(onClose).not.toHaveBeenCalled()
+    // Click the backdrop: closes.
+    ;(screen.container.firstElementChild as HTMLElement).click()
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes on Escape', async () => {
+    const onClose = vi.fn()
+    await render(
+      <ReaderPreferencesModal
+        isOpen
+        onClose={onClose}
+        fontSize={16}
+        setFontScale={() => {}}
+        lineHeight={1.7}
+        setLineHeight={() => {}}
+        contentWidth={720}
+        setContentWidth={() => {}}
+        theme="night"
+        setTheme={() => {}}
+      />,
+    )
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('invokes the font size controls', async () => {
     const setFontScale = vi.fn()
     const screen = await render(

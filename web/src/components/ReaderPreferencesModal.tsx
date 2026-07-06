@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+
 type ReaderPreferencesModalProps = {
   isOpen: boolean
   onClose: () => void
@@ -23,54 +25,83 @@ export const ReaderPreferencesModal = ({
   theme,
   setTheme,
 }: ReaderPreferencesModalProps) => {
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [isOpen, onClose])
+
   if (!isOpen) {
     return null
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6">
-      <div className="surface w-full max-w-lg rounded-[24px] p-6">
+    // Light dim + click-outside close: changes preview live on the page
+    // behind the panel.
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 px-6"
+      onClick={onClose}
+    >
+      <div
+        className="surface w-full max-w-md p-6"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl">Reader Preferences</h2>
-          <button
-            className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]"
-            onClick={onClose}
-          >
-            Close
+          <h2 className="text-xl">Reader preferences</h2>
+          <button className="icon-btn -mr-1" onClick={onClose}>
+            <span className="sr-only">Close</span>
+            <svg
+              aria-hidden="true"
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M18 6L6 18" />
+              <path d="M6 6l12 12" />
+            </svg>
           </button>
         </div>
-        <div className="mt-6 space-y-5 text-sm text-[var(--muted)]">
-          <div>
-            <div className="text-xs uppercase tracking-[0.3em]">Font size</div>
-            <div className="mt-2 flex items-center gap-3">
+        <div className="mt-5 space-y-5 text-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div className="text-[var(--muted)]">Font size</div>
+            <div className="flex items-center gap-2">
               <button
-                className="btn btn-ghost text-xs"
+                className="chip"
                 onClick={() => setFontScale((prev) => Math.max(prev - 1, -1))}
               >
                 A-
               </button>
-              <div className="text-xs uppercase tracking-[0.3em] text-[var(--muted-2)]">
+              <div className="w-10 text-center text-sm text-[var(--muted-2)]">
                 {fontSize}px
               </div>
               <button
-                className="btn btn-ghost text-xs"
+                className="chip"
                 onClick={() => setFontScale((prev) => Math.min(prev + 1, 3))}
               >
                 A+
               </button>
             </div>
           </div>
-          <div>
-            <div className="text-xs uppercase tracking-[0.3em]">Line height</div>
-            <div className="mt-2 flex flex-wrap gap-2">
+          <div className="flex items-center justify-between gap-4">
+            <div className="text-[var(--muted)]">Line height</div>
+            <div className="flex gap-1">
               {[1.5, 1.7, 1.9, 2.1].map((value) => (
                 <button
                   key={value}
-                  className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
-                    lineHeight === value
-                      ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--accent)]'
-                      : 'border-white/10 text-[var(--muted-2)]'
-                  }`}
+                  className={`chip ${lineHeight === value ? 'is-active' : ''}`}
                   onClick={() => setLineHeight(value)}
                 >
                   {value.toFixed(1)}
@@ -78,9 +109,9 @@ export const ReaderPreferencesModal = ({
               ))}
             </div>
           </div>
-          <div>
-            <div className="text-xs uppercase tracking-[0.3em]">Content width</div>
-            <div className="mt-2 flex flex-wrap gap-2">
+          <div className="flex items-center justify-between gap-4">
+            <div className="text-[var(--muted)]">Width</div>
+            <div className="flex gap-1">
               {[
                 { label: 'Narrow', value: 560 },
                 { label: 'Comfort', value: 720 },
@@ -88,11 +119,7 @@ export const ReaderPreferencesModal = ({
               ].map((option) => (
                 <button
                   key={option.label}
-                  className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
-                    contentWidth === option.value
-                      ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--accent)]'
-                      : 'border-white/10 text-[var(--muted-2)]'
-                  }`}
+                  className={`chip ${contentWidth === option.value ? 'is-active' : ''}`}
                   onClick={() => setContentWidth(option.value)}
                 >
                   {option.label}
@@ -100,20 +127,20 @@ export const ReaderPreferencesModal = ({
               ))}
             </div>
           </div>
-          <div>
-            <div className="text-xs uppercase tracking-[0.3em]">Theme</div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {['night', 'sepia', 'paper'].map((option) => (
+          <div className="flex items-center justify-between gap-4">
+            <div className="text-[var(--muted)]">Theme</div>
+            <div className="flex gap-1">
+              {[
+                { key: 'night', label: 'Night' },
+                { key: 'sepia', label: 'Sepia' },
+                { key: 'paper', label: 'Paper' },
+              ].map((option) => (
                 <button
-                  key={option}
-                  className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.3em] ${
-                    theme === option
-                      ? 'border-[rgba(209,161,92,0.6)] bg-[rgba(209,161,92,0.15)] text-[var(--accent)]'
-                      : 'border-white/10 text-[var(--muted-2)]'
-                  }`}
-                  onClick={() => setTheme(option)}
+                  key={option.key}
+                  className={`chip ${theme === option.key ? 'is-active' : ''}`}
+                  onClick={() => setTheme(option.key)}
                 >
-                  {option}
+                  {option.label}
                 </button>
               ))}
             </div>
