@@ -102,6 +102,9 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     () => db.sections.where('bookId').equals(bookId).sortBy('orderIndex'),
     [bookId],
   )
+  // Book title for the panel header (local row works offline).
+  const localBookRow = useLiveQuery(() => db.books.get(bookId), [bookId])
+  const bookTitle = localBookRow?.title ?? remoteBook?.title ?? ''
   const sections: ReaderSection[] | undefined = useMemo(() => {
     if (!localSectionRows) {
       return undefined
@@ -1222,6 +1225,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
                     className={`reader-row ${isActive ? 'is-active' : ''}`}
                     onClick={() => {
                       setActiveSectionId(section._id)
+                      setIsTocOpen(false)
                     }}
                     disabled={isActive}
                     style={{
@@ -1359,12 +1363,22 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         onClick={() => setIsTocOpen(false)}
       />
       <aside className={`reader-drawer ${isTocOpen ? 'is-open' : ''}`}>
-        <div className="flex items-center justify-between gap-2 border-b border-[color-mix(in_srgb,var(--outline)_60%,transparent)] px-3 py-2.5">
-          {tabControls}
-          <button
-            className="icon-btn"
-            onClick={() => setIsTocOpen(false)}
-          >
+        <div className="border-b border-[color-mix(in_srgb,var(--outline)_60%,transparent)] px-4 pb-2.5 pt-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="truncate font-[family-name:var(--font-display)] text-base text-[var(--ink)]">
+                {bookTitle || 'Reading'}
+              </div>
+              {sections && activeIndex >= 0 ? (
+                <div className="mt-0.5 text-xs text-[var(--muted-2)]">
+                  {`Chapter ${activeIndex + 1} of ${sections.length}`}
+                </div>
+              ) : null}
+            </div>
+            <button
+              className="icon-btn -mr-1 -mt-0.5 shrink-0"
+              onClick={() => setIsTocOpen(false)}
+            >
             <span className="sr-only">Close panel</span>
             <svg
               aria-hidden="true"
@@ -1381,7 +1395,9 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
               <path d="M18 6L6 18" />
               <path d="M6 6l12 12" />
             </svg>
-          </button>
+            </button>
+          </div>
+          <div className="mt-2">{tabControls}</div>
         </div>
         <div className="min-h-0 flex-1 p-3">{sidebarPanels}</div>
       </aside>
