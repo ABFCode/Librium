@@ -22,6 +22,7 @@ export const upsert = mutation({
     lineHeight: v.number(),
     contentWidth: v.number(),
     theme: v.string(),
+    fontFamily: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await requireViewerUserId(ctx);
@@ -32,6 +33,7 @@ export const upsert = mutation({
     const lineHeight = clamp(args.lineHeight, 1.4, 2.4);
     const contentWidth = clamp(args.contentWidth, 520, 960);
     const theme = allowedThemes.has(args.theme) ? args.theme : "night";
+    const fontFamily = args.fontFamily === "serif" ? "serif" : "sans";
     const existing = await ctx.db
       .query("userSettings")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -44,6 +46,7 @@ export const upsert = mutation({
       lineHeight,
       contentWidth,
       theme,
+      fontFamily,
       updatedAt: now,
     };
 

@@ -66,6 +66,8 @@ const userSettings = defineTable({
   lineHeight: v.number(),
   contentWidth: v.number(),
   theme: v.string(),
+  // Reading font: "sans" (default) or "serif". Optional for pre-existing rows.
+  fontFamily: v.optional(v.string()),
   updatedAt: v.number(),
 }).index("by_user", ["userId"]);
 

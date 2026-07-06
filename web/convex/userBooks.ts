@@ -161,7 +161,9 @@ export const listByUser = query({
       }
       const totalSections = book.sectionCount ?? 0;
       const lastIndex = entry.lastSectionIndex ?? 0;
-      const progress = totalSections > 0 ? (lastIndex + 1) / totalSections : 0;
+      // Chapters *completed* — counting the current chapter would show a
+      // freshly opened book as already started (1/32 ≈ 3%).
+      const progress = totalSections > 0 ? lastIndex / totalSections : 0;
       results.push({
         bookId: entry.bookId,
         lastSectionTitle: null,

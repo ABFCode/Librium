@@ -11,6 +11,8 @@ type ReaderPreferencesModalProps = {
   setContentWidth: (value: number) => void
   theme: string
   setTheme: (value: string) => void
+  fontFamily?: string
+  setFontFamily?: (value: string) => void
 }
 
 export const ReaderPreferencesModal = ({
@@ -24,6 +26,8 @@ export const ReaderPreferencesModal = ({
   setContentWidth,
   theme,
   setTheme,
+  fontFamily,
+  setFontFamily,
 }: ReaderPreferencesModalProps) => {
   useEffect(() => {
     if (!isOpen) {
@@ -95,6 +99,25 @@ export const ReaderPreferencesModal = ({
               </button>
             </div>
           </div>
+          {setFontFamily ? (
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-[var(--muted)]">Font</div>
+              <div className="flex gap-1">
+                {[
+                  { key: 'sans', label: 'Sans' },
+                  { key: 'serif', label: 'Serif' },
+                ].map((option) => (
+                  <button
+                    key={option.key}
+                    className={`chip ${(fontFamily ?? 'sans') === option.key ? 'is-active' : ''}`}
+                    onClick={() => setFontFamily(option.key)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div className="flex items-center justify-between gap-4">
             <div className="text-[var(--muted)]">Line height</div>
             <div className="flex gap-1">

@@ -212,10 +212,12 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
     lineHeight,
     contentWidth,
     theme,
+    fontFamily,
     setFontScale,
     setLineHeight,
     setContentWidth,
     setTheme,
+    setFontFamily,
   } = useUserSettings({ pauseSync: isPrefsOpen })
 
   useEffect(() => {
@@ -1583,7 +1585,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
               className="hidden shrink-0 text-xs text-[var(--muted-2)] sm:block"
               title={`Chapter ${activeIndex + 1} of ${sections.length}`}
             >
-              {`${activeIndex + 1} / ${sections.length} · ${Math.round(((activeIndex + 1) / sections.length) * 100)}%`}
+              {`${activeIndex + 1} / ${sections.length} · ${Math.round((activeIndex / sections.length) * 100)}%`}
             </div>
           ) : null}
           <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -1792,6 +1794,10 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
               style={{
                 fontSize: `${fontSize}px`,
                 lineHeight: lineHeight,
+                fontFamily:
+                  fontFamily === 'serif'
+                    ? 'var(--font-display)'
+                    : 'var(--font-body)',
               }}
             >
               <div className="mx-auto" style={{ maxWidth: `${contentWidth}px` }}>
@@ -1843,6 +1849,8 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
         setContentWidth={setContentWidth}
         theme={theme}
         setTheme={setTheme}
+        fontFamily={fontFamily}
+        setFontFamily={setFontFamily}
       />
     </RequireAuth>
   )

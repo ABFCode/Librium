@@ -9,6 +9,7 @@ type UserSettingsState = {
   lineHeight: number
   contentWidth: number
   theme: string
+  fontFamily: string
 }
 
 const defaults: UserSettingsState = {
@@ -16,6 +17,7 @@ const defaults: UserSettingsState = {
   lineHeight: 1.7,
   contentWidth: 720,
   theme: 'night',
+  fontFamily: 'sans',
 }
 
 export const useUserSettings = (options?: { pauseSync?: boolean }) => {
@@ -43,6 +45,7 @@ export const useUserSettings = (options?: { pauseSync?: boolean }) => {
       lineHeight: settings?.lineHeight ?? defaults.lineHeight,
       contentWidth: settings?.contentWidth ?? defaults.contentWidth,
       theme: settings?.theme ?? storedTheme ?? defaults.theme,
+      fontFamily: settings?.fontFamily ?? defaults.fontFamily,
     }
     setState(next)
     lastSavedRef.current = next
@@ -72,7 +75,8 @@ export const useUserSettings = (options?: { pauseSync?: boolean }) => {
       last.fontScale !== state.fontScale ||
       last.lineHeight !== state.lineHeight ||
       last.contentWidth !== state.contentWidth ||
-      last.theme !== state.theme
+      last.theme !== state.theme ||
+      last.fontFamily !== state.fontFamily
     if (!changed) {
       return
     }
@@ -96,5 +100,7 @@ export const useUserSettings = (options?: { pauseSync?: boolean }) => {
       setState((prev) => ({ ...prev, contentWidth: value })),
     setTheme: (value: string) =>
       setState((prev) => ({ ...prev, theme: value })),
+    setFontFamily: (value: string) =>
+      setState((prev) => ({ ...prev, fontFamily: value })),
   }
 }

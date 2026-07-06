@@ -402,7 +402,8 @@ export function Library() {
       for (const p of localProgress) {
         const total = counts.get(p.bookId) ?? 0
         map.set(p.bookId, {
-          progress: total > 0 ? (p.sectionIndex + 1) / total : 0,
+          // Chapters completed — mirrors userBooks.listByUser.
+          progress: total > 0 ? p.sectionIndex / total : 0,
           updatedAt: p.editedAt,
         })
       }
