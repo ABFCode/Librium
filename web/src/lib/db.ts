@@ -3,7 +3,7 @@ import Dexie, { type Table } from 'dexie'
 // Version of @abfcode/spine that produced the locally stored blocks. Used to
 // detect stale parses once re-parsing from the raw EPUB lands (ROADMAP Phase 5).
 // Keep in sync with the dependency version in package.json.
-export const PARSER_VERSION = '0.1.0'
+export const PARSER_VERSION = '0.1.1'
 
 // ── Row types ────────────────────────────────────────────────────────────────
 
