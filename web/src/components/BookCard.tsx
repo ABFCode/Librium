@@ -1,184 +1,194 @@
-import { memo } from 'react'
-import { Link } from '@tanstack/react-router'
-import { Icon } from './Icon'
+import { Link } from "@tanstack/react-router";
+import { memo } from "react";
+import { Icon } from "./Icon";
 
 export type LibraryBook = {
-  _id: string
-  title: string
-  author?: string | null
-  sectionCount?: number
-  createdAt?: number
-  updatedAt?: number
-}
+	_id: string;
+	title: string;
+	author?: string | null;
+	sectionCount?: number;
+	createdAt?: number;
+	updatedAt?: number;
+};
 
 type BookCardProps = {
-  book: LibraryBook
-  coverUrl?: string
-  progressPercent: number | null
-  isDownloaded: boolean
-  isDownloading: boolean
-  isSelecting: boolean
-  isSelected: boolean
-  isMenuOpen: boolean
-  onToggleSelect: (bookId: string) => void
-  // null closes any open menu; a bookId opens that book's menu.
-  onMenuOpenChange: (bookId: string | null) => void
-  onDeviceDownload: (bookId: string) => void
-  onRemoveDownload: (bookId: string) => void
-  onSaveEpub: (bookId: string, title: string) => void
-  onDelete: (bookId: string) => void
-}
+	book: LibraryBook;
+	coverUrl?: string;
+	progressPercent: number | null;
+	isDownloaded: boolean;
+	isDownloading: boolean;
+	isSelecting: boolean;
+	isSelected: boolean;
+	isMenuOpen: boolean;
+	onToggleSelect: (bookId: string) => void;
+	// null closes any open menu; a bookId opens that book's menu.
+	onMenuOpenChange: (bookId: string | null) => void;
+	onDeviceDownload: (bookId: string) => void;
+	onRemoveDownload: (bookId: string) => void;
+	onSaveEpub: (bookId: string, title: string) => void;
+	onDelete: (bookId: string) => void;
+};
 
 // Memoized so a selection toggle or menu open/close re-renders only the
 // affected cards, not the whole shelf — the props are all primitives plus
 // stable (useCallback) handlers, so React.memo's shallow compare is exact.
 function BookCardImpl({
-  book,
-  coverUrl,
-  progressPercent,
-  isDownloaded,
-  isDownloading,
-  isSelecting,
-  isSelected,
-  isMenuOpen,
-  onToggleSelect,
-  onMenuOpenChange,
-  onDeviceDownload,
-  onRemoveDownload,
-  onSaveEpub,
-  onDelete,
+	book,
+	coverUrl,
+	progressPercent,
+	isDownloaded,
+	isDownloading,
+	isSelecting,
+	isSelected,
+	isMenuOpen,
+	onToggleSelect,
+	onMenuOpenChange,
+	onDeviceDownload,
+	onRemoveDownload,
+	onSaveEpub,
+	onDelete,
 }: BookCardProps) {
-  const showProgressBadge = progressPercent !== null && progressPercent > 0
+	const showProgressBadge = progressPercent !== null && progressPercent > 0;
 
-  const guardSelect = (event: { preventDefault: () => void }) => {
-    if (isSelecting) {
-      event.preventDefault()
-      onToggleSelect(book._id)
-    }
-  }
+	const guardSelect = (event: { preventDefault: () => void }) => {
+		if (isSelecting) {
+			event.preventDefault();
+			onToggleSelect(book._id);
+		}
+	};
 
-  return (
-    <div className={`book-card group w-full ${isSelected ? 'is-selected' : ''}`}>
-      <Link
-        className="block"
-        to="/reader/$bookId"
-        params={{ bookId: book._id }}
-        onClick={guardSelect}
-      >
-        <div
-          className={`book-cover-frame relative aspect-[2/3] w-full overflow-hidden ${
-            coverUrl ? 'has-cover' : ''
-          }`}
-        >
-          {coverUrl ? (
-            <div className="absolute inset-0 overflow-hidden">
-              <img
-                src={coverUrl}
-                alt={book.title}
-                className="h-full w-full object-cover"
-              />
-            </div>
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-[var(--surface-2)] p-3">
-              <span className="line-clamp-4 text-center font-[family-name:var(--font-display)] text-sm text-[var(--muted)]">
-                {book.title}
-              </span>
-            </div>
-          )}
-          {showProgressBadge ? (
-            <div className="progress-badge">{`${progressPercent}%`}</div>
-          ) : null}
-          {isDownloaded ? (
-            <div className="device-dot" title="On this device" />
-          ) : null}
-          {isSelecting ? (
-            <div
-              className={`select-badge ${isSelected ? 'is-selected' : ''}`}
-              aria-hidden="true"
-            >
-              {isSelected ? <Icon name="check" size={13} /> : null}
-            </div>
-          ) : null}
-        </div>
-      </Link>
-      <div className="book-meta" onMouseLeave={() => onMenuOpenChange(null)}>
-        <div className="book-text">
-          <Link
-            className="book-title truncate text-sm font-semibold"
-            to="/reader/$bookId"
-            params={{ bookId: book._id }}
-            onClick={guardSelect}
-          >
-            {book.title}
-          </Link>
-          <div className="book-author truncate text-xs text-[var(--muted)]">
-            {book.author ?? 'Unknown author'}
-          </div>
-        </div>
-        <div className="book-menu-shell">
-          <button
-            className="icon-btn"
-            onMouseEnter={() => onMenuOpenChange(book._id)}
-            onClick={(event) => {
-              event.stopPropagation()
-              onMenuOpenChange(isMenuOpen ? null : book._id)
-            }}
-          >
-            <span className="sr-only">Open menu</span>
-            <Icon name="dots-vertical" />
-          </button>
-          {isMenuOpen ? (
-            <div
-              className="menu book-menu"
-              onMouseLeave={() => onMenuOpenChange(null)}
-              onClick={(event) => event.stopPropagation()}
-            >
-              {isDownloaded ? (
-                <button
-                  className="menu-item"
-                  onClick={() => {
-                    onMenuOpenChange(null)
-                    onRemoveDownload(book._id)
-                  }}
-                >
-                  Remove download
-                </button>
-              ) : (
-                <button
-                  className="menu-item"
-                  disabled={isDownloading}
-                  onClick={() => {
-                    onMenuOpenChange(null)
-                    onDeviceDownload(book._id)
-                  }}
-                >
-                  {isDownloading ? 'Downloading…' : 'Download to this device'}
-                </button>
-              )}
-              <button
-                className="menu-item"
-                onClick={() => {
-                  onMenuOpenChange(null)
-                  onSaveEpub(book._id, book.title)
-                }}
-              >
-                Save EPUB
-              </button>
-              <button
-                className="menu-item is-danger"
-                onClick={() => {
-                  onMenuOpenChange(null)
-                  onDelete(book._id)
-                }}
-              >
-                Delete book
-              </button>
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  )
+	return (
+		<div
+			className={`book-card group w-full ${isSelected ? "is-selected" : ""}`}
+		>
+			<Link
+				className="block"
+				to="/reader/$bookId"
+				params={{ bookId: book._id }}
+				onClick={guardSelect}
+			>
+				<div
+					className={`book-cover-frame relative aspect-[2/3] w-full overflow-hidden ${
+						coverUrl ? "has-cover" : ""
+					}`}
+				>
+					{coverUrl ? (
+						<div className="absolute inset-0 overflow-hidden">
+							<img
+								src={coverUrl}
+								alt={book.title}
+								className="h-full w-full object-cover"
+							/>
+						</div>
+					) : (
+						<div className="flex h-full w-full items-center justify-center bg-[var(--surface-2)] p-3">
+							<span className="line-clamp-4 text-center font-[family-name:var(--font-display)] text-sm text-[var(--muted)]">
+								{book.title}
+							</span>
+						</div>
+					)}
+					{showProgressBadge ? (
+						<div className="progress-badge">{`${progressPercent}%`}</div>
+					) : null}
+					{isDownloaded ? (
+						<div className="device-dot" title="On this device" />
+					) : null}
+					{isSelecting ? (
+						<div
+							className={`select-badge ${isSelected ? "is-selected" : ""}`}
+							aria-hidden="true"
+						>
+							{isSelected ? <Icon name="check" size={13} /> : null}
+						</div>
+					) : null}
+				</div>
+			</Link>
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: hover-out dismiss is a pointer nicety; the menu is keyboard-operable via its buttons */}
+			<div className="book-meta" onMouseLeave={() => onMenuOpenChange(null)}>
+				<div className="book-text">
+					<Link
+						className="book-title truncate text-sm font-semibold"
+						to="/reader/$bookId"
+						params={{ bookId: book._id }}
+						onClick={guardSelect}
+					>
+						{book.title}
+					</Link>
+					<div className="book-author truncate text-xs text-[var(--muted)]">
+						{book.author ?? "Unknown author"}
+					</div>
+				</div>
+				<div className="book-menu-shell">
+					<button
+						type="button"
+						className="icon-btn"
+						onMouseEnter={() => onMenuOpenChange(book._id)}
+						onClick={(event) => {
+							event.stopPropagation();
+							onMenuOpenChange(isMenuOpen ? null : book._id);
+						}}
+					>
+						<span className="sr-only">Open menu</span>
+						<Icon name="dots-vertical" />
+					</button>
+					{isMenuOpen ? (
+						// biome-ignore lint/a11y/noStaticElementInteractions: the click handler only stops card-navigation propagation; menu items are buttons
+						// biome-ignore lint/a11y/useKeyWithClickEvents: see above
+						<div
+							className="menu book-menu"
+							onMouseLeave={() => onMenuOpenChange(null)}
+							onClick={(event) => event.stopPropagation()}
+						>
+							{isDownloaded ? (
+								<button
+									type="button"
+									className="menu-item"
+									onClick={() => {
+										onMenuOpenChange(null);
+										onRemoveDownload(book._id);
+									}}
+								>
+									Remove download
+								</button>
+							) : (
+								<button
+									type="button"
+									className="menu-item"
+									disabled={isDownloading}
+									onClick={() => {
+										onMenuOpenChange(null);
+										onDeviceDownload(book._id);
+									}}
+								>
+									{isDownloading ? "Downloading…" : "Download to this device"}
+								</button>
+							)}
+							<button
+								type="button"
+								className="menu-item"
+								onClick={() => {
+									onMenuOpenChange(null);
+									onSaveEpub(book._id, book.title);
+								}}
+							>
+								Save EPUB
+							</button>
+							<button
+								type="button"
+								className="menu-item is-danger"
+								onClick={() => {
+									onMenuOpenChange(null);
+									onDelete(book._id);
+								}}
+							>
+								Delete book
+							</button>
+						</div>
+					) : null}
+				</div>
+			</div>
+		</div>
+	);
 }
 
-export const BookCard = memo(BookCardImpl)
+export const BookCard = memo(BookCardImpl);

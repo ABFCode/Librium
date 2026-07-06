@@ -1,74 +1,78 @@
 @layer components {
-  .upload-control {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--outline);
-    background: transparent;
-    padding: 0.55rem 1.1rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--ink);
-    cursor: pointer;
-    transition: border 150ms ease, background 150ms ease;
-  }
+	.upload-control {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		border-radius: var(--radius-md);
+		border: 1px solid var(--outline);
+		background: transparent;
+		padding: 0.55rem 1.1rem;
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--ink);
+		cursor: pointer;
+		transition:
+			border 150ms ease,
+			background 150ms ease;
+	}
 
-  .upload-control:hover {
-    background: color-mix(in srgb, var(--surface-2) 80%, transparent);
-    border-color: color-mix(in srgb, var(--muted-2) 40%, var(--outline));
-  }
+	.upload-control:hover {
+		background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+		border-color: color-mix(in srgb, var(--muted-2) 40%, var(--outline));
+	}
 
-  .upload-input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-    width: 0;
-    height: 0;
-  }
+	.upload-input {
+		position: absolute;
+		opacity: 0;
+		pointer-events: none;
+		width: 0;
+		height: 0;
+	}
 
-  .dropzone {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    border-radius: var(--radius-lg);
-    border: 1px dashed color-mix(in srgb, var(--muted-2) 40%, transparent);
-    background: color-mix(in srgb, var(--surface) 55%, transparent);
-    transition: border-color 150ms ease, background 150ms ease;
-  }
+	.dropzone {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		text-align: center;
+		border-radius: var(--radius-lg);
+		border: 1px dashed color-mix(in srgb, var(--muted-2) 40%, transparent);
+		background: color-mix(in srgb, var(--surface) 55%, transparent);
+		transition:
+			border-color 150ms ease,
+			background 150ms ease;
+	}
 
-  .dropzone.is-dragging {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
-    color: var(--accent);
-  }
+	.dropzone.is-dragging {
+		border-color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 8%, transparent);
+		color: var(--accent);
+	}
 
-  .queue-status {
-    border-radius: var(--radius-sm);
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 600;
-  }
+	.queue-status {
+		border-radius: var(--radius-sm);
+		padding: 2px 8px;
+		font-size: 11px;
+		font-weight: 600;
+	}
 
-  .queue-status.is-done {
-    background: color-mix(in srgb, var(--ok) 18%, transparent);
-    color: var(--ok);
-  }
+	.queue-status.is-done {
+		background: color-mix(in srgb, var(--ok) 18%, transparent);
+		color: var(--ok);
+	}
 
-  .queue-status.is-failed {
-    background: color-mix(in srgb, var(--danger) 18%, transparent);
-    color: var(--danger);
-  }
+	.queue-status.is-failed {
+		background: color-mix(in srgb, var(--danger) 18%, transparent);
+		color: var(--danger);
+	}
 
-  .queue-status.is-importing {
-    background: color-mix(in srgb, var(--accent) 16%, transparent);
-    color: var(--accent);
-  }
+	.queue-status.is-importing {
+		background: color-mix(in srgb, var(--accent) 16%, transparent);
+		color: var(--accent);
+	}
 
-  .queue-status.is-queued {
-    background: color-mix(in srgb, var(--surface-3) 80%, transparent);
-    color: var(--muted);
-  }
+	.queue-status.is-queued {
+		background: color-mix(in srgb, var(--surface-3) 80%, transparent);
+		color: var(--muted);
+	}
 }

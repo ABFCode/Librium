@@ -1,326 +1,330 @@
 @layer components {
-  /* The reader owns the whole viewport (the app header is hidden on /reader
+	/* The reader owns the whole viewport (the app header is hidden on /reader
      routes): slim top bar + full-height scrolling text column. */
-  .reader-shell {
-    height: 100dvh;
-    display: flex;
-    flex-direction: column;
-  }
+	.reader-shell {
+		height: 100dvh;
+		display: flex;
+		flex-direction: column;
+	}
 
-  .reader-topbar {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem 1rem;
-    border-bottom: 1px solid color-mix(in srgb, var(--outline) 60%, transparent);
-    background: color-mix(in srgb, var(--surface) 65%, transparent);
-    backdrop-filter: blur(10px);
-  }
+	.reader-topbar {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.5rem 1rem;
+		border-bottom: 1px solid color-mix(in srgb, var(--outline) 60%, transparent);
+		background: color-mix(in srgb, var(--surface) 65%, transparent);
+		backdrop-filter: blur(10px);
+	}
 
-  .reader-topbar-title {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 0.9rem;
-    color: var(--muted);
-  }
+	.reader-topbar-title {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 0.9rem;
+		color: var(--muted);
+	}
 
-  .reader-content {
-    flex: 1;
-    min-height: 0;
-  }
+	.reader-content {
+		flex: 1;
+		min-height: 0;
+	}
 
-  /* Chapters / search / bookmarks: a floating panel anchored under the
+	/* Chapters / search / bookmarks: a floating panel anchored under the
      topbar — a glanceable popover, not a modal sheet. */
-  .reader-drawer {
-    position: fixed;
-    top: 56px;
-    right: 12px;
-    z-index: 50;
-    width: min(340px, calc(100vw - 24px));
-    max-height: min(72vh, calc(100dvh - 72px));
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: var(--surface);
-    border: 1px solid var(--outline);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 12px 40px rgba(4, 6, 9, 0.5);
-    opacity: 0;
-    transform: translateY(-6px);
-    pointer-events: none;
-    transition: opacity 150ms ease, transform 150ms ease;
-  }
+	.reader-drawer {
+		position: fixed;
+		top: 56px;
+		right: 12px;
+		z-index: 50;
+		width: min(340px, calc(100vw - 24px));
+		max-height: min(72vh, calc(100dvh - 72px));
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+		background: var(--surface);
+		border: 1px solid var(--outline);
+		border-radius: var(--radius-lg);
+		box-shadow: 0 12px 40px rgba(4, 6, 9, 0.5);
+		opacity: 0;
+		transform: translateY(-6px);
+		pointer-events: none;
+		transition:
+			opacity 150ms ease,
+			transform 150ms ease;
+	}
 
-  .reader-drawer.is-open {
-    opacity: 1;
-    transform: none;
-    pointer-events: auto;
-  }
+	.reader-drawer.is-open {
+		opacity: 1;
+		transform: none;
+		pointer-events: auto;
+	}
 
-  /* Dim the page on small screens only — on desktop the panel coexists
+	/* Dim the page on small screens only — on desktop the panel coexists
      with the text instead of interrupting it. */
-  .reader-drawer-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-    background: rgba(0, 0, 0, 0.35);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 200ms ease;
-  }
+	.reader-drawer-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 40;
+		background: rgba(0, 0, 0, 0.35);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 200ms ease;
+	}
 
-  .reader-drawer-backdrop.is-open {
-    opacity: 1;
-    pointer-events: auto;
-  }
+	.reader-drawer-backdrop.is-open {
+		opacity: 1;
+		pointer-events: auto;
+	}
 
-  @media (min-width: 1024px) {
-    .reader-drawer-backdrop.is-open {
-      opacity: 0;
-    }
-  }
+	@media (min-width: 1024px) {
+		.reader-drawer-backdrop.is-open {
+			opacity: 0;
+		}
+	}
 
-  /* Kindle-style page-turn zones: the margins beside the text column are
+	/* Kindle-style page-turn zones: the margins beside the text column are
      clickable (prev/next chapter), with a chevron that appears on hover.
      Pointer-only affordance — hidden on touch/narrow screens. */
-  .reader-edge-nav {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    z-index: 5;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    width: max(56px, calc((100% - var(--reader-content-w, 720px)) / 2 - 32px));
-    background: transparent;
-    border: none;
-    color: var(--reader-muted);
-    opacity: 0;
-    transition: opacity 150ms ease;
-  }
+	.reader-edge-nav {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		z-index: 5;
+		display: none;
+		align-items: center;
+		justify-content: center;
+		width: max(56px, calc((100% - var(--reader-content-w, 720px)) / 2 - 32px));
+		background: transparent;
+		border: none;
+		color: var(--reader-muted);
+		opacity: 0;
+		transition: opacity 150ms ease;
+	}
 
-  .reader-edge-nav.is-left {
-    left: 0;
-  }
+	.reader-edge-nav.is-left {
+		left: 0;
+	}
 
-  /* Inset from the right so the scrollbar stays reachable. */
-  .reader-edge-nav.is-right {
-    right: 14px;
-  }
+	/* Inset from the right so the scrollbar stays reachable. */
+	.reader-edge-nav.is-right {
+		right: 14px;
+	}
 
-  .reader-edge-nav:hover {
-    opacity: 1;
-  }
+	.reader-edge-nav:hover {
+		opacity: 1;
+	}
 
-  /* Inert (first/last chapter): no affordance, but still wheel-transparent —
+	/* Inert (first/last chapter): no affordance, but still wheel-transparent —
      a real `disabled` attr would swallow wheel events over the margin. */
-  .reader-edge-nav.is-inert {
-    cursor: default;
-  }
+	.reader-edge-nav.is-inert {
+		cursor: default;
+	}
 
-  .reader-edge-nav.is-inert:hover {
-    opacity: 0;
-  }
+	.reader-edge-nav.is-inert:hover {
+		opacity: 0;
+	}
 
-  .reader-edge-chevron {
-    width: 42px;
-    height: 42px;
-    border-radius: 999px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: color-mix(in srgb, var(--surface-3) 85%, transparent);
-    border: 1px solid color-mix(in srgb, var(--outline) 85%, transparent);
-  }
+	.reader-edge-chevron {
+		width: 42px;
+		height: 42px;
+		border-radius: 999px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: color-mix(in srgb, var(--surface-3) 85%, transparent);
+		border: 1px solid color-mix(in srgb, var(--outline) 85%, transparent);
+	}
 
-  @media (hover: hover) and (min-width: 900px) {
-    .reader-edge-nav {
-      display: flex;
-    }
-  }
+	@media (hover: hover) and (min-width: 900px) {
+		.reader-edge-nav {
+			display: flex;
+		}
+	}
 
-  /* Quiet list rows for chapters / bookmarks / search results. */
-  .reader-row {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 0.5rem 0.75rem;
-    border-radius: var(--radius-sm);
-    font-size: 0.875rem;
-    color: var(--muted);
-    background: transparent;
-    border: none;
-    transition: 120ms ease;
-  }
+	/* Quiet list rows for chapters / bookmarks / search results. */
+	.reader-row {
+		display: block;
+		width: 100%;
+		text-align: left;
+		padding: 0.5rem 0.75rem;
+		border-radius: var(--radius-sm);
+		font-size: 0.875rem;
+		color: var(--muted);
+		background: transparent;
+		border: none;
+		transition: 120ms ease;
+	}
 
-  .reader-row:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--surface-3) 80%, transparent);
-    color: var(--ink);
-  }
+	.reader-row:hover:not(:disabled) {
+		background: color-mix(in srgb, var(--surface-3) 80%, transparent);
+		color: var(--ink);
+	}
 
-  .reader-row.is-active {
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
-  }
+	.reader-row.is-active {
+		color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+	}
 
-  /* Content themes (independent of the app theme — "night" stays dark even
+	/* Content themes (independent of the app theme — "night" stays dark even
      when the app chrome is in paper mode). */
-  .reader-theme-night {
-    background: linear-gradient(180deg, #0d0f12, #12151a);
-    --reader-ink: #f5efe6;
-    --reader-muted: #9d9488;
-  }
+	.reader-theme-night {
+		background: linear-gradient(180deg, #0d0f12, #12151a);
+		--reader-ink: #f5efe6;
+		--reader-muted: #9d9488;
+	}
 
-  .reader-theme-sepia {
-    background: linear-gradient(180deg, #1d1610, #241c14);
-    --reader-ink: #f2e6d2;
-    --reader-muted: #c6b79f;
-  }
+	.reader-theme-sepia {
+		background: linear-gradient(180deg, #1d1610, #241c14);
+		--reader-ink: #f2e6d2;
+		--reader-muted: #c6b79f;
+	}
 
-  .reader-theme-paper {
-    background: linear-gradient(180deg, #f3efe6, #e7dfd2);
-    --reader-ink: #1f1a14;
-    --reader-muted: #6f6559;
-  }
+	.reader-theme-paper {
+		background: linear-gradient(180deg, #f3efe6, #e7dfd2);
+		--reader-ink: #1f1a14;
+		--reader-muted: #6f6559;
+	}
 
-  .reader-paragraph {
-    margin: 0 0 1rem;
-  }
+	.reader-paragraph {
+		margin: 0 0 1rem;
+	}
 
-  .reader-heading {
-    margin: 1.6rem 0 0.8rem;
-  }
+	.reader-heading {
+		margin: 1.6rem 0 0.8rem;
+	}
 
-  .reader-list {
-    margin: 0.8rem 0 1rem;
-    padding-left: 1.5rem;
-    list-style-position: outside;
-  }
+	.reader-list {
+		margin: 0.8rem 0 1rem;
+		padding-left: 1.5rem;
+		list-style-position: outside;
+	}
 
-  .reader-list li {
-    margin: 0.4rem 0;
-  }
+	.reader-list li {
+		margin: 0.4rem 0;
+	}
 
-  .reader-quote {
-    margin: 1rem 0;
-    padding-left: 1rem;
-    border-left: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
-    color: var(--reader-muted);
-  }
+	.reader-quote {
+		margin: 1rem 0;
+		padding-left: 1rem;
+		border-left: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+		color: var(--reader-muted);
+	}
 
-  .reader-pre {
-    margin: 1rem 0;
-    padding: 0.9rem 1rem;
-    border-radius: var(--radius-md);
-    background: rgba(12, 15, 18, 0.5);
-    border: 1px solid color-mix(in srgb, var(--outline) 80%, transparent);
-    overflow: auto;
-  }
+	.reader-pre {
+		margin: 1rem 0;
+		padding: 0.9rem 1rem;
+		border-radius: var(--radius-md);
+		background: rgba(12, 15, 18, 0.5);
+		border: 1px solid color-mix(in srgb, var(--outline) 80%, transparent);
+		overflow: auto;
+	}
 
-  .reader-hr {
-    margin: 1.6rem 0;
-    border: none;
-    border-top: 1px solid color-mix(in srgb, var(--outline) 90%, transparent);
-  }
+	.reader-hr {
+		margin: 1.6rem 0;
+		border: none;
+		border-top: 1px solid color-mix(in srgb, var(--outline) 90%, transparent);
+	}
 
-  .reader-image {
-    max-width: 100%;
-    height: auto;
-    border-radius: var(--radius-sm);
-    display: block;
-  }
+	.reader-image {
+		max-width: 100%;
+		height: auto;
+		border-radius: var(--radius-sm);
+		display: block;
+	}
 
-  .reader-figure {
-    margin: 1.4rem 0;
-  }
+	.reader-figure {
+		margin: 1.4rem 0;
+	}
 
-  .reader-figure-images {
-    display: grid;
-    gap: 0.75rem;
-  }
+	.reader-figure-images {
+		display: grid;
+		gap: 0.75rem;
+	}
 
-  .reader-figure-caption {
-    margin-top: 0.6rem;
-    font-size: 0.85em;
-    color: var(--reader-muted);
-  }
+	.reader-figure-caption {
+		margin-top: 0.6rem;
+		font-size: 0.85em;
+		color: var(--reader-muted);
+	}
 
-  .reader-table {
-    margin: 1rem 0;
-    overflow-x: auto;
-  }
+	.reader-table {
+		margin: 1rem 0;
+		overflow-x: auto;
+	}
 
-  .reader-table table {
-    width: 100%;
-    border-collapse: collapse;
-  }
+	.reader-table table {
+		width: 100%;
+		border-collapse: collapse;
+	}
 
-  .reader-table th,
-  .reader-table td {
-    border: 1px solid color-mix(in srgb, var(--outline) 90%, transparent);
-    padding: 0.5rem 0.6rem;
-    text-align: left;
-    vertical-align: top;
-  }
+	.reader-table th,
+	.reader-table td {
+		border: 1px solid color-mix(in srgb, var(--outline) 90%, transparent);
+		padding: 0.5rem 0.6rem;
+		text-align: left;
+		vertical-align: top;
+	}
 
-  .reader-link {
-    color: var(--accent);
-    text-decoration: underline;
-  }
+	.reader-link {
+		color: var(--accent);
+		text-decoration: underline;
+	}
 
-  .reader-scroll {
-    scrollbar-gutter: stable both-edges;
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--outline) 80%, transparent) transparent;
-  }
+	.reader-scroll {
+		scrollbar-gutter: stable both-edges;
+		scrollbar-width: thin;
+		scrollbar-color: color-mix(in srgb, var(--outline) 80%, transparent)
+			transparent;
+	}
 
-  .reader-scroll::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
+	.reader-scroll::-webkit-scrollbar {
+		width: 8px;
+		height: 8px;
+	}
 
-  .reader-scroll::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--outline) 75%, transparent);
-    border-radius: 999px;
-    border: 2px solid transparent;
-    background-clip: padding-box;
-  }
+	.reader-scroll::-webkit-scrollbar-thumb {
+		background: color-mix(in srgb, var(--outline) 75%, transparent);
+		border-radius: 999px;
+		border: 2px solid transparent;
+		background-clip: padding-box;
+	}
 
-  .reader-scroll:hover::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--accent) 25%, var(--outline));
-    border: 2px solid transparent;
-    background-clip: padding-box;
-  }
+	.reader-scroll:hover::-webkit-scrollbar-thumb {
+		background: color-mix(in srgb, var(--accent) 25%, var(--outline));
+		border: 2px solid transparent;
+		background-clip: padding-box;
+	}
 
-  .reader-scroll::-webkit-scrollbar-track {
-    background: transparent;
-  }
+	.reader-scroll::-webkit-scrollbar-track {
+		background: transparent;
+	}
 
-  .reader-scroll::-webkit-scrollbar-button {
-    width: 0;
-    height: 0;
-    display: none;
-  }
+	.reader-scroll::-webkit-scrollbar-button {
+		width: 0;
+		height: 0;
+		display: none;
+	}
 
-  .reader-scroll::-webkit-scrollbar-corner {
-    background: transparent;
-  }
+	.reader-scroll::-webkit-scrollbar-corner {
+		background: transparent;
+	}
 
-  body[data-theme='paper'] .reader-scroll {
-    scrollbar-color: color-mix(in srgb, var(--outline) 85%, transparent) transparent;
-  }
+	body[data-theme="paper"] .reader-scroll {
+		scrollbar-color: color-mix(in srgb, var(--outline) 85%, transparent)
+			transparent;
+	}
 
-  body[data-theme='paper'] .reader-scroll::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--outline) 75%, transparent);
-  }
+	body[data-theme="paper"] .reader-scroll::-webkit-scrollbar-thumb {
+		background: color-mix(in srgb, var(--outline) 75%, transparent);
+	}
 
-  body[data-theme='paper'] .reader-scroll:hover::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--accent) 20%, var(--outline));
-  }
+	body[data-theme="paper"] .reader-scroll:hover::-webkit-scrollbar-thumb {
+		background: color-mix(in srgb, var(--accent) 20%, var(--outline));
+	}
 
-  body[data-theme='paper'] .reader-pre {
-    background: color-mix(in srgb, var(--surface-2) 90%, white);
-  }
+	body[data-theme="paper"] .reader-pre {
+		background: color-mix(in srgb, var(--surface-2) 90%, white);
+	}
 }

@@ -1,145 +1,147 @@
 @layer components {
-  .book-card {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    position: relative;
-  }
+	.book-card {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		position: relative;
+	}
 
-  .book-cover-frame {
-    background: color-mix(in srgb, var(--surface-3) 45%, transparent);
-    border-radius: var(--radius-sm);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
-    overflow: hidden;
-    transition: box-shadow 150ms ease, transform 150ms ease;
-  }
+	.book-cover-frame {
+		background: color-mix(in srgb, var(--surface-3) 45%, transparent);
+		border-radius: var(--radius-sm);
+		box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+		overflow: hidden;
+		transition:
+			box-shadow 150ms ease,
+			transform 150ms ease;
+	}
 
-  .book-card:hover .book-cover-frame {
-    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
-    transform: translateY(-2px);
-  }
+	.book-card:hover .book-cover-frame {
+		box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+		transform: translateY(-2px);
+	}
 
-  .book-cover-frame.has-cover {
-    background: var(--surface);
-  }
+	.book-cover-frame.has-cover {
+		background: var(--surface);
+	}
 
-  .book-cover-frame img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    background: var(--surface);
-    transform: translateZ(0);
-  }
+	.book-cover-frame img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		background: var(--surface);
+		transform: translateZ(0);
+	}
 
-  .book-title {
-    color: var(--ink);
-    line-height: 1.3;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    display: block;
-  }
+	.book-title {
+		color: var(--ink);
+		line-height: 1.3;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		display: block;
+	}
 
-  .book-author {
-    line-height: 1.2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    display: block;
-  }
+	.book-author {
+		line-height: 1.2;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		display: block;
+	}
 
-  .book-meta {
-    position: relative;
-    display: flex;
-    align-items: center;
-    padding-right: 36px;
-    min-height: 40px;
-  }
+	.book-meta {
+		position: relative;
+		display: flex;
+		align-items: center;
+		padding-right: 36px;
+		min-height: 40px;
+	}
 
-  .book-text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
-  }
+	.book-text {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+		flex: 1;
+	}
 
-  .book-menu-shell {
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-  }
+	.book-menu-shell {
+		position: absolute;
+		right: 0;
+		top: 50%;
+		transform: translateY(-50%);
+	}
 
-  .book-menu {
-    position: absolute;
-    right: 0;
-    top: 36px;
-    z-index: 20;
-  }
+	.book-menu {
+		position: absolute;
+		right: 0;
+		top: 36px;
+		z-index: 20;
+	}
 
-  .progress-badge {
-    position: absolute;
-    bottom: 8px;
-    left: 8px;
-    padding: 2px 7px;
-    border-radius: var(--radius-sm);
-    font-size: 11px;
-    font-weight: 600;
-    background: rgba(10, 12, 16, 0.65);
-    color: color-mix(in srgb, var(--ink) 85%, transparent);
-    backdrop-filter: blur(6px);
-  }
+	.progress-badge {
+		position: absolute;
+		bottom: 8px;
+		left: 8px;
+		padding: 2px 7px;
+		border-radius: var(--radius-sm);
+		font-size: 11px;
+		font-weight: 600;
+		background: rgba(10, 12, 16, 0.65);
+		color: color-mix(in srgb, var(--ink) 85%, transparent);
+		backdrop-filter: blur(6px);
+	}
 
-  /* Multi-select: badge on each cover while selecting; ring when selected. */
-  .select-badge {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 22px;
-    height: 22px;
-    border-radius: 999px;
-    border: 2px solid rgba(255, 255, 255, 0.85);
-    background: rgba(10, 12, 16, 0.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #1a1208;
-    backdrop-filter: blur(4px);
-  }
+	/* Multi-select: badge on each cover while selecting; ring when selected. */
+	.select-badge {
+		position: absolute;
+		top: 8px;
+		right: 8px;
+		width: 22px;
+		height: 22px;
+		border-radius: 999px;
+		border: 2px solid rgba(255, 255, 255, 0.85);
+		background: rgba(10, 12, 16, 0.45);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #1a1208;
+		backdrop-filter: blur(4px);
+	}
 
-  .select-badge.is-selected {
-    background: var(--accent);
-    border-color: var(--accent);
-  }
+	.select-badge.is-selected {
+		background: var(--accent);
+		border-color: var(--accent);
+	}
 
-  .book-card.is-selected .book-cover-frame {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
+	.book-card.is-selected .book-cover-frame {
+		outline: 2px solid var(--accent);
+		outline-offset: 2px;
+	}
 
-  /* Content cached on this device. */
-  .device-dot {
-    position: absolute;
-    bottom: 12px;
-    right: 8px;
-    width: 7px;
-    height: 7px;
-    border-radius: 999px;
-    background: var(--ok);
-  }
+	/* Content cached on this device. */
+	.device-dot {
+		position: absolute;
+		bottom: 12px;
+		right: 8px;
+		width: 7px;
+		height: 7px;
+		border-radius: 999px;
+		background: var(--ok);
+	}
 
-  body[data-theme='paper'] .book-cover-frame {
-    background: color-mix(in srgb, var(--surface-3) 60%, white);
-  }
+	body[data-theme="paper"] .book-cover-frame {
+		background: color-mix(in srgb, var(--surface-3) 60%, white);
+	}
 
-  body[data-theme='paper'] .book-cover-frame.has-cover {
-    background: var(--surface);
-  }
+	body[data-theme="paper"] .book-cover-frame.has-cover {
+		background: var(--surface);
+	}
 
-  body[data-theme='paper'] .progress-badge {
-    background: color-mix(in srgb, var(--surface) 85%, white);
-    color: color-mix(in srgb, var(--ink) 85%, transparent);
-  }
+	body[data-theme="paper"] .progress-badge {
+		background: color-mix(in srgb, var(--surface) 85%, white);
+		color: color-mix(in srgb, var(--ink) 85%, transparent);
+	}
 }

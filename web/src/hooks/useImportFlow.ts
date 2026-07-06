@@ -1,195 +1,198 @@
-import { useRef, useState } from 'react'
-import { useConvexAuth, useMutation } from 'convex/react'
-import { api } from '../../convex/_generated/api'
-import { parseEpubToPayload } from '../lib/epub'
-import { payloadToLocalBookInput } from '../lib/localBook'
-import { saveImportedBook } from '../lib/db'
+import { useConvexAuth, useMutation } from "convex/react";
+import { useRef, useState } from "react";
+import { api } from "../../convex/_generated/api";
+import { saveImportedBook } from "../lib/db";
+import { parseEpubToPayload } from "../lib/epub";
+import { payloadToLocalBookInput } from "../lib/localBook";
 
-export type QueueStatus = 'queued' | 'importing' | 'done' | 'failed'
+export type QueueStatus = "queued" | "importing" | "done" | "failed";
 
 export type QueueItem = {
-  id: string
-  file: File
-  status: QueueStatus
-  title?: string
-  error?: string
-}
+	id: string;
+	file: File;
+	status: QueueStatus;
+	title?: string;
+	error?: string;
+};
 
-const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`
+const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
 
 export const useImportFlow = () => {
-  const { isAuthenticated } = useConvexAuth()
-  const registerImport = useMutation(api.books.registerImport)
-  const attachFiles = useMutation(api.books.attachFiles)
-  const generateBookUploadUrl = useMutation(api.books.generateBookUploadUrl)
-  const syncMetadata = useMutation(api.r2.syncMetadata)
-  const [queue, setQueue] = useState<QueueItem[]>([])
-  const [isDragging, setIsDragging] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [isUploading, setIsUploading] = useState(false)
-  const runningRef = useRef(false)
+	const { isAuthenticated } = useConvexAuth();
+	const registerImport = useMutation(api.books.registerImport);
+	const attachFiles = useMutation(api.books.attachFiles);
+	const generateBookUploadUrl = useMutation(api.books.generateBookUploadUrl);
+	const syncMetadata = useMutation(api.r2.syncMetadata);
+	const [queue, setQueue] = useState<QueueItem[]>([]);
+	const [isDragging, setIsDragging] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const [isUploading, setIsUploading] = useState(false);
+	const runningRef = useRef(false);
 
-  // Files still waiting to be imported (kept for compatibility with callers).
-  const files = queue.filter((q) => q.status === 'queued').map((q) => q.file)
+	// Files still waiting to be imported (kept for compatibility with callers).
+	const files = queue.filter((q) => q.status === "queued").map((q) => q.file);
 
-  const setItem = (id: string, patch: Partial<QueueItem>) => {
-    setQueue((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...patch } : item)),
-    )
-  }
+	const setItem = (id: string, patch: Partial<QueueItem>) => {
+		setQueue((prev) =>
+			prev.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+		);
+	};
 
-  // Direct-to-R2 upload under a structured key (books/{bookId}/…).
-  const uploadToR2 = async (
-    bookId: string,
-    kind: 'epub' | 'cover',
-    blob: Blob,
-  ): Promise<string> => {
-    const { url, key } = await generateBookUploadUrl({
-      bookId: bookId as never,
-      kind,
-    })
-    const res = await fetch(url, {
-      method: 'PUT',
-      headers: blob.type ? { 'Content-Type': blob.type } : undefined,
-      body: blob,
-    })
-    if (!res.ok) {
-      throw new Error(`Upload failed (${kind})`)
-    }
-    await syncMetadata({ key })
-    return key
-  }
+	// Direct-to-R2 upload under a structured key (books/{bookId}/…).
+	const uploadToR2 = async (
+		bookId: string,
+		kind: "epub" | "cover",
+		blob: Blob,
+	): Promise<string> => {
+		const { url, key } = await generateBookUploadUrl({
+			bookId: bookId as never,
+			kind,
+		});
+		const res = await fetch(url, {
+			method: "PUT",
+			headers: blob.type ? { "Content-Type": blob.type } : undefined,
+			body: blob,
+		});
+		if (!res.ok) {
+			throw new Error(`Upload failed (${kind})`);
+		}
+		await syncMetadata({ key });
+		return key;
+	};
 
-  const importOne = async (file: File) => {
-    const bytes = new Uint8Array(await file.arrayBuffer())
+	const importOne = async (file: File) => {
+		const bytes = new Uint8Array(await file.arrayBuffer());
 
-    // Parse entirely in the browser (native DOMParser + fflate).
-    const payload = parseEpubToPayload(bytes)
-    const m = payload.metadata
+		// Parse entirely in the browser (native DOMParser + fflate).
+		const payload = parseEpubToPayload(bytes);
+		const m = payload.metadata;
 
-    // Register metadata first — the book exists (and is readable locally,
-    // below) before any blob upload starts.
-    const bookId = (await registerImport({
-      fileName: file.name,
-      fileSize: file.size,
-      sectionCount: payload.sections.length,
-      metadata: {
-        title: m.title,
-        author: m.authors && m.authors.length > 0 ? m.authors.join(', ') : undefined,
-        language: m.language,
-        publisher: m.publisher,
-        publishedAt: m.publishedAt,
-        series: m.series,
-        seriesIndex: m.seriesIndex,
-        subjects: m.subjects,
-        identifiers: m.identifiers,
-      },
-    })) as unknown as string
+		// Register metadata first — the book exists (and is readable locally,
+		// below) before any blob upload starts.
+		const bookId = (await registerImport({
+			fileName: file.name,
+			fileSize: file.size,
+			sectionCount: payload.sections.length,
+			metadata: {
+				title: m.title,
+				author:
+					m.authors && m.authors.length > 0 ? m.authors.join(", ") : undefined,
+				language: m.language,
+				publisher: m.publisher,
+				publishedAt: m.publishedAt,
+				series: m.series,
+				seriesIndex: m.seriesIndex,
+				subjects: m.subjects,
+				identifiers: m.identifiers,
+			},
+		})) as unknown as string;
 
-    // Local-first: the parsed book lands in IndexedDB immediately.
-    try {
-      await saveImportedBook(payloadToLocalBookInput(bookId, payload))
-    } catch {
-      // IndexedDB unavailable — the R2 backup below still works.
-    }
+		// Local-first: the parsed book lands in IndexedDB immediately.
+		try {
+			await saveImportedBook(payloadToLocalBookInput(bookId, payload));
+		} catch {
+			// IndexedDB unavailable — the R2 backup below still works.
+		}
 
-    // Backup the master copy (raw EPUB + cover) to R2, then attach the keys.
-    const epubKey = await uploadToR2(
-      bookId,
-      'epub',
-      new Blob([bytes as BlobPart], { type: 'application/epub+zip' }),
-    )
-    let coverKey: string | undefined
-    if (payload.cover) {
-      const coverType = payload.cover.contentType || 'image/jpeg'
-      coverKey = await uploadToR2(
-        bookId,
-        'cover',
-        new Blob([payload.cover.bytes as BlobPart], { type: coverType }),
-      )
-    }
-    await attachFiles({ bookId: bookId as never, epubKey, coverKey })
+		// Backup the master copy (raw EPUB + cover) to R2, then attach the keys.
+		const epubKey = await uploadToR2(
+			bookId,
+			"epub",
+			new Blob([bytes as BlobPart], { type: "application/epub+zip" }),
+		);
+		let coverKey: string | undefined;
+		if (payload.cover) {
+			const coverType = payload.cover.contentType || "image/jpeg";
+			coverKey = await uploadToR2(
+				bookId,
+				"cover",
+				new Blob([payload.cover.bytes as BlobPart], { type: coverType }),
+			);
+		}
+		await attachFiles({ bookId: bookId as never, epubKey, coverKey });
 
-    return m.title || file.name
-  }
+		return m.title || file.name;
+	};
 
-  const submit = async () => {
-    if (runningRef.current) {
-      return
-    }
-    const pending = queue.filter((q) => q.status === 'queued')
-    if (pending.length === 0) {
-      setError('Select at least one EPUB file.')
-      return
-    }
-    if (!isAuthenticated) {
-      setError('Please sign in to upload books.')
-      return
-    }
-    runningRef.current = true
-    setIsUploading(true)
-    setError(null)
-    // Sequential: parsing is CPU-bound on the main thread; one book at a
-    // time keeps the tab responsive and failures isolated per file.
-    for (const item of pending) {
-      setItem(item.id, { status: 'importing' })
-      try {
-        const title = await importOne(item.file)
-        setItem(item.id, { status: 'done', title })
-      } catch (err) {
-        setItem(item.id, {
-          status: 'failed',
-          error: err instanceof Error ? err.message : 'Import failed',
-        })
-      }
-    }
-    setIsUploading(false)
-    runningRef.current = false
-  }
+	const submit = async () => {
+		if (runningRef.current) {
+			return;
+		}
+		const pending = queue.filter((q) => q.status === "queued");
+		if (pending.length === 0) {
+			setError("Select at least one EPUB file.");
+			return;
+		}
+		if (!isAuthenticated) {
+			setError("Please sign in to upload books.");
+			return;
+		}
+		runningRef.current = true;
+		setIsUploading(true);
+		setError(null);
+		// Sequential: parsing is CPU-bound on the main thread; one book at a
+		// time keeps the tab responsive and failures isolated per file.
+		for (const item of pending) {
+			setItem(item.id, { status: "importing" });
+			try {
+				const title = await importOne(item.file);
+				setItem(item.id, { status: "done", title });
+			} catch (err) {
+				setItem(item.id, {
+					status: "failed",
+					error: err instanceof Error ? err.message : "Import failed",
+				});
+			}
+		}
+		setIsUploading(false);
+		runningRef.current = false;
+	};
 
-  const addFiles = (incoming: FileList | File[]) => {
-    const next = Array.from(incoming).filter((file) =>
-      file.name.toLowerCase().endsWith('.epub'),
-    )
-    if (next.length === 0) {
-      setError('Only EPUB files are supported.')
-      return
-    }
-    setError(null)
-    setQueue((prev) => {
-      const seen = new Set(prev.map((item) => fileKey(item.file)))
-      const merged = [...prev]
-      for (const file of next) {
-        const key = fileKey(file)
-        if (seen.has(key)) continue
-        seen.add(key)
-        merged.push({
-          id: `${key}-${merged.length}`,
-          file,
-          status: 'queued',
-        })
-      }
-      return merged
-    })
-  }
+	const addFiles = (incoming: FileList | File[]) => {
+		const next = Array.from(incoming).filter((file) =>
+			file.name.toLowerCase().endsWith(".epub"),
+		);
+		if (next.length === 0) {
+			setError("Only EPUB files are supported.");
+			return;
+		}
+		setError(null);
+		setQueue((prev) => {
+			const seen = new Set(prev.map((item) => fileKey(item.file)));
+			const merged = [...prev];
+			for (const file of next) {
+				const key = fileKey(file);
+				if (seen.has(key)) continue;
+				seen.add(key);
+				merged.push({
+					id: `${key}-${merged.length}`,
+					file,
+					status: "queued",
+				});
+			}
+			return merged;
+		});
+	};
 
-  const clearFinished = () => {
-    setQueue((prev) =>
-      prev.filter((item) => item.status === 'queued' || item.status === 'importing'),
-    )
-  }
+	const clearFinished = () => {
+		setQueue((prev) =>
+			prev.filter(
+				(item) => item.status === "queued" || item.status === "importing",
+			),
+		);
+	};
 
-  return {
-    queue,
-    files,
-    isDragging,
-    setIsDragging,
-    error,
-    setError,
-    isUploading,
-    isAuthenticated,
-    submit,
-    addFiles,
-    clearFinished,
-  }
-}
+	return {
+		queue,
+		files,
+		isDragging,
+		setIsDragging,
+		error,
+		setError,
+		isUploading,
+		isAuthenticated,
+		submit,
+		addFiles,
+		clearFinished,
+	};
+};

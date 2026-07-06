@@ -9,12 +9,12 @@
 const deploymentName = process.env.CONVEX_DEPLOYMENT ?? "";
 const convexUrl = process.env.CONVEX_URL ?? process.env.CONVEX_SITE_URL ?? "";
 const isLocalDeployment =
-  deploymentName.includes("local") || deploymentName.includes("anonymous");
+	deploymentName.includes("local") || deploymentName.includes("anonymous");
 const isLocalConvex =
-  convexUrl.includes("127.0.0.1") || convexUrl.includes("localhost");
+	convexUrl.includes("127.0.0.1") || convexUrl.includes("localhost");
 
 export const allowSignUp =
-  process.env.ALLOW_SIGNUP === "true" || isLocalDeployment || isLocalConvex;
+	process.env.ALLOW_SIGNUP === "true" || isLocalDeployment || isLocalConvex;
 
 // True on real (cloud) deployments; false for local/dev. Used to enable auth
 // rate limiting only where it matters, so local testing isn't throttled.

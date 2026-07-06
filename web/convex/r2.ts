@@ -10,8 +10,8 @@ import { requireViewerUserId } from "./authHelpers";
 export const r2 = new R2(components.r2);
 
 export const { generateUploadUrl, syncMetadata } = r2.clientApi<DataModel>({
-  checkUpload: async (ctx) => {
-    // Only signed-in users may mint upload URLs.
-    await requireViewerUserId(ctx as never);
-  },
+	checkUpload: async (ctx) => {
+		// Only signed-in users may mint upload URLs.
+		await requireViewerUserId(ctx as never);
+	},
 });
