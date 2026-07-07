@@ -60,7 +60,12 @@ export const MetadataFetchPanel = ({
 		setError(null);
 		setSelected(null);
 		try {
-			const results = await fetchCandidates({ bookId: bookId as never });
+			const results = await fetchCandidates({
+				bookId: bookId as never,
+				// Search by what's in the form now, not the last-saved doc.
+				title: current.title,
+				author: current.author,
+			});
 			setSearched(results);
 			if (results.length === 0 && !extraCandidate) {
 				setError("No matches found — try editing the title or author first.");

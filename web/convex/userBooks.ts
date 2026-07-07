@@ -142,12 +142,16 @@ export const updateStatus = mutation({
 			)
 			.first();
 
-		// LWW: reject writes older than what is already recorded.
+		// LWW: reject writes older than what is already recorded. Bump updatedAt
+		// so the subscription re-emits and the losing device's merge re-adopts
+		// the winning value (otherwise its local mirror keeps the rejected edit
+		// with dirty cleared, and — being gated on updatedAt — never converges).
 		if (
 			existing?.statusEditedAt !== undefined &&
 			args.editedAt !== undefined &&
 			args.editedAt < existing.statusEditedAt
 		) {
+			await ctx.db.patch(existing._id, { updatedAt: Date.now() });
 			return existing._id;
 		}
 

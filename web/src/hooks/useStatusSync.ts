@@ -28,35 +28,49 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 	// offline. userBooks.updatedAt also bumps on progress writes, so some
 	// adoptions rewrite an unchanged status — harmless, and it keeps the exact
 	// pull-ordering rule progress sync uses.
+	//
+	// Each row's check+write runs in one transaction against the LIVE row, and
+	// passes serialize on a queue — a setStatus (dirty:1) landing mid-pass must
+	// not be clobbered back to dirty:0 by a decision made from a stale snapshot.
+	const mergeQueueRef = useRef<Promise<void>>(Promise.resolve());
 	useEffect(() => {
 		if (!remote || !local) {
 			return;
 		}
-		const localByBook = new Map(local.map((row) => [row.bookId, row]));
-		void (async () => {
-			for (const entry of remote) {
-				const row = localByBook.get(entry.bookId);
-				if (row?.dirty) {
-					continue;
-				}
-				if (row && entry.updatedAt <= row.syncedServerTime) {
-					continue;
-				}
-				// No row + no explicit status = nothing to record; keeps the table
-				// sparse. (A remote *clear* still lands because the stale explicit
-				// value exists as a local row.)
-				if (!row && entry.status === null) {
-					continue;
-				}
-				await db.bookStatus.put({
-					bookId: entry.bookId,
-					status: entry.status,
-					editedAt: entry.statusEditedAt ?? 0,
-					dirty: 0,
-					syncedServerTime: entry.updatedAt,
+		const entries = remote.map((entry) => ({
+			bookId: entry.bookId,
+			status: entry.status,
+			statusEditedAt: entry.statusEditedAt ?? 0,
+			updatedAt: entry.updatedAt,
+		}));
+		const mergePass = async () => {
+			for (const entry of entries) {
+				await db.transaction("rw", db.bookStatus, async () => {
+					const live = await db.bookStatus.get(entry.bookId);
+					// Unpushed local edit — never overwrite it.
+					if (live?.dirty) {
+						return;
+					}
+					if (live && entry.updatedAt <= live.syncedServerTime) {
+						return;
+					}
+					// No row + no explicit status = nothing to record; keeps the table
+					// sparse. (A remote *clear* still lands because the stale explicit
+					// value exists as a local row.)
+					if (!live && entry.status === null) {
+						return;
+					}
+					await db.bookStatus.put({
+						bookId: entry.bookId,
+						status: entry.status,
+						editedAt: entry.statusEditedAt,
+						dirty: 0,
+						syncedServerTime: entry.updatedAt,
+					});
 				});
 			}
-		})().catch(() => {
+		};
+		mergeQueueRef.current = mergeQueueRef.current.then(mergePass).catch(() => {
 			// IndexedDB unavailable — the in-memory view below still works.
 		});
 	}, [remote, local]);

@@ -72,8 +72,35 @@ test("edit details updates the shelf and survives a re-download", async ({
 		await expect(renamed.locator(".device-dot")).toHaveCount(1, {
 			timeout: 30_000,
 		});
-		// Re-parse finished; the EPUB's embedded title must not have come back.
-		await expect(cardFor(page, "Renamed Fixture")).toBeVisible();
+		// Smoke check only: the re-download path completes and the shelf still
+		// shows the edited title. Note the shelf card renders from the SERVER
+		// row while online, so this cannot by itself prove local identity
+		// preservation — that logic is unit-tested via bookIdentityPatch
+		// (src/test/seedBook.test.ts). Here we assert the local Dexie row too,
+		// before the reconcile pass can repair it from the server.
+		const localTitle = await page.evaluate(async () => {
+			const req = indexedDB.open("librium");
+			const dbConn: IDBDatabase = await new Promise((resolve, reject) => {
+				req.onsuccess = () => resolve(req.result);
+				req.onerror = () => reject(req.error);
+			});
+			const row = await new Promise<{ title?: string } | undefined>(
+				(resolve) => {
+					const tx = dbConn.transaction("books", "readonly");
+					const all = tx.objectStore("books").getAll();
+					all.onsuccess = () =>
+						resolve(
+							(all.result as { title?: string }[]).find(
+								(b) => b.title === "Renamed Fixture",
+							),
+						);
+					all.onerror = () => resolve(undefined);
+				},
+			);
+			dbConn.close();
+			return row?.title ?? null;
+		});
+		expect(localTitle).toBe("Renamed Fixture");
 	}
 
 	// ── Persists across a reload ─────────────────────────────────────────────

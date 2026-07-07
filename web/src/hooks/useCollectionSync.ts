@@ -86,20 +86,35 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 						continue;
 					}
 					if (!local.convexId) {
-						// Our offline create landed — record the id; keep dirty if a
-						// delete or rename is still pending.
-						await db.collections.update(local.clientKey, {
-							convexId: r._id as string,
-							dirty: local.deletedAt || local.dirty ? local.dirty : 0,
-						});
+						// Our offline create landed — record the id. Re-read the live
+						// row: a rename/delete committed after this pass's snapshot
+						// leaves dirty set, and must survive.
+						await db.collections
+							.where("clientKey")
+							.equals(local.clientKey)
+							.modify((row) => {
+								row.convexId = r._id as string;
+								if (!row.deletedAt && row.nameEditedAt <= local.nameEditedAt) {
+									row.dirty = 0;
+								}
+							});
 						continue;
 					}
 					if (!local.dirty && r.name !== local.name) {
-						// Rename made elsewhere; no local edit pending — adopt it.
-						await db.collections.update(local.clientKey, {
-							name: r.name,
-							nameEditedAt: r.nameEditedAt ?? 0,
-						});
+						// Rename made elsewhere; adopt it — but re-check the live row so a
+						// local rename that raced in after the snapshot (LWW: newer) wins.
+						const remoteName = r.name;
+						const remoteNameEditedAt = r.nameEditedAt ?? 0;
+						await db.collections
+							.where("clientKey")
+							.equals(local.clientKey)
+							.modify((row) => {
+								if (row.dirty || row.nameEditedAt > remoteNameEditedAt) {
+									return;
+								}
+								row.name = remoteName;
+								row.nameEditedAt = remoteNameEditedAt;
+							});
 					}
 				} catch {
 					// IndexedDB hiccup — retried on the next merge.
@@ -186,10 +201,17 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 						continue;
 					}
 					if (!local.convexId) {
-						await db.collectionBooks.update(local.clientKey, {
-							convexId: r._id as string,
-							dirty: local.deletedAt ? 1 : 0,
-						});
+						// Re-read the live row: a remove committed after the snapshot
+						// sets deletedAt+dirty and must survive to be pushed.
+						await db.collectionBooks
+							.where("clientKey")
+							.equals(local.clientKey)
+							.modify((row) => {
+								row.convexId = r._id as string;
+								if (!row.deletedAt) {
+									row.dirty = 0;
+								}
+							});
 					}
 				} catch {
 					// Retried on the next merge.
@@ -335,10 +357,18 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 						await db.collectionBooks.delete(l.clientKey);
 						continue;
 					}
-					await db.collectionBooks.update(l.clientKey, {
-						convexId: id as unknown as string,
-						dirty: 0,
-					});
+					// Re-read the live row: a remove committed during the addRemote
+					// round-trip set deletedAt+dirty; clearing dirty here would strand
+					// the tombstone (never pushed, hidden locally, alive on the server).
+					await db.collectionBooks
+						.where("clientKey")
+						.equals(l.clientKey)
+						.modify((row) => {
+							row.convexId = id as unknown as string;
+							if (!row.deletedAt) {
+								row.dirty = 0;
+							}
+						});
 				} catch {
 					// Offline or transient — retried on the next change/reconnect.
 				}

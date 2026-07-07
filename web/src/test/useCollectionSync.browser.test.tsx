@@ -118,6 +118,43 @@ describe("useCollectionSync push ordering", () => {
 		);
 	});
 
+	it("does not lose a remove that lands during the add's round-trip", async () => {
+		mocks.createCollection.mockResolvedValue("col_r");
+		// Hold addRemote open so a remove can land mid-round-trip.
+		let resolveAdd: (id: string) => void = () => {};
+		mocks.addBookToCollection.mockImplementation(
+			() =>
+				new Promise<string>((resolve) => {
+					resolveAdd = resolve;
+				}),
+		);
+		mocks.removeBookFromCollection.mockResolvedValue(undefined);
+
+		const { result } = await renderHook(() =>
+			useCollectionSync({ canQuery: true }),
+		);
+
+		const key = await result.current.createCollection("Fleeting");
+		await result.current.addBooks(key, ["book_x"]);
+
+		// Wait until the add push is in flight.
+		await expect
+			.poll(() => mocks.addBookToCollection.mock.calls.length)
+			.toBe(1);
+
+		// User un-checks the book before the add resolves → tombstone.
+		await result.current.removeBooks(key, ["book_x"]);
+		// Now let the add resolve; its post-write must not clear the tombstone.
+		resolveAdd("mem_x");
+
+		// The membership must end up removed on the server and gone locally —
+		// not stranded as a live server row (dirty:0, deletedAt set).
+		await expect
+			.poll(() => mocks.removeBookFromCollection.mock.calls.length)
+			.toBe(1);
+		await expect.poll(async () => await db.collectionBooks.count()).toBe(0);
+	});
+
 	it("purges local rows when the server reports the collection tombstoned", async () => {
 		mocks.createCollection.mockResolvedValue("col_3");
 		// Collection deleted on another device while this add was queued.

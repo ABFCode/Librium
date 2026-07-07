@@ -1,7 +1,7 @@
 import { useConvex, useConvexAuth, useMutation } from "convex/react";
 import { useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
-import { saveImportedBook } from "../lib/db";
+import { db, saveImportedBook } from "../lib/db";
 import { parseEpubToPayload } from "../lib/epub";
 import { payloadToLocalBookInput } from "../lib/localBook";
 import { uploadBookAsset } from "../lib/uploadBookAsset";
@@ -91,7 +91,19 @@ export const useImportFlow = () => {
 				new Blob([payload.cover.bytes as BlobPart], { type: coverType }),
 			);
 		}
-		await attachFiles({ bookId: bookId as never, epubKey, coverKey });
+		const coverStamp = await attachFiles({
+			bookId: bookId as never,
+			epubKey,
+			coverKey,
+		});
+		// Stamp the local cover with the server's coverUpdatedAt. Without this the
+		// library reconcile sees coverVersion=undefined < remote.coverUpdatedAt,
+		// drops the just-saved blob, and re-downloads the identical bytes from R2.
+		if (coverKey && coverStamp) {
+			await db.books
+				.update(bookId, { coverVersion: coverStamp })
+				.catch(() => {});
+		}
 
 		return m.title || file.name;
 	};

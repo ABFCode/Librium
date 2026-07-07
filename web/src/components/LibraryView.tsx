@@ -901,6 +901,10 @@ export function Library() {
 					countByCollection={countByCollection}
 					onRename={(key, name) => void renameCollection(key, name)}
 					onDelete={(key, name) => {
+						// Close Manage before confirming: both use `fixed inset-0 z-50`,
+						// so a confirm rendered underneath would be unclickable and share
+						// the Escape key. One modal open at a time.
+						setIsManageOpen(false);
 						void (async () => {
 							const confirmed = await askConfirm({
 								title: "Delete collection",
@@ -953,8 +957,11 @@ export function Library() {
 							<button
 								type="button"
 								className="chip"
+								// Only the currently visible (filtered) books — selecting
+								// invisible books would let a bulk action silently hit rows
+								// the user can't see or deselect.
 								onClick={() =>
-									setSelectedIds(new Set((books ?? []).map((b) => b._id)))
+									setSelectedIds(new Set(filteredBooks.map((b) => b._id)))
 								}
 							>
 								Select all

@@ -81,12 +81,24 @@ export const getSearchKeys = internalQuery({
 export const fetchCandidates = action({
 	args: {
 		bookId: v.id("books"),
+		// Live, unsaved title/author from the edit form override the stored doc
+		// so a user can fix a garbled title and re-search without saving first.
+		title: v.optional(v.string()),
+		author: v.optional(v.union(v.string(), v.null())),
 	},
 	handler: async (ctx, args): Promise<MetadataCandidate[]> => {
-		const query: ProviderQuery = await ctx.runQuery(
+		const stored: ProviderQuery = await ctx.runQuery(
 			internal.metadata.getSearchKeys,
 			{ bookId: args.bookId },
 		);
+		const query: ProviderQuery = {
+			isbn: stored.isbn,
+			title: args.title?.trim() || stored.title,
+			author:
+				args.author === undefined
+					? stored.author
+					: (args.author?.trim() ?? undefined) || undefined,
+		};
 		const searches: Promise<MetadataCandidate[]>[] = [searchOpenLibrary(query)];
 		// Optional provider: silently skipped when the key isn't configured.
 		const googleKey = process.env.GOOGLE_BOOKS_API_KEY;
@@ -110,6 +122,117 @@ const PAGE_HOST_ALLOWLIST = new Set([
 	"www.novelupdates.com",
 	"novelupdates.com",
 ]);
+
+// Hosts that must never be fetched server-side (SSRF guard) — fetch targets
+// derive from provider data / user input and are attacker-influenceable.
+const isPrivateHost = (hostname: string) => {
+	// Drop IPv6 brackets and any trailing dot ("127.0.0.1." also resolves).
+	const host = hostname
+		.toLowerCase()
+		.replace(/^\[|\]$/g, "")
+		.replace(/\.$/, "");
+	if (
+		host === "localhost" ||
+		host.endsWith(".local") ||
+		host.endsWith(".internal") ||
+		host.endsWith(".localhost")
+	) {
+		return true;
+	}
+	// Any IPv6 literal: providers and NovelUpdates use DNS hostnames, never IPv6
+	// literals, so blocking the whole class costs nothing and closes loopback
+	// (::1), unspecified (::), ULA (fc00::/7), link-local (fe80::/10), and
+	// IPv4-mapped (::ffff:7f00:1) forms that the old dotted-decimal regexes missed.
+	if (host.includes(":")) {
+		return true;
+	}
+	return (
+		/^127\./.test(host) ||
+		/^10\./.test(host) ||
+		/^192\.168\./.test(host) ||
+		/^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+		/^169\.254\./.test(host) ||
+		/^0\./.test(host)
+	);
+};
+
+// Fetch that re-validates every redirect hop (the SSRF guards are worthless if
+// applied only to the initial URL, since redirect:"follow" would then reach a
+// private host on hop 2). Returns the final non-redirect Response.
+async function guardedFetch(
+	rawUrl: string,
+	init: RequestInit,
+	opts: { allowlist?: Set<string>; maxRedirects?: number },
+): Promise<Response> {
+	const maxRedirects = opts.maxRedirects ?? 4;
+	let current = rawUrl;
+	for (let hop = 0; hop <= maxRedirects; hop++) {
+		const url = new URL(current);
+		if (url.protocol !== "https:") {
+			throw new Error("Only https URLs may be fetched.");
+		}
+		if (opts.allowlist && !opts.allowlist.has(url.hostname)) {
+			throw new Error("Host is not allowed.");
+		}
+		if (isPrivateHost(url.hostname)) {
+			throw new Error("Refusing to fetch from a private host.");
+		}
+		const res = await fetch(url.toString(), { ...init, redirect: "manual" });
+		// 3xx with a Location is a redirect we must re-validate rather than follow
+		// blindly; anything else is the final response.
+		if (res.status >= 300 && res.status < 400) {
+			const location = res.headers.get("location");
+			if (!location) {
+				return res;
+			}
+			current = new URL(location, url).toString();
+			continue;
+		}
+		return res;
+	}
+	throw new Error("Too many redirects.");
+}
+
+// Read a response body, aborting once the cap is exceeded — Content-Length is
+// optional and lie-able, so it can't be the only guard.
+async function readCapped(
+	res: Response,
+	maxBytes: number,
+): Promise<Uint8Array> {
+	const declared = Number(res.headers.get("content-length") ?? 0);
+	if (declared > maxBytes) {
+		throw new Error("Response is too large.");
+	}
+	const reader = res.body?.getReader();
+	if (!reader) {
+		const buf = new Uint8Array(await res.arrayBuffer());
+		if (buf.byteLength > maxBytes) {
+			throw new Error("Response is too large.");
+		}
+		return buf;
+	}
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) {
+			break;
+		}
+		total += value.byteLength;
+		if (total > maxBytes) {
+			await reader.cancel();
+			throw new Error("Response is too large.");
+		}
+		chunks.push(value);
+	}
+	const out = new Uint8Array(total);
+	let offset = 0;
+	for (const chunk of chunks) {
+		out.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return out;
+}
 
 /**
  * Best-effort fetch of a linked source page. NovelUpdates sits behind
@@ -135,57 +258,44 @@ export const fetchPageHtml = action({
 		} catch {
 			throw new Error("Invalid page URL.");
 		}
+		// The allowlist is enforced on every hop by guardedFetch below; this early
+		// check just gives a clearer message for a wrong initial URL.
 		if (url.protocol !== "https:" || !PAGE_HOST_ALLOWLIST.has(url.hostname)) {
 			throw new Error("Only NovelUpdates pages can be fetched.");
 		}
 		try {
-			const res = await fetch(url.toString(), {
-				headers: {
-					// Plausible browser headers — sometimes enough to pass.
-					"User-Agent":
-						"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-					Accept:
-						"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-					"Accept-Language": "en-US,en;q=0.9",
+			const res = await guardedFetch(
+				url.toString(),
+				{
+					headers: {
+						// Plausible browser headers — sometimes enough to pass.
+						"User-Agent":
+							"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+						Accept:
+							"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+						"Accept-Language": "en-US,en;q=0.9",
+					},
 				},
-				redirect: "follow",
-			});
+				{ allowlist: PAGE_HOST_ALLOWLIST },
+			);
 			if (!res.ok) {
 				return { ok: false, status: res.status };
 			}
-			const html = await res.text();
+			const body = await readCapped(res, PAGE_MAX_BYTES);
 			return {
 				ok: true,
 				status: res.status,
-				html: html.slice(0, PAGE_MAX_BYTES),
+				html: new TextDecoder().decode(body),
 			};
 		} catch {
-			// Network-level failure (blocked, reset) — same fallback as a 403.
+			// Blocked, reset, oversized, or a redirect off-allowlist — same
+			// fallback as a 403: the user pastes the page HTML instead.
 			return { ok: false, status: 0 };
 		}
 	},
 });
 
 const COVER_MAX_BYTES = 4 * 1024 * 1024;
-
-// Hosts that must never be fetched server-side (SSRF guard) — the cover URL
-// comes from provider data but is ultimately attacker-influenceable input.
-const isPrivateHost = (hostname: string) => {
-	const host = hostname.toLowerCase();
-	return (
-		host === "localhost" ||
-		host.endsWith(".local") ||
-		host.endsWith(".internal") ||
-		host === "::1" ||
-		host === "[::1]" ||
-		/^127\./.test(host) ||
-		/^10\./.test(host) ||
-		/^192\.168\./.test(host) ||
-		/^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
-		/^169\.254\./.test(host) ||
-		/^0\./.test(host)
-	);
-};
 
 /**
  * Proxy a candidate's cover image to the client — image hosts rarely send
@@ -211,19 +321,17 @@ export const fetchCoverImage = action({
 		} catch {
 			throw new Error("Invalid image URL.");
 		}
-		if (url.protocol !== "https:") {
-			throw new Error("Cover URLs must be https.");
-		}
-		if (isPrivateHost(url.hostname)) {
-			throw new Error("Refusing to fetch from a private host.");
-		}
-		const res = await fetch(url.toString(), {
-			headers: {
-				Accept: "image/*",
-				"User-Agent": "Mozilla/5.0 (compatible; Librium/1.0)",
+		// https-only, no private hosts, re-validated on every redirect hop.
+		const res = await guardedFetch(
+			url.toString(),
+			{
+				headers: {
+					Accept: "image/*",
+					"User-Agent": "Mozilla/5.0 (compatible; Librium/1.0)",
+				},
 			},
-			redirect: "follow",
-		});
+			{},
+		);
 		if (!res.ok) {
 			throw new Error(`Image fetch failed (${res.status}).`);
 		}
@@ -231,14 +339,14 @@ export const fetchCoverImage = action({
 		if (!contentType.startsWith("image/")) {
 			throw new Error("The URL did not return an image.");
 		}
-		const declared = Number(res.headers.get("content-length") ?? 0);
-		if (declared > COVER_MAX_BYTES) {
-			throw new Error("Cover image is too large (4 MB max).");
-		}
-		const bytes = await res.arrayBuffer();
-		if (bytes.byteLength > COVER_MAX_BYTES) {
-			throw new Error("Cover image is too large (4 MB max).");
-		}
-		return { bytes, contentType };
+		const bytes = await readCapped(res, COVER_MAX_BYTES);
+		// A fresh ArrayBuffer (not the Uint8Array's shared, possibly-larger one).
+		return {
+			bytes: bytes.buffer.slice(
+				bytes.byteOffset,
+				bytes.byteOffset + bytes.byteLength,
+			) as ArrayBuffer,
+			contentType,
+		};
 	},
 });

@@ -68,6 +68,11 @@ export const EditBookDialog = ({
 	const fetchCoverImage = useAction(api.metadata.fetchCoverImage);
 
 	const [form, setForm] = useState<FormState>(() => toForm(book));
+	// The values as they were when the dialog opened. The patch diffs against
+	// THIS, not the live `book` prop — otherwise a concurrent edit from another
+	// device (which refreshes `book` via the live query) would surface an
+	// untouched field as a "change" and Save would revert it.
+	const originalRef = useRef<FormState>(toForm(book));
 	const [pendingCover, setPendingCover] = useState<PendingCover | null>(null);
 	// Subjects have no form control — they arrive only via the fetch panel.
 	const [pendingSubjects, setPendingSubjects] = useState<string[] | null>(null);
@@ -85,6 +90,7 @@ export const EditBookDialog = ({
 	);
 	const [isNuFetching, setIsNuFetching] = useState(false);
 	const [showPasteFallback, setShowPasteFallback] = useState(false);
+	const [pastedHtml, setPastedHtml] = useState("");
 	const [nuNotice, setNuNotice] = useState<string | null>(null);
 	const sourceIsNovelUpdates = isNovelUpdatesUrl(form.sourceUrl.trim());
 
@@ -146,9 +152,9 @@ export const EditBookDialog = ({
 	const set = (field: keyof FormState) => (value: string) =>
 		setForm((prev) => ({ ...prev, [field]: value }));
 
-	// Changed fields only; empty string = clear the field (null).
+	// Changed fields only (vs the open-time snapshot); empty string = clear (null).
 	const patch = useMemo(() => {
-		const base = toForm(book);
+		const base = originalRef.current;
 		const out: Record<string, string | null> = {};
 		for (const key of Object.keys(base) as (keyof FormState)[]) {
 			const next = form[key].trim();
@@ -163,7 +169,7 @@ export const EditBookDialog = ({
 			out[key] = next === "" ? null : next;
 		}
 		return out;
-	}, [book, form]);
+	}, [form]);
 
 	const hasChanges =
 		Object.keys(patch).length > 0 ||
@@ -376,16 +382,22 @@ export const EditBookDialog = ({
 						<p className="text-xs text-[var(--muted)]">{nuNotice}</p>
 					) : null}
 					{showPasteFallback ? (
-						<textarea
-							className="input min-h-20 py-2 font-mono text-xs"
-							placeholder="Paste the NovelUpdates page HTML here…"
-							onChange={(event) => {
-								const html = event.target.value;
-								if (html.trim().length > 0) {
-									adoptNuHtml(html);
-								}
-							}}
-						/>
+						<div className="flex flex-col gap-2">
+							<textarea
+								className="input min-h-20 py-2 font-mono text-xs"
+								placeholder="Paste the NovelUpdates page HTML here…"
+								value={pastedHtml}
+								onChange={(event) => setPastedHtml(event.target.value)}
+							/>
+							<button
+								type="button"
+								className="btn btn-ghost self-start text-xs"
+								disabled={pastedHtml.trim().length === 0}
+								onClick={() => adoptNuHtml(pastedHtml)}
+							>
+								Parse pasted page
+							</button>
+						</div>
 					) : null}
 					<div className="border-t border-[color-mix(in_srgb,var(--outline)_60%,transparent)] pt-3">
 						<button
