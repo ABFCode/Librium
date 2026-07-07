@@ -3,6 +3,7 @@ import { useAction, useConvex, useConvexAuth, useQuery } from "convex/react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../convex/_generated/api";
+import { useCollectionSync } from "../hooks/useCollectionSync";
 import { useStatusSync } from "../hooks/useStatusSync";
 import {
 	db,
@@ -18,8 +19,10 @@ import {
 	STATUS_OPTIONS,
 } from "../lib/status";
 import { BookCard, type LibraryBook } from "./BookCard";
+import { CollectionPickerDialog } from "./CollectionPickerDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./Icon";
+import { ManageCollectionsDialog } from "./ManageCollectionsDialog";
 import { RequireAuth } from "./RequireAuth";
 
 // Whole-MB floor: browser storage estimates wobble at KB granularity
@@ -551,6 +554,47 @@ export function Library() {
 	// Local-first explicit reading status (LWW sync).
 	const { statusByBookId, setStatus } = useStatusSync({ canQuery });
 
+	// Local-first collections (tombstone sync).
+	const {
+		collections,
+		membershipsByBook,
+		createCollection,
+		renameCollection,
+		deleteCollection,
+		addBooks,
+		removeBooks,
+	} = useCollectionSync({ canQuery });
+	// Books being organized in the picker (one from a card menu, many from
+	// bulk select); null = closed.
+	const [pickerBookIds, setPickerBookIds] = useState<string[] | null>(null);
+	const [isManageOpen, setIsManageOpen] = useState(false);
+	const [isCollectionMenuOpen, setIsCollectionMenuOpen] = useState(false);
+	const openPickerForBook = useCallback((bookId: string) => {
+		setPickerBookIds([bookId]);
+	}, []);
+
+	const countByCollection = useMemo(() => {
+		const map = new Map<string, number>();
+		for (const keys of membershipsByBook.values()) {
+			for (const key of keys) {
+				map.set(key, (map.get(key) ?? 0) + 1);
+			}
+		}
+		return map;
+	}, [membershipsByBook]);
+
+	// A filter pointing at a collection that no longer exists (deleted here or
+	// elsewhere) silently resets — an empty ghost shelf would look like a bug.
+	useEffect(() => {
+		if (
+			collectionFilter !== null &&
+			collections !== undefined &&
+			!collections.some((c) => c.clientKey === collectionFilter)
+		) {
+			setCollectionFilter(null);
+		}
+	}, [collectionFilter, collections]);
+
 	const progressByBookId = useMemo(() => {
 		const map = new Map<string, { progress: number; updatedAt?: number }>();
 		if (progressEntries) {
@@ -613,6 +657,11 @@ export function Library() {
 					) === shelfStatus,
 			);
 		}
+		if (collectionFilter !== null) {
+			next = next.filter((book) =>
+				membershipsByBook.get(book._id)?.has(collectionFilter),
+			);
+		}
 		if (downloadedOnly) {
 			next = next.filter((book) => downloadedIds.has(book._id));
 		}
@@ -623,6 +672,8 @@ export function Library() {
 		shelfStatus,
 		statusByBookId,
 		progressByBookId,
+		collectionFilter,
+		membershipsByBook,
 		downloadedOnly,
 		downloadedIds,
 	]);
@@ -740,6 +791,38 @@ export function Library() {
 						confirmRequest.resolve(false);
 						setConfirmRequest(null);
 					}}
+				/>
+			) : null}
+			{pickerBookIds !== null ? (
+				<CollectionPickerDialog
+					bookIds={pickerBookIds}
+					collections={collections ?? []}
+					membershipsByBook={membershipsByBook}
+					onAdd={(key, ids) => void addBooks(key, ids)}
+					onRemove={(key, ids) => void removeBooks(key, ids)}
+					onCreate={createCollection}
+					onClose={() => setPickerBookIds(null)}
+				/>
+			) : null}
+			{isManageOpen ? (
+				<ManageCollectionsDialog
+					collections={collections ?? []}
+					countByCollection={countByCollection}
+					onRename={(key, name) => void renameCollection(key, name)}
+					onDelete={(key, name) => {
+						void (async () => {
+							const confirmed = await askConfirm({
+								title: "Delete collection",
+								message: `Delete "${name}"? The books themselves are untouched.`,
+								confirmLabel: "Delete",
+								danger: true,
+							});
+							if (confirmed) {
+								await deleteCollection(key);
+							}
+						})();
+					}}
+					onClose={() => setIsManageOpen(false)}
 				/>
 			) : null}
 			<div className="min-h-screen px-6 pb-16 pt-8">
@@ -887,6 +970,77 @@ export function Library() {
 								{option.label}
 							</button>
 						))}
+						<span className="mx-1 h-4 w-px bg-[color-mix(in_srgb,var(--outline)_70%,transparent)]" />
+						{/* biome-ignore lint/a11y/noStaticElementInteractions: hover-out dismiss is a pointer nicety; the menu itself is keyboard-operable via its buttons */}
+						<div
+							className="relative"
+							onMouseLeave={() => setIsCollectionMenuOpen(false)}
+						>
+							<button
+								type="button"
+								className={`chip ${collectionFilter !== null ? "is-active" : ""}`}
+								onClick={() => setIsCollectionMenuOpen((prev) => !prev)}
+							>
+								<Icon name="folder" size={13} className="mr-1" />
+								{collectionFilter !== null
+									? (collections?.find((c) => c.clientKey === collectionFilter)
+											?.name ?? "Collection")
+									: "Collection"}
+							</button>
+							{isCollectionMenuOpen ? (
+								<div className="menu absolute left-0 top-8 z-20">
+									<button
+										type="button"
+										className="menu-item is-checkable"
+										onClick={() => {
+											setIsCollectionMenuOpen(false);
+											setCollectionFilter(null);
+										}}
+									>
+										<span className="menu-check">
+											{collectionFilter === null ? (
+												<Icon name="check" size={12} />
+											) : null}
+										</span>
+										All books
+									</button>
+									{(collections ?? []).map((collection) => (
+										<button
+											type="button"
+											key={collection.clientKey}
+											className="menu-item is-checkable"
+											onClick={() => {
+												setIsCollectionMenuOpen(false);
+												setCollectionFilter(collection.clientKey);
+											}}
+										>
+											<span className="menu-check">
+												{collectionFilter === collection.clientKey ? (
+													<Icon name="check" size={12} />
+												) : null}
+											</span>
+											<span className="min-w-0 flex-1 truncate text-left">
+												{collection.name}
+											</span>
+											<span className="text-xs text-[var(--muted-2)]">
+												{countByCollection.get(collection.clientKey) ?? 0}
+											</span>
+										</button>
+									))}
+									<div className="menu-heading">Manage</div>
+									<button
+										type="button"
+										className="menu-item"
+										onClick={() => {
+											setIsCollectionMenuOpen(false);
+											setIsManageOpen(true);
+										}}
+									>
+										Manage collections…
+									</button>
+								</div>
+							) : null}
+						</div>
 					</div>
 					{isSelecting ? (
 						<div className="surface-soft flex flex-wrap items-center gap-2 px-3 py-2">
@@ -948,6 +1102,14 @@ export function Library() {
 										</div>
 									) : null}
 								</div>
+								<button
+									type="button"
+									className="btn btn-ghost text-xs"
+									disabled={selectedIds.size === 0}
+									onClick={() => setPickerBookIds([...selectedIds])}
+								>
+									Add to collection…
+								</button>
 								<button
 									type="button"
 									className="btn btn-ghost text-xs"
@@ -1021,6 +1183,7 @@ export function Library() {
 										isMenuOpen={openMenuId === book._id}
 										explicitStatus={statusByBookId.get(book._id) ?? null}
 										onSetStatus={setStatus}
+										onAddToCollection={openPickerForBook}
 										onToggleSelect={toggleSelected}
 										onMenuOpenChange={setOpenMenuId}
 										onDeviceDownload={handleDeviceDownload}

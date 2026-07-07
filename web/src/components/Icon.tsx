@@ -16,7 +16,12 @@ export type IconName =
 	| "moon"
 	| "check"
 	| "dots-vertical"
-	| "dots-horizontal";
+	| "dots-horizontal"
+	| "plus"
+	| "folder"
+	| "pencil"
+	| "trash"
+	| "external-link";
 
 const GLYPHS: Record<IconName, React.ReactNode> = {
 	close: (
@@ -80,6 +85,35 @@ const GLYPHS: Record<IconName, React.ReactNode> = {
 			<circle cx="5" cy="12" r="1.5" />
 			<circle cx="12" cy="12" r="1.5" />
 			<circle cx="19" cy="12" r="1.5" />
+		</>
+	),
+	plus: (
+		<>
+			<path d="M12 5v14" />
+			<path d="M5 12h14" />
+		</>
+	),
+	folder: (
+		<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+	),
+	pencil: (
+		<>
+			<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+			<path d="m15 5 4 4" />
+		</>
+	),
+	trash: (
+		<>
+			<path d="M3 6h18" />
+			<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+			<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+		</>
+	),
+	"external-link": (
+		<>
+			<path d="M15 3h6v6" />
+			<path d="M10 14 21 3" />
+			<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
 		</>
 	),
 };
