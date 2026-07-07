@@ -1,9 +1,11 @@
-import { useConvex, useConvexAuth, useMutation } from "convex/react";
+import { useAction, useConvex, useConvexAuth, useMutation } from "convex/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { db } from "../lib/db";
+import type { DiffField } from "../lib/metadataDiff";
 import { uploadBookAsset } from "../lib/uploadBookAsset";
 import { Icon } from "./Icon";
+import { MetadataFetchPanel } from "./MetadataFetchPanel";
 
 // The full server doc drives the form — editing is online-only (the books
 // table is server-authoritative); accepted edits are mirrored into the local
@@ -45,12 +47,12 @@ const toForm = (book: EditableBook): FormState => ({
 	sourceUrl: book.sourceUrl ?? "",
 });
 
-// Pending replacement cover: from the file input now; the fetch panel sets
-// this too once metadata fetching lands.
-type PendingCover = {
-	blob: Blob;
-	previewUrl: string;
-};
+// Pending replacement cover: a picked file, or a fetched candidate's image
+// URL (downloaded via the server proxy at save time — image hosts rarely
+// send CORS headers).
+type PendingCover =
+	| { kind: "file"; blob: Blob; previewUrl: string }
+	| { kind: "url"; url: string; previewUrl: string };
 
 export const EditBookDialog = ({
 	book,
@@ -61,9 +63,13 @@ export const EditBookDialog = ({
 	const { isAuthenticated } = useConvexAuth();
 	const updateBookMetadata = useMutation(api.metadata.updateBookMetadata);
 	const attachFiles = useMutation(api.books.attachFiles);
+	const fetchCoverImage = useAction(api.metadata.fetchCoverImage);
 
 	const [form, setForm] = useState<FormState>(() => toForm(book));
 	const [pendingCover, setPendingCover] = useState<PendingCover | null>(null);
+	// Subjects have no form control — they arrive only via the fetch panel.
+	const [pendingSubjects, setPendingSubjects] = useState<string[] | null>(null);
+	const [isFetchOpen, setIsFetchOpen] = useState(false);
 	const [isSaving, setIsSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -78,10 +84,11 @@ export const EditBookDialog = ({
 		return () => window.removeEventListener("keydown", handleKey);
 	}, [onClose]);
 
-	// Revoke the pending-cover preview URL when it changes or on unmount.
+	// Revoke file-based preview URLs when they change or on unmount (url-kind
+	// previews are plain remote URLs, nothing to revoke).
 	useEffect(() => {
 		return () => {
-			if (pendingCover) {
+			if (pendingCover?.kind === "file") {
 				URL.revokeObjectURL(pendingCover.previewUrl);
 			}
 		};
@@ -109,7 +116,10 @@ export const EditBookDialog = ({
 		return out;
 	}, [book, form]);
 
-	const hasChanges = Object.keys(patch).length > 0 || pendingCover !== null;
+	const hasChanges =
+		Object.keys(patch).length > 0 ||
+		pendingCover !== null ||
+		pendingSubjects !== null;
 	const titleInvalid = form.title.trim() === "";
 	const canSave = isAuthenticated && hasChanges && !titleInvalid && !isSaving;
 
@@ -122,7 +132,35 @@ export const EditBookDialog = ({
 			return;
 		}
 		setError(null);
-		setPendingCover({ blob: file, previewUrl: URL.createObjectURL(file) });
+		setPendingCover({
+			kind: "file",
+			blob: file,
+			previewUrl: URL.createObjectURL(file),
+		});
+	};
+
+	// Fetched metadata lands in the form (and pending cover/subjects) — the
+	// server is only touched by Save.
+	const applyFetched = (
+		fields: Partial<Record<DiffField, string | string[]>>,
+		coverUrl?: string,
+	) => {
+		setForm((prev) => {
+			const next = { ...prev };
+			for (const key of ["title", "author", "series", "description"] as const) {
+				const value = fields[key];
+				if (typeof value === "string") {
+					next[key] = value;
+				}
+			}
+			return next;
+		});
+		if (Array.isArray(fields.subjects)) {
+			setPendingSubjects(fields.subjects);
+		}
+		if (coverUrl) {
+			setPendingCover({ kind: "url", url: coverUrl, previewUrl: coverUrl });
+		}
 	};
 
 	const save = async () => {
@@ -132,13 +170,15 @@ export const EditBookDialog = ({
 		setIsSaving(true);
 		setError(null);
 		try {
-			if (Object.keys(patch).length > 0) {
+			if (Object.keys(patch).length > 0 || pendingSubjects !== null) {
 				await updateBookMetadata({
 					bookId: book._id as never,
 					...patch,
+					...(pendingSubjects !== null ? { subjects: pendingSubjects } : {}),
 				});
 				// Mirror into the local shelf row so offline views agree without
-				// waiting for the next reconcile.
+				// waiting for the next reconcile. (Subjects aren't mirrored — the
+				// local row doesn't carry them.)
 				const mirror: Record<string, string | undefined> = {};
 				for (const [key, value] of Object.entries(patch)) {
 					mirror[key] = value ?? undefined;
@@ -146,20 +186,24 @@ export const EditBookDialog = ({
 				await db.books.update(book._id, mirror).catch(() => {});
 			}
 			if (pendingCover) {
-				const coverKey = await uploadBookAsset(
-					convex,
-					book._id,
-					"cover",
-					pendingCover.blob,
-				);
+				const blob =
+					pendingCover.kind === "file"
+						? pendingCover.blob
+						: await (async () => {
+								const { bytes, contentType } = await fetchCoverImage({
+									url: pendingCover.url,
+								});
+								return new Blob([bytes], { type: contentType });
+							})();
+				const coverKey = await uploadBookAsset(convex, book._id, "cover", blob);
 				const coverStamp = await attachFiles({
 					bookId: book._id as never,
 					coverKey,
 				});
 				await db.books
 					.update(book._id, {
-						coverBlob: pendingCover.blob,
-						coverType: pendingCover.blob.type || undefined,
+						coverBlob: blob,
+						coverType: blob.type || undefined,
 						coverVersion: coverStamp ?? undefined,
 					})
 					.catch(() => {});
@@ -267,6 +311,30 @@ export const EditBookDialog = ({
 							Open source page
 						</a>
 					) : null}
+					<div className="border-t border-[color-mix(in_srgb,var(--outline)_60%,transparent)] pt-3">
+						<button
+							type="button"
+							className={`chip ${isFetchOpen ? "is-active" : ""}`}
+							onClick={() => setIsFetchOpen((prev) => !prev)}
+						>
+							Fetch metadata
+						</button>
+						{isFetchOpen ? (
+							<div className="mt-3">
+								<MetadataFetchPanel
+									bookId={book._id}
+									current={{
+										title: form.title,
+										author: form.author,
+										series: form.series,
+										description: form.description,
+										subjects: pendingSubjects ?? undefined,
+									}}
+									onApply={applyFetched}
+								/>
+							</div>
+						) : null}
+					</div>
 				</div>
 				{titleInvalid ? (
 					<p className="mt-3 text-xs text-[var(--danger)]">

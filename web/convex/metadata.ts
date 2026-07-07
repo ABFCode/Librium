@@ -101,3 +101,80 @@ export const fetchCandidates = action({
 		return candidates.slice(0, 8);
 	},
 });
+
+const COVER_MAX_BYTES = 4 * 1024 * 1024;
+
+// Hosts that must never be fetched server-side (SSRF guard) — the cover URL
+// comes from provider data but is ultimately attacker-influenceable input.
+const isPrivateHost = (hostname: string) => {
+	const host = hostname.toLowerCase();
+	return (
+		host === "localhost" ||
+		host.endsWith(".local") ||
+		host.endsWith(".internal") ||
+		host === "::1" ||
+		host === "[::1]" ||
+		/^127\./.test(host) ||
+		/^10\./.test(host) ||
+		/^192\.168\./.test(host) ||
+		/^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+		/^169\.254\./.test(host) ||
+		/^0\./.test(host)
+	);
+};
+
+/**
+ * Proxy a candidate's cover image to the client — image hosts rarely send
+ * CORS headers, so the browser can't fetch them directly. The client turns
+ * the bytes into a Blob and reuses the normal cover-upload path (R2 +
+ * local coverBlob).
+ */
+export const fetchCoverImage = action({
+	args: {
+		url: v.string(),
+	},
+	handler: async (
+		ctx,
+		args,
+	): Promise<{ bytes: ArrayBuffer; contentType: string }> => {
+		const identity = await ctx.auth.getUserIdentity();
+		if (!identity) {
+			throw new Error("Not signed in.");
+		}
+		let url: URL;
+		try {
+			url = new URL(args.url);
+		} catch {
+			throw new Error("Invalid image URL.");
+		}
+		if (url.protocol !== "https:") {
+			throw new Error("Cover URLs must be https.");
+		}
+		if (isPrivateHost(url.hostname)) {
+			throw new Error("Refusing to fetch from a private host.");
+		}
+		const res = await fetch(url.toString(), {
+			headers: {
+				Accept: "image/*",
+				"User-Agent": "Mozilla/5.0 (compatible; Librium/1.0)",
+			},
+			redirect: "follow",
+		});
+		if (!res.ok) {
+			throw new Error(`Image fetch failed (${res.status}).`);
+		}
+		const contentType = res.headers.get("content-type") ?? "";
+		if (!contentType.startsWith("image/")) {
+			throw new Error("The URL did not return an image.");
+		}
+		const declared = Number(res.headers.get("content-length") ?? 0);
+		if (declared > COVER_MAX_BYTES) {
+			throw new Error("Cover image is too large (4 MB max).");
+		}
+		const bytes = await res.arrayBuffer();
+		if (bytes.byteLength > COVER_MAX_BYTES) {
+			throw new Error("Cover image is too large (4 MB max).");
+		}
+		return { bytes, contentType };
+	},
+});
