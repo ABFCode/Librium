@@ -102,6 +102,70 @@ export const fetchCandidates = action({
 	},
 });
 
+const PAGE_MAX_BYTES = 2 * 1024 * 1024;
+
+// Only hosts we have a client-side parser for — this action must not become
+// a generic fetch proxy (SSRF).
+const PAGE_HOST_ALLOWLIST = new Set([
+	"www.novelupdates.com",
+	"novelupdates.com",
+]);
+
+/**
+ * Best-effort fetch of a linked source page. NovelUpdates sits behind
+ * Cloudflare and is known to 403 non-browser clients — that outcome is
+ * expected and returned as {ok:false}, never thrown; the dialog then falls
+ * back to paste-the-page, which parses identically.
+ */
+export const fetchPageHtml = action({
+	args: {
+		url: v.string(),
+	},
+	handler: async (
+		ctx,
+		args,
+	): Promise<{ ok: boolean; status: number; html?: string }> => {
+		const identity = await ctx.auth.getUserIdentity();
+		if (!identity) {
+			throw new Error("Not signed in.");
+		}
+		let url: URL;
+		try {
+			url = new URL(args.url);
+		} catch {
+			throw new Error("Invalid page URL.");
+		}
+		if (url.protocol !== "https:" || !PAGE_HOST_ALLOWLIST.has(url.hostname)) {
+			throw new Error("Only NovelUpdates pages can be fetched.");
+		}
+		try {
+			const res = await fetch(url.toString(), {
+				headers: {
+					// Plausible browser headers — sometimes enough to pass.
+					"User-Agent":
+						"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+					Accept:
+						"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+					"Accept-Language": "en-US,en;q=0.9",
+				},
+				redirect: "follow",
+			});
+			if (!res.ok) {
+				return { ok: false, status: res.status };
+			}
+			const html = await res.text();
+			return {
+				ok: true,
+				status: res.status,
+				html: html.slice(0, PAGE_MAX_BYTES),
+			};
+		} catch {
+			// Network-level failure (blocked, reset) — same fallback as a 403.
+			return { ok: false, status: 0 };
+		}
+	},
+});
+
 const COVER_MAX_BYTES = 4 * 1024 * 1024;
 
 // Hosts that must never be fetched server-side (SSRF guard) — the cover URL

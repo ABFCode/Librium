@@ -1,8 +1,10 @@
 import { useAction, useConvex, useConvexAuth, useMutation } from "convex/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
+import type { MetadataCandidate } from "../../convex/metadataProviders";
 import { db } from "../lib/db";
 import type { DiffField } from "../lib/metadataDiff";
+import { isNovelUpdatesUrl, parseNovelUpdatesHtml } from "../lib/novelUpdates";
 import { uploadBookAsset } from "../lib/uploadBookAsset";
 import { Icon } from "./Icon";
 import { MetadataFetchPanel } from "./MetadataFetchPanel";
@@ -73,6 +75,53 @@ export const EditBookDialog = ({
 	const [isSaving, setIsSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+	// NovelUpdates page fetch: server-side attempt first; Cloudflare usually
+	// 403s it, which reveals the paste-the-page fallback. Both paths produce a
+	// candidate that flows through the same diff preview.
+	const fetchPageHtml = useAction(api.metadata.fetchPageHtml);
+	const [nuCandidate, setNuCandidate] = useState<MetadataCandidate | null>(
+		null,
+	);
+	const [isNuFetching, setIsNuFetching] = useState(false);
+	const [showPasteFallback, setShowPasteFallback] = useState(false);
+	const [nuNotice, setNuNotice] = useState<string | null>(null);
+	const sourceIsNovelUpdates = isNovelUpdatesUrl(form.sourceUrl.trim());
+
+	const adoptNuHtml = (html: string) => {
+		const candidate = parseNovelUpdatesHtml(html, form.sourceUrl.trim());
+		if (!candidate.title && !candidate.description && !candidate.coverUrl) {
+			setNuNotice(
+				"Couldn't find metadata in that page — make sure it's the full series page HTML.",
+			);
+			return;
+		}
+		setNuCandidate(candidate);
+		setNuNotice(null);
+		setShowPasteFallback(false);
+		setIsFetchOpen(true);
+	};
+
+	const fetchFromLinkedPage = async () => {
+		setIsNuFetching(true);
+		setNuNotice(null);
+		try {
+			const result = await fetchPageHtml({ url: form.sourceUrl.trim() });
+			if (result.ok && result.html) {
+				adoptNuHtml(result.html);
+				return;
+			}
+			// The expected Cloudflare outcome — degrade to paste.
+			setShowPasteFallback(true);
+			setNuNotice(
+				"NovelUpdates blocked the automated fetch (this is normal). Open the page, copy its HTML (Ctrl+U, then select all), and paste it below.",
+			);
+		} catch (err) {
+			setNuNotice(err instanceof Error ? err.message : "Fetch failed");
+		} finally {
+			setIsNuFetching(false);
+		}
+	};
 
 	useEffect(() => {
 		const handleKey = (event: KeyboardEvent) => {
@@ -301,15 +350,42 @@ export const EditBookDialog = ({
 						{field("Source page URL", "sourceUrl", "https://…")}
 					</div>
 					{form.sourceUrl.trim() ? (
-						<a
-							className="inline-flex items-center gap-1.5 text-xs text-[var(--accent)] hover:underline"
-							href={form.sourceUrl.trim()}
-							target="_blank"
-							rel="noreferrer"
-						>
-							<Icon name="external-link" size={12} />
-							Open source page
-						</a>
+						<div className="flex flex-wrap items-center gap-3">
+							<a
+								className="inline-flex items-center gap-1.5 text-xs text-[var(--accent)] hover:underline"
+								href={form.sourceUrl.trim()}
+								target="_blank"
+								rel="noreferrer"
+							>
+								<Icon name="external-link" size={12} />
+								Open source page
+							</a>
+							{sourceIsNovelUpdates ? (
+								<button
+									type="button"
+									className="chip"
+									disabled={isNuFetching}
+									onClick={() => void fetchFromLinkedPage()}
+								>
+									{isNuFetching ? "Fetching…" : "Fetch from linked page"}
+								</button>
+							) : null}
+						</div>
+					) : null}
+					{nuNotice ? (
+						<p className="text-xs text-[var(--muted)]">{nuNotice}</p>
+					) : null}
+					{showPasteFallback ? (
+						<textarea
+							className="input min-h-20 py-2 font-mono text-xs"
+							placeholder="Paste the NovelUpdates page HTML here…"
+							onChange={(event) => {
+								const html = event.target.value;
+								if (html.trim().length > 0) {
+									adoptNuHtml(html);
+								}
+							}}
+						/>
 					) : null}
 					<div className="border-t border-[color-mix(in_srgb,var(--outline)_60%,transparent)] pt-3">
 						<button
@@ -330,6 +406,7 @@ export const EditBookDialog = ({
 										description: form.description,
 										subjects: pendingSubjects ?? undefined,
 									}}
+									extraCandidate={nuCandidate}
 									onApply={applyFetched}
 								/>
 							</div>
