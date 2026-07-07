@@ -106,7 +106,9 @@ export const attachFiles = mutation({
 			// The cover's R2 key is fixed (books/{id}/cover), so replacing the
 			// image doesn't change coverKey — coverUpdatedAt is what tells other
 			// devices their cached cover blob is stale.
-			...(args.coverKey ? { coverKey: args.coverKey, coverUpdatedAt: now } : {}),
+			...(args.coverKey
+				? { coverKey: args.coverKey, coverUpdatedAt: now }
+				: {}),
 			updatedAt: now,
 		});
 	},
