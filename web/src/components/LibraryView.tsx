@@ -13,6 +13,7 @@ import {
 } from "../lib/db";
 import { bookProgress } from "../lib/progress";
 import { seedBookFromR2 } from "../lib/seedBook";
+import { groupBySeries } from "../lib/series";
 import {
 	effectiveStatus,
 	type ReadingStatus,
@@ -65,6 +66,8 @@ export function Library() {
 				_id: b.bookId,
 				title: b.title,
 				author: b.author,
+				series: b.series,
+				seriesIndex: b.seriesIndex,
 				sectionCount: b.sectionCount,
 				createdAt: b.addedAt,
 				updatedAt: progressTimes.get(b.bookId) ?? b.addedAt,
@@ -413,6 +416,8 @@ export function Library() {
 							bookId: remote._id as string,
 							title: remote.title,
 							author: remote.author ?? undefined,
+							series: remote.series ?? undefined,
+							seriesIndex: remote.seriesIndex ?? undefined,
 							sectionCount: remote.sectionCount ?? 0,
 							// Metadata-only row: blocks arrive via reader cache-fill; the
 							// parser version applies only once blocks exist.
@@ -473,7 +478,7 @@ export function Library() {
 	}, [remoteCoverUrls]);
 	const [query, setQuery] = useState("");
 	const [sortBy, setSortBy] = useState<
-		"recent" | "title" | "author" | "progress"
+		"recent" | "title" | "author" | "progress" | "series"
 	>("recent");
 	const [error, setError] = useState<string | null>(null);
 	const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -487,7 +492,8 @@ export function Library() {
 			saved === "recent" ||
 			saved === "title" ||
 			saved === "author" ||
-			saved === "progress"
+			saved === "progress" ||
+			saved === "series"
 		) {
 			setSortBy(saved);
 		}
@@ -697,7 +703,9 @@ export function Library() {
 					(b.updatedAt ?? b.createdAt ?? 0) - (a.updatedAt ?? a.createdAt ?? 0)
 				);
 			});
-		} else if (sortBy === "title") {
+		} else if (sortBy === "title" || sortBy === "series") {
+			// Series mode groups after sorting; title order is the stable base for
+			// the standalone tail.
 			next.sort((a, b) => a.title.localeCompare(b.title));
 		} else if (sortBy === "author") {
 			next.sort((a, b) => (a.author ?? "").localeCompare(b.author ?? ""));
@@ -773,6 +781,32 @@ export function Library() {
 		},
 		[convex],
 	);
+
+	const renderCard = (book: LibraryBook) => {
+		const progress = progressByBookId.get(book._id);
+		return (
+			<BookCard
+				key={book._id}
+				book={book}
+				coverUrl={coverUrls?.[book._id]}
+				progressPercent={progress ? Math.round(progress.progress * 100) : null}
+				isDownloaded={downloadedIds.has(book._id)}
+				isDownloading={downloadingId === book._id}
+				isSelecting={isSelecting}
+				isSelected={selectedIds.has(book._id)}
+				isMenuOpen={openMenuId === book._id}
+				explicitStatus={statusByBookId.get(book._id) ?? null}
+				onSetStatus={setStatus}
+				onAddToCollection={openPickerForBook}
+				onToggleSelect={toggleSelected}
+				onMenuOpenChange={setOpenMenuId}
+				onDeviceDownload={handleDeviceDownload}
+				onRemoveDownload={handleRemoveDownload}
+				onSaveEpub={handleDownload}
+				onDelete={handleDelete}
+			/>
+		);
+	};
 
 	return (
 		<RequireAuth>
@@ -851,6 +885,7 @@ export function Library() {
 									{ key: "title", label: "Title" },
 									{ key: "author", label: "Author" },
 									{ key: "progress", label: "Progress" },
+									{ key: "series", label: "Series" },
 								].map((option) => (
 									<button
 										type="button"
@@ -1164,35 +1199,28 @@ export function Library() {
 								No books yet. Upload your first EPUB to get started.
 							</p>
 						</div>
+					) : sortBy === "series" ? (
+						<div className="flex flex-col gap-8">
+							{groupBySeries(sortedBooks).map((group) => (
+								<section
+									key={group.series ?? "::standalone"}
+									className="flex flex-col gap-3"
+								>
+									<h2 className="text-lg">
+										{group.series ?? "Other books"}
+										<span className="ml-2 text-sm text-[var(--muted-2)]">
+											{group.books.length}
+										</span>
+									</h2>
+									<div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+										{group.books.map(renderCard)}
+									</div>
+								</section>
+							))}
+						</div>
 					) : (
 						<div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-							{sortedBooks.map((book) => {
-								const progress = progressByBookId.get(book._id);
-								return (
-									<BookCard
-										key={book._id}
-										book={book}
-										coverUrl={coverUrls?.[book._id]}
-										progressPercent={
-											progress ? Math.round(progress.progress * 100) : null
-										}
-										isDownloaded={downloadedIds.has(book._id)}
-										isDownloading={downloadingId === book._id}
-										isSelecting={isSelecting}
-										isSelected={selectedIds.has(book._id)}
-										isMenuOpen={openMenuId === book._id}
-										explicitStatus={statusByBookId.get(book._id) ?? null}
-										onSetStatus={setStatus}
-										onAddToCollection={openPickerForBook}
-										onToggleSelect={toggleSelected}
-										onMenuOpenChange={setOpenMenuId}
-										onDeviceDownload={handleDeviceDownload}
-										onRemoveDownload={handleRemoveDownload}
-										onSaveEpub={handleDownload}
-										onDelete={handleDelete}
-									/>
-								);
-							})}
+							{sortedBooks.map(renderCard)}
 						</div>
 					)}
 				</div>

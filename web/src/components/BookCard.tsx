@@ -7,6 +7,8 @@ export type LibraryBook = {
 	_id: string;
 	title: string;
 	author?: string | null;
+	series?: string | null;
+	seriesIndex?: string | null;
 	sectionCount?: number;
 	createdAt?: number;
 	updatedAt?: number;
