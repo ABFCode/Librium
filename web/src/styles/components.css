@@ -237,4 +237,32 @@
 	.menu-item.is-danger:hover:not(:disabled) {
 		background: color-mix(in srgb, var(--danger) 12%, transparent);
 	}
+
+	/* Non-interactive section label inside a menu. */
+	.menu-heading {
+		padding: 7px 10px 3px;
+		font-size: 11px;
+		color: var(--muted-2);
+	}
+
+	.menu-heading + .menu-heading,
+	.menu-item + .menu-heading {
+		margin-top: 4px;
+		border-top: 1px solid color-mix(in srgb, var(--outline) 60%, transparent);
+	}
+
+	/* Checkable rows (status picker): reserve the glyph column so labels stay
+	   aligned whether or not the check is present. */
+	.menu-item.is-checkable {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+	}
+
+	.menu-check {
+		display: inline-flex;
+		width: 12px;
+		justify-content: center;
+		color: var(--accent);
+	}
 }

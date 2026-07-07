@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { memo } from "react";
+import { type ReadingStatus, STATUS_OPTIONS } from "../lib/status";
 import { Icon } from "./Icon";
 
 export type LibraryBook = {
@@ -20,6 +21,9 @@ type BookCardProps = {
 	isSelecting: boolean;
 	isSelected: boolean;
 	isMenuOpen: boolean;
+	// The user's explicit choice (null = automatic, derived from progress).
+	explicitStatus: ReadingStatus | null;
+	onSetStatus: (bookId: string, status: ReadingStatus | null) => void;
 	onToggleSelect: (bookId: string) => void;
 	// null closes any open menu; a bookId opens that book's menu.
 	onMenuOpenChange: (bookId: string | null) => void;
@@ -41,6 +45,8 @@ function BookCardImpl({
 	isSelecting,
 	isSelected,
 	isMenuOpen,
+	explicitStatus,
+	onSetStatus,
 	onToggleSelect,
 	onMenuOpenChange,
 	onDeviceDownload,
@@ -163,6 +169,30 @@ function BookCardImpl({
 									{isDownloading ? "Downloading…" : "Download to this device"}
 								</button>
 							)}
+							<div className="menu-heading">Status</div>
+							{STATUS_OPTIONS.map((option) => (
+								<button
+									type="button"
+									key={option.key}
+									className="menu-item is-checkable"
+									onClick={() => {
+										onMenuOpenChange(null);
+										// Re-picking the current status clears it back to automatic.
+										onSetStatus(
+											book._id,
+											explicitStatus === option.key ? null : option.key,
+										);
+									}}
+								>
+									<span className="menu-check">
+										{explicitStatus === option.key ? (
+											<Icon name="check" size={12} />
+										) : null}
+									</span>
+									{option.label}
+								</button>
+							))}
+							<div className="menu-heading">Manage</div>
 							<button
 								type="button"
 								className="menu-item"

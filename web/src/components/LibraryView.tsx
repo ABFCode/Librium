@@ -3,6 +3,7 @@ import { useAction, useConvex, useConvexAuth, useQuery } from "convex/react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../convex/_generated/api";
+import { useStatusSync } from "../hooks/useStatusSync";
 import {
 	db,
 	deleteLocalBook,
@@ -11,6 +12,11 @@ import {
 } from "../lib/db";
 import { bookProgress } from "../lib/progress";
 import { seedBookFromR2 } from "../lib/seedBook";
+import {
+	effectiveStatus,
+	type ReadingStatus,
+	STATUS_OPTIONS,
+} from "../lib/status";
 import { BookCard, type LibraryBook } from "./BookCard";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { Icon } from "./Icon";
@@ -124,6 +130,7 @@ export function Library() {
 	// Bulk operations (global; per-book actions live in each card's menu).
 	const [bulkStatus, setBulkStatus] = useState<string | null>(null);
 	const [isBulkMenuOpen, setIsBulkMenuOpen] = useState(false);
+	const [isMarkMenuOpen, setIsMarkMenuOpen] = useState(false);
 
 	// In-app confirmation dialog (replaces native window.confirm/prompt).
 	type ConfirmRequest = {
@@ -490,6 +497,60 @@ export function Library() {
 		window.localStorage.setItem("library:sort", sortBy);
 	}, [sortBy]);
 
+	// Shelf filters: status tab, active collection, downloaded-only. Persisted
+	// together (the sort chip has its own key for back-compat).
+	const [shelfStatus, setShelfStatus] = useState<"all" | ReadingStatus>("all");
+	const [collectionFilter, setCollectionFilter] = useState<string | null>(null);
+	const [downloadedOnly, setDownloadedOnly] = useState(false);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		try {
+			const raw = window.localStorage.getItem("library:filters");
+			if (!raw) {
+				return;
+			}
+			const saved = JSON.parse(raw) as {
+				status?: string;
+				collectionKey?: string | null;
+				downloadedOnly?: boolean;
+			};
+			if (
+				saved.status === "all" ||
+				STATUS_OPTIONS.some((option) => option.key === saved.status)
+			) {
+				setShelfStatus(saved.status as "all" | ReadingStatus);
+			}
+			if (typeof saved.collectionKey === "string") {
+				setCollectionFilter(saved.collectionKey);
+			}
+			if (typeof saved.downloadedOnly === "boolean") {
+				setDownloadedOnly(saved.downloadedOnly);
+			}
+		} catch {
+			// Malformed saved state — defaults win.
+		}
+	}, []);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		window.localStorage.setItem(
+			"library:filters",
+			JSON.stringify({
+				status: shelfStatus,
+				collectionKey: collectionFilter,
+				downloadedOnly,
+			}),
+		);
+	}, [shelfStatus, collectionFilter, downloadedOnly]);
+
+	// Local-first explicit reading status (LWW sync).
+	const { statusByBookId, setStatus } = useStatusSync({ canQuery });
+
 	const progressByBookId = useMemo(() => {
 		const map = new Map<string, { progress: number; updatedAt?: number }>();
 		if (progressEntries) {
@@ -534,17 +595,37 @@ export function Library() {
 		if (!books) {
 			return [];
 		}
-		if (!query.trim()) {
-			return books;
-		}
-		const lower = query.toLowerCase();
-		return books.filter((book) => {
-			return (
-				book.title.toLowerCase().includes(lower) ||
-				(book.author ?? "").toLowerCase().includes(lower)
+		let next = books;
+		if (query.trim()) {
+			const lower = query.toLowerCase();
+			next = next.filter(
+				(book) =>
+					book.title.toLowerCase().includes(lower) ||
+					(book.author ?? "").toLowerCase().includes(lower),
 			);
-		});
-	}, [books, query]);
+		}
+		if (shelfStatus !== "all") {
+			next = next.filter(
+				(book) =>
+					effectiveStatus(
+						statusByBookId.get(book._id) ?? null,
+						progressByBookId.get(book._id)?.progress ?? 0,
+					) === shelfStatus,
+			);
+		}
+		if (downloadedOnly) {
+			next = next.filter((book) => downloadedIds.has(book._id));
+		}
+		return next;
+	}, [
+		books,
+		query,
+		shelfStatus,
+		statusByBookId,
+		progressByBookId,
+		downloadedOnly,
+		downloadedIds,
+	]);
 
 	const sortedBooks = useMemo(() => {
 		const next = [...filteredBooks];
@@ -788,6 +869,25 @@ export function Library() {
 							</Link>
 						</div>
 					</div>
+					<div className="flex flex-wrap items-center gap-1">
+						<button
+							type="button"
+							className={`chip ${shelfStatus === "all" ? "is-active" : ""}`}
+							onClick={() => setShelfStatus("all")}
+						>
+							All
+						</button>
+						{STATUS_OPTIONS.map((option) => (
+							<button
+								type="button"
+								key={option.key}
+								className={`chip ${shelfStatus === option.key ? "is-active" : ""}`}
+								onClick={() => setShelfStatus(option.key)}
+							>
+								{option.label}
+							</button>
+						))}
+					</div>
 					{isSelecting ? (
 						<div className="surface-soft flex flex-wrap items-center gap-2 px-3 py-2">
 							<span className="text-sm text-[var(--muted)]">
@@ -803,6 +903,51 @@ export function Library() {
 								Select all
 							</button>
 							<div className="ml-auto flex flex-wrap items-center gap-2">
+								{/* biome-ignore lint/a11y/noStaticElementInteractions: hover-out dismiss is a pointer nicety; the menu itself is keyboard-operable via its buttons */}
+								<div
+									className="relative"
+									onMouseLeave={() => setIsMarkMenuOpen(false)}
+								>
+									<button
+										type="button"
+										className="btn btn-ghost text-xs"
+										disabled={selectedIds.size === 0}
+										onClick={() => setIsMarkMenuOpen((prev) => !prev)}
+									>
+										Mark as…
+									</button>
+									{isMarkMenuOpen ? (
+										<div className="menu absolute left-0 top-9 z-20">
+											{STATUS_OPTIONS.map((option) => (
+												<button
+													type="button"
+													key={option.key}
+													className="menu-item"
+													onClick={() => {
+														setIsMarkMenuOpen(false);
+														for (const id of selectedIds) {
+															void setStatus(id, option.key);
+														}
+													}}
+												>
+													{option.label}
+												</button>
+											))}
+											<button
+												type="button"
+												className="menu-item"
+												onClick={() => {
+													setIsMarkMenuOpen(false);
+													for (const id of selectedIds) {
+														void setStatus(id, null);
+													}
+												}}
+											>
+												Automatic
+											</button>
+										</div>
+									) : null}
+								</div>
 								<button
 									type="button"
 									className="btn btn-ghost text-xs"
@@ -874,6 +1019,8 @@ export function Library() {
 										isSelecting={isSelecting}
 										isSelected={selectedIds.has(book._id)}
 										isMenuOpen={openMenuId === book._id}
+										explicitStatus={statusByBookId.get(book._id) ?? null}
+										onSetStatus={setStatus}
 										onToggleSelect={toggleSelected}
 										onMenuOpenChange={setOpenMenuId}
 										onDeviceDownload={handleDeviceDownload}
