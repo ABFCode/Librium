@@ -22,7 +22,11 @@ export const upsertUserBook = mutation({
 
 		const now = Date.now();
 		if (existing) {
-			await ctx.db.patch(existing._id, { updatedAt: now });
+			// Opening a book is reading activity → bump Recent recency.
+			await ctx.db.patch(existing._id, {
+				updatedAt: now,
+				lastActivityAt: now,
+			});
 			return existing._id;
 		}
 
@@ -31,6 +35,7 @@ export const upsertUserBook = mutation({
 			bookId: args.bookId,
 			lastSectionIndex: 0,
 			updatedAt: now,
+			lastActivityAt: now,
 		});
 	},
 });
@@ -100,6 +105,8 @@ export const updateProgress = mutation({
 			lastSectionFraction:
 				args.lastSectionFraction ?? existing?.lastSectionFraction ?? undefined,
 			updatedAt: now,
+			// Reading is activity → drives Recent recency.
+			lastActivityAt: now,
 			progressEditedAt: args.editedAt ?? now,
 		};
 
@@ -156,6 +163,10 @@ export const updateStatus = mutation({
 		}
 
 		const now = Date.now();
+		// Note: no lastActivityAt here — marking a status is organizing, not
+		// reading, so it must not reorder the Recent shelf. A never-opened book
+		// marked from the shelf is inserted with lastActivityAt absent, so it
+		// sorts last in Recent (behind everything actually read).
 		const patch = {
 			status: args.status ?? undefined,
 			statusEditedAt: args.editedAt ?? now,
@@ -186,9 +197,13 @@ export const listRecentByUser = query({
 			return [];
 		}
 		const limit = args.limit ?? 8;
+		// Recency = reading activity, not the sync clock. Rows with no activity
+		// yet (status-only, never opened) have lastActivityAt undefined, which
+		// Convex orders before all values → last under desc, i.e. behind every
+		// book actually read.
 		const entries = await ctx.db
 			.query("userBooks")
-			.withIndex("by_user_updated", (q) => q.eq("userId", userId))
+			.withIndex("by_user_activity", (q) => q.eq("userId", userId))
 			.order("desc")
 			.take(limit);
 

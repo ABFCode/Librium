@@ -63,6 +63,11 @@ const userBooks = defineTable({
 	// partial chapters (completed + fraction) instead of whole chapters only.
 	lastSectionFraction: v.optional(v.number()),
 	updatedAt: v.number(),
+	// Server time of the last *reading* activity (open or progress) — drives the
+	// "Recent" shelf sort. Deliberately separate from updatedAt: status edits
+	// bump updatedAt (the sync clock the status merge orders on) but must NOT
+	// reorder Recent, so recency reads from this field instead.
+	lastActivityAt: v.optional(v.number()),
 	// Client edit time of the progress fields (device clock, same-user devices).
 	// Used to reject stale offline pushes; pull ordering uses updatedAt (server).
 	progressEditedAt: v.optional(v.number()),
@@ -81,6 +86,7 @@ const userBooks = defineTable({
 })
 	.index("by_user_book", ["userId", "bookId"])
 	.index("by_user_updated", ["userId", "updatedAt"])
+	.index("by_user_activity", ["userId", "lastActivityAt"])
 	.index("by_book", ["bookId"]);
 
 const userSettings = defineTable({

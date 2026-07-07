@@ -67,6 +67,8 @@ export const registerImport = mutation({
 			bookId,
 			lastSectionIndex: 0,
 			updatedAt: now,
+			// A freshly imported book is recent.
+			lastActivityAt: now,
 		});
 		return bookId;
 	},
