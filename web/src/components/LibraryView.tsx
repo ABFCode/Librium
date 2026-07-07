@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import { useAction, useConvex, useConvexAuth, useQuery } from "convex/react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -22,17 +21,9 @@ import {
 import { BookCard, type LibraryBook } from "./BookCard";
 import { CollectionPickerDialog } from "./CollectionPickerDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { Icon } from "./Icon";
+import { type LibrarySort, LibraryToolbar } from "./LibraryToolbar";
 import { ManageCollectionsDialog } from "./ManageCollectionsDialog";
 import { RequireAuth } from "./RequireAuth";
-
-// Whole-MB floor: browser storage estimates wobble at KB granularity
-// (SQLite WAL churn, estimate padding), which reads as jumpy noise.
-const formatBytes = (bytes: number) => {
-	if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-	if (bytes >= 1024 ** 2) return `${Math.round(bytes / 1024 ** 2)} MB`;
-	return "< 1 MB";
-};
 
 // Grace period before purging a local book missing from the remote list —
 // covers the moment between a fresh import's local write and the reactive
@@ -135,7 +126,6 @@ export function Library() {
 
 	// Bulk operations (global; per-book actions live in each card's menu).
 	const [bulkStatus, setBulkStatus] = useState<string | null>(null);
-	const [isBulkMenuOpen, setIsBulkMenuOpen] = useState(false);
 	const [isMarkMenuOpen, setIsMarkMenuOpen] = useState(false);
 
 	// In-app confirmation dialog (replaces native window.confirm/prompt).
@@ -477,9 +467,7 @@ export function Library() {
 		};
 	}, [remoteCoverUrls]);
 	const [query, setQuery] = useState("");
-	const [sortBy, setSortBy] = useState<
-		"recent" | "title" | "author" | "progress" | "series"
-	>("recent");
+	const [sortBy, setSortBy] = useState<LibrarySort>("recent");
 	const [error, setError] = useState<string | null>(null);
 	const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
@@ -574,7 +562,6 @@ export function Library() {
 	// bulk select); null = closed.
 	const [pickerBookIds, setPickerBookIds] = useState<string[] | null>(null);
 	const [isManageOpen, setIsManageOpen] = useState(false);
-	const [isCollectionMenuOpen, setIsCollectionMenuOpen] = useState(false);
 	const openPickerForBook = useCallback((bookId: string) => {
 		setPickerBookIds([bookId]);
 	}, []);
@@ -861,222 +848,33 @@ export function Library() {
 			) : null}
 			<div className="min-h-screen px-6 pb-16 pt-8">
 				<div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-					<div className="flex flex-wrap items-end justify-between gap-4">
-						<div>
-							<h1 className="text-3xl">Library</h1>
-							<p className="mt-1 text-sm text-[var(--muted-2)]">
-								{!books
-									? "Loading…"
-									: books.length === 0
-										? "No books yet"
-										: `${books.length} book${books.length === 1 ? "" : "s"} · ${downloadedIds.size} on this device${storageUsage !== null ? ` · ${formatBytes(storageUsage)} used` : ""}`}
-							</p>
-						</div>
-						<div className="flex flex-wrap items-center gap-2">
-							<input
-								className="input h-9 w-[220px]"
-								placeholder="Search titles, authors…"
-								value={query}
-								onChange={(event) => setQuery(event.target.value)}
-							/>
-							<div className="flex items-center gap-1">
-								{[
-									{ key: "recent", label: "Recent" },
-									{ key: "title", label: "Title" },
-									{ key: "author", label: "Author" },
-									{ key: "progress", label: "Progress" },
-									{ key: "series", label: "Series" },
-								].map((option) => (
-									<button
-										type="button"
-										key={option.key}
-										className={`chip ${sortBy === option.key ? "is-active" : ""}`}
-										onClick={() => setSortBy(option.key as typeof sortBy)}
-									>
-										{option.label}
-									</button>
-								))}
-							</div>
-							{books && books.length > 0 ? (
-								<button
-									type="button"
-									className={`chip is-framed ${isSelecting ? "is-active" : ""}`}
-									onClick={() =>
-										isSelecting ? exitSelection() : setIsSelecting(true)
-									}
-								>
-									{isSelecting ? "Done" : "Select"}
-								</button>
-							) : null}
-							{/* biome-ignore lint/a11y/noStaticElementInteractions: hover-out dismiss is a pointer nicety; the menu itself is keyboard-operable via its buttons */}
-							<div
-								className="relative"
-								onMouseLeave={() => setIsBulkMenuOpen(false)}
-							>
-								<button
-									type="button"
-									className={`icon-btn ${isBulkMenuOpen ? "is-active" : ""}`}
-									onClick={() => setIsBulkMenuOpen((prev) => !prev)}
-								>
-									<span className="sr-only">Library actions</span>
-									<Icon name="dots-horizontal" />
-								</button>
-								{isBulkMenuOpen ? (
-									<div className="menu absolute right-0 top-9 z-20">
-										<button
-											type="button"
-											className="menu-item"
-											onClick={() => {
-												setIsBulkMenuOpen(false);
-												void handleDownloadAll();
-											}}
-											disabled={
-												bulkStatus !== null ||
-												!books ||
-												books.length === downloadedIds.size
-											}
-											title="Store every book's content on this device (e.g. before going offline)"
-										>
-											Download all to this device
-										</button>
-										<button
-											type="button"
-											className="menu-item"
-											onClick={() => {
-												setIsBulkMenuOpen(false);
-												void handleRemoveAllDownloads();
-											}}
-											disabled={bulkStatus !== null || downloadedIds.size === 0}
-											title="Free this device's storage; the library itself is untouched"
-										>
-											Clear downloads
-										</button>
-										<button
-											type="button"
-											className="menu-item"
-											onClick={() => {
-												setIsBulkMenuOpen(false);
-												void handleExportAll();
-											}}
-											disabled={
-												bulkStatus !== null || !books || books.length === 0
-											}
-											title="Download every book's EPUB file (cloud backup copy)"
-										>
-											Export all EPUBs
-										</button>
-										<button
-											type="button"
-											className="menu-item is-danger"
-											onClick={() => {
-												setIsBulkMenuOpen(false);
-												void handleDeleteAllBooks();
-											}}
-											disabled={
-												bulkStatus !== null || !books || books.length === 0
-											}
-											title="Permanently delete every book, everywhere"
-										>
-											Delete all books…
-										</button>
-									</div>
-								) : null}
-							</div>
-							<Link className="btn btn-primary h-9" to="/import">
-								Upload books
-							</Link>
-						</div>
-					</div>
-					<div className="flex flex-wrap items-center gap-1">
-						<button
-							type="button"
-							className={`chip ${shelfStatus === "all" ? "is-active" : ""}`}
-							onClick={() => setShelfStatus("all")}
-						>
-							All
-						</button>
-						{STATUS_OPTIONS.map((option) => (
-							<button
-								type="button"
-								key={option.key}
-								className={`chip ${shelfStatus === option.key ? "is-active" : ""}`}
-								onClick={() => setShelfStatus(option.key)}
-							>
-								{option.label}
-							</button>
-						))}
-						<span className="mx-1 h-4 w-px bg-[color-mix(in_srgb,var(--outline)_70%,transparent)]" />
-						{/* biome-ignore lint/a11y/noStaticElementInteractions: hover-out dismiss is a pointer nicety; the menu itself is keyboard-operable via its buttons */}
-						<div
-							className="relative"
-							onMouseLeave={() => setIsCollectionMenuOpen(false)}
-						>
-							<button
-								type="button"
-								className={`chip ${collectionFilter !== null ? "is-active" : ""}`}
-								onClick={() => setIsCollectionMenuOpen((prev) => !prev)}
-							>
-								<Icon name="folder" size={13} className="mr-1" />
-								{collectionFilter !== null
-									? (collections?.find((c) => c.clientKey === collectionFilter)
-											?.name ?? "Collection")
-									: "Collection"}
-							</button>
-							{isCollectionMenuOpen ? (
-								<div className="menu absolute left-0 top-8 z-20">
-									<button
-										type="button"
-										className="menu-item is-checkable"
-										onClick={() => {
-											setIsCollectionMenuOpen(false);
-											setCollectionFilter(null);
-										}}
-									>
-										<span className="menu-check">
-											{collectionFilter === null ? (
-												<Icon name="check" size={12} />
-											) : null}
-										</span>
-										All books
-									</button>
-									{(collections ?? []).map((collection) => (
-										<button
-											type="button"
-											key={collection.clientKey}
-											className="menu-item is-checkable"
-											onClick={() => {
-												setIsCollectionMenuOpen(false);
-												setCollectionFilter(collection.clientKey);
-											}}
-										>
-											<span className="menu-check">
-												{collectionFilter === collection.clientKey ? (
-													<Icon name="check" size={12} />
-												) : null}
-											</span>
-											<span className="min-w-0 flex-1 truncate text-left">
-												{collection.name}
-											</span>
-											<span className="text-xs text-[var(--muted-2)]">
-												{countByCollection.get(collection.clientKey) ?? 0}
-											</span>
-										</button>
-									))}
-									<div className="menu-heading">Manage</div>
-									<button
-										type="button"
-										className="menu-item"
-										onClick={() => {
-											setIsCollectionMenuOpen(false);
-											setIsManageOpen(true);
-										}}
-									>
-										Manage collections…
-									</button>
-								</div>
-							) : null}
-						</div>
-					</div>
+					<LibraryToolbar
+						bookCount={books ? books.length : null}
+						downloadedCount={downloadedIds.size}
+						storageUsage={storageUsage}
+						query={query}
+						onQueryChange={setQuery}
+						sortBy={sortBy}
+						onSortByChange={setSortBy}
+						isSelecting={isSelecting}
+						onToggleSelecting={() =>
+							isSelecting ? exitSelection() : setIsSelecting(true)
+						}
+						bulkStatus={bulkStatus}
+						onDownloadAll={() => void handleDownloadAll()}
+						onRemoveAllDownloads={() => void handleRemoveAllDownloads()}
+						onExportAll={() => void handleExportAll()}
+						onDeleteAllBooks={() => void handleDeleteAllBooks()}
+						shelfStatus={shelfStatus}
+						onShelfStatusChange={setShelfStatus}
+						downloadedOnly={downloadedOnly}
+						onToggleDownloadedOnly={() => setDownloadedOnly((prev) => !prev)}
+						collectionFilter={collectionFilter}
+						onCollectionFilterChange={setCollectionFilter}
+						collections={collections ?? []}
+						countByCollection={countByCollection}
+						onManageCollections={() => setIsManageOpen(true)}
+					/>
 					{isSelecting ? (
 						<div className="surface-soft flex flex-wrap items-center gap-2 px-3 py-2">
 							<span className="text-sm text-[var(--muted)]">
