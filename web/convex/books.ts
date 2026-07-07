@@ -100,6 +100,16 @@ export const attachFiles = mutation({
 	},
 	handler: async (ctx, args) => {
 		await requireBookOwner(ctx, args.bookId);
+		// Bind the keys to this book's own prefix. Without this an owner could
+		// attach another book's key (books/{otherId}/…) and then read that
+		// object via getEpubUrl/getCoverUrls, which only re-check row ownership.
+		const prefix = `books/${args.bookId}/`;
+		if (args.epubKey && args.epubKey !== `${prefix}book.epub`) {
+			throw new Error("epubKey does not belong to this book.");
+		}
+		if (args.coverKey && args.coverKey !== `${prefix}cover`) {
+			throw new Error("coverKey does not belong to this book.");
+		}
 		const now = Date.now();
 		await ctx.db.patch(args.bookId, {
 			...(args.epubKey ? { epubKey: args.epubKey } : {}),

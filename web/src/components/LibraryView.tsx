@@ -175,20 +175,8 @@ export function Library() {
 			return next;
 		});
 	}, []);
-	useEffect(() => {
-		if (!isSelecting) {
-			return;
-		}
-		const handleKey = (event: KeyboardEvent) => {
-			// Escape while a confirm dialog is open belongs to the dialog —
-			// exiting selection too would wipe the user's picks.
-			if (event.key === "Escape" && confirmRequest === null) {
-				exitSelection();
-			}
-		};
-		window.addEventListener("keydown", handleKey);
-		return () => window.removeEventListener("keydown", handleKey);
-	}, [isSelecting, confirmRequest, exitSelection]);
+	// Escape-to-exit-selection is registered below, after the overlay state
+	// (pickerBookIds/editingBookId/isManageOpen) it must defer to is declared.
 
 	// One list-parameterized implementation per bulk operation — the
 	// whole-library and selection paths are thin wrappers, so behavior and
@@ -387,8 +375,16 @@ export function Library() {
 			return;
 		}
 		const remoteIds = new Set(remoteBooks.map((b) => b._id as string));
+		// This run reads a localBooks snapshot; if a seed/download writes a full
+		// row while the loop is mid-flight, `cancelled` stops the stale run from
+		// blindly overwriting it (React can't abort the IIFE), and the insert
+		// below re-reads inside a transaction as a second guard.
+		let cancelled = false;
 		void (async () => {
 			for (const local of localBooks) {
+				if (cancelled) {
+					return;
+				}
 				if (
 					!remoteIds.has(local.bookId) &&
 					Date.now() - local.addedAt > PURGE_GRACE_MS
@@ -402,23 +398,34 @@ export function Library() {
 			}
 			const localById = new Map(localBooks.map((b) => [b.bookId, b]));
 			for (const remote of remoteBooks) {
+				if (cancelled) {
+					return;
+				}
 				const id = remote._id as string;
 				const local = localById.get(id);
 				try {
 					if (!local) {
-						await db.books.put({
-							bookId: id,
-							title: remote.title,
-							author: remote.author ?? undefined,
-							series: remote.series ?? undefined,
-							seriesIndex: remote.seriesIndex ?? undefined,
-							description: remote.description ?? undefined,
-							sourceUrl: remote.sourceUrl ?? undefined,
-							sectionCount: remote.sectionCount ?? 0,
-							// Metadata-only row: blocks arrive via reader cache-fill; the
-							// parser version applies only once blocks exist.
-							parserVersion: "",
-							addedAt: Date.now(),
+						// Insert a metadata-only row only if one still doesn't exist —
+						// a concurrent seed may have written a full row (with blocks +
+						// cover) that a blind put() would demote to content-absent.
+						await db.transaction("rw", db.books, async () => {
+							if (await db.books.get(id)) {
+								return;
+							}
+							await db.books.put({
+								bookId: id,
+								title: remote.title,
+								author: remote.author ?? undefined,
+								series: remote.series ?? undefined,
+								seriesIndex: remote.seriesIndex ?? undefined,
+								description: remote.description ?? undefined,
+								sourceUrl: remote.sourceUrl ?? undefined,
+								sectionCount: remote.sectionCount ?? 0,
+								// Metadata-only row: blocks arrive via reader cache-fill; the
+								// parser version applies only once blocks exist.
+								parserVersion: "",
+								addedAt: Date.now(),
+							});
 						});
 						continue;
 					}
@@ -462,6 +469,9 @@ export function Library() {
 				}
 			}
 		})();
+		return () => {
+			cancelled = true;
+		};
 	}, [remoteBooks, localBooks]);
 
 	// Sweep content rows with no shelf row (interrupted deletes, legacy dev
@@ -627,6 +637,33 @@ export function Library() {
 	const openEditDetails = useCallback((bookId: string) => {
 		setEditingBookId(bookId);
 	}, []);
+
+	// Escape exits multi-select — but only when no overlay is open, so a single
+	// Escape dismissing a dialog doesn't also wipe the user's selection.
+	useEffect(() => {
+		if (!isSelecting) {
+			return;
+		}
+		const handleKey = (event: KeyboardEvent) => {
+			const overlayOpen =
+				confirmRequest !== null ||
+				pickerBookIds !== null ||
+				editingBookId !== null ||
+				isManageOpen;
+			if (event.key === "Escape" && !overlayOpen) {
+				exitSelection();
+			}
+		};
+		window.addEventListener("keydown", handleKey);
+		return () => window.removeEventListener("keydown", handleKey);
+	}, [
+		isSelecting,
+		confirmRequest,
+		pickerBookIds,
+		editingBookId,
+		isManageOpen,
+		exitSelection,
+	]);
 
 	const countByCollection = useMemo(() => {
 		const map = new Map<string, number>();
