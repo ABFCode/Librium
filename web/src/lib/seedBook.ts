@@ -29,5 +29,26 @@ export async function seedBookFromR2(
 		await db.sections.where("bookId").equals(bookId).delete();
 		await db.images.where("bookId").equals(bookId).delete();
 	}
+	// A re-parse refreshes *content*, never identity: the shelf row may carry
+	// user-edited metadata and a replaced cover (server-authoritative, mirrored
+	// locally) that the EPUB's embedded values must not resurrect.
+	const existing = await db.books.get(bookId);
 	await saveImportedBook(payloadToLocalBookInput(bookId, payload));
+	if (existing) {
+		await db.books.update(bookId, {
+			title: existing.title,
+			author: existing.author,
+			series: existing.series,
+			seriesIndex: existing.seriesIndex,
+			description: existing.description,
+			sourceUrl: existing.sourceUrl,
+			...(existing.coverBlob
+				? {
+						coverBlob: existing.coverBlob,
+						coverType: existing.coverType,
+						coverVersion: existing.coverVersion,
+					}
+				: {}),
+		});
+	}
 }

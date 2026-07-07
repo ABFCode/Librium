@@ -7,6 +7,7 @@ import { useStatusSync } from "../hooks/useStatusSync";
 import {
 	db,
 	deleteLocalBook,
+	type LocalBook,
 	purgeOrphanedContent,
 	removeLocalContent,
 } from "../lib/db";
@@ -385,7 +386,6 @@ export function Library() {
 			return;
 		}
 		const remoteIds = new Set(remoteBooks.map((b) => b._id as string));
-		const localIds = new Set(localBooks.map((b) => b.bookId));
 		void (async () => {
 			for (const local of localBooks) {
 				if (
@@ -399,24 +399,65 @@ export function Library() {
 					}
 				}
 			}
+			const localById = new Map(localBooks.map((b) => [b.bookId, b]));
 			for (const remote of remoteBooks) {
-				if (!localIds.has(remote._id as string)) {
-					try {
+				const id = remote._id as string;
+				const local = localById.get(id);
+				try {
+					if (!local) {
 						await db.books.put({
-							bookId: remote._id as string,
+							bookId: id,
 							title: remote.title,
 							author: remote.author ?? undefined,
 							series: remote.series ?? undefined,
 							seriesIndex: remote.seriesIndex ?? undefined,
+							description: remote.description ?? undefined,
+							sourceUrl: remote.sourceUrl ?? undefined,
 							sectionCount: remote.sectionCount ?? 0,
 							// Metadata-only row: blocks arrive via reader cache-fill; the
 							// parser version applies only once blocks exist.
 							parserVersion: "",
 							addedAt: Date.now(),
 						});
-					} catch {
-						// IndexedDB unavailable — shelf still renders from the server.
+						continue;
 					}
+					// Server-authoritative metadata: mirror drifted fields into the
+					// local row (edits land here from this device or any other).
+					const patch: Partial<LocalBook> = {};
+					if (local.title !== remote.title) {
+						patch.title = remote.title;
+					}
+					if ((local.author ?? null) !== (remote.author ?? null)) {
+						patch.author = remote.author ?? undefined;
+					}
+					if ((local.series ?? null) !== (remote.series ?? null)) {
+						patch.series = remote.series ?? undefined;
+					}
+					if ((local.seriesIndex ?? null) !== (remote.seriesIndex ?? null)) {
+						patch.seriesIndex = remote.seriesIndex ?? undefined;
+					}
+					if ((local.description ?? null) !== (remote.description ?? null)) {
+						patch.description = remote.description ?? undefined;
+					}
+					if ((local.sourceUrl ?? null) !== (remote.sourceUrl ?? null)) {
+						patch.sourceUrl = remote.sourceUrl ?? undefined;
+					}
+					// Cover replaced elsewhere: drop the stale blob; the cover
+					// cache-fill below re-fetches and stamps the new version.
+					if (
+						local.coverBlob &&
+						remote.coverUpdatedAt !== undefined &&
+						(local.coverVersion ?? 0) < remote.coverUpdatedAt
+					) {
+						patch.coverBlob = undefined;
+						patch.coverType = undefined;
+						patch.coverVersion = undefined;
+					}
+					if (Object.keys(patch).length > 0) {
+						await db.books.update(id, patch);
+					}
+				} catch {
+					// IndexedDB unavailable — shelf still renders from the server.
 				}
 			}
 		})();
@@ -437,6 +478,11 @@ export function Library() {
 		if (!remoteCoverUrls) {
 			return;
 		}
+		// Stamp the fetched blob with the server's cover version so a later
+		// replacement (coverUpdatedAt bump) is detectable as stale.
+		const coverStampById = new Map(
+			(remoteBooks ?? []).map((b) => [b._id as string, b.coverUpdatedAt]),
+		);
 		let cancelled = false;
 		void (async () => {
 			for (const [bookId, url] of Object.entries(remoteCoverUrls)) {
@@ -456,6 +502,7 @@ export function Library() {
 					await db.books.update(bookId, {
 						coverBlob: blob,
 						coverType: blob.type || undefined,
+						coverVersion: coverStampById.get(bookId),
 					});
 				} catch {
 					// Offline or transient — retried next visit.
@@ -465,7 +512,7 @@ export function Library() {
 		return () => {
 			cancelled = true;
 		};
-	}, [remoteCoverUrls]);
+	}, [remoteCoverUrls, remoteBooks]);
 	const [query, setQuery] = useState("");
 	const [sortBy, setSortBy] = useState<LibrarySort>("recent");
 	const [error, setError] = useState<string | null>(null);
