@@ -100,10 +100,14 @@ export const attachFiles = mutation({
 	},
 	handler: async (ctx, args) => {
 		await requireBookOwner(ctx, args.bookId);
+		const now = Date.now();
 		await ctx.db.patch(args.bookId, {
 			...(args.epubKey ? { epubKey: args.epubKey } : {}),
-			...(args.coverKey ? { coverKey: args.coverKey } : {}),
-			updatedAt: Date.now(),
+			// The cover's R2 key is fixed (books/{id}/cover), so replacing the
+			// image doesn't change coverKey — coverUpdatedAt is what tells other
+			// devices their cached cover blob is stale.
+			...(args.coverKey ? { coverKey: args.coverKey, coverUpdatedAt: now } : {}),
+			updatedAt: now,
 		});
 	},
 });

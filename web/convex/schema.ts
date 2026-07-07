@@ -24,6 +24,10 @@ const books = defineTable({
 	series: v.optional(v.string()),
 	seriesIndex: v.optional(v.string()),
 	subjects: v.optional(v.array(v.string())),
+	description: v.optional(v.string()),
+	// Linked source page (e.g. a NovelUpdates series URL) — set by the user,
+	// used for "Open source page" and page-based metadata fetch.
+	sourceUrl: v.optional(v.string()),
 	identifiers: v.optional(
 		v.array(
 			v.object({
@@ -39,6 +43,9 @@ const books = defineTable({
 	// set by attachFiles once the client upload completes.
 	epubKey: v.optional(v.string()),
 	coverKey: v.optional(v.string()),
+	// Bumped whenever coverKey is (re)attached — the R2 key never changes on
+	// replacement, so this is how other devices detect a stale local cover.
+	coverUpdatedAt: v.optional(v.number()),
 	fileName: v.optional(v.string()),
 	fileSize: v.optional(v.number()),
 	createdAt: v.number(),

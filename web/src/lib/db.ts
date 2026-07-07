@@ -21,6 +21,11 @@ export type LocalBook = {
 	// work offline. Not indexed.
 	series?: string;
 	seriesIndex?: string;
+	description?: string;
+	sourceUrl?: string;
+	// Mirrors the server's coverUpdatedAt for the blob currently cached in
+	// coverBlob — when the server value is newer, the blob is stale.
+	coverVersion?: number;
 };
 
 export type LocalSection = {
