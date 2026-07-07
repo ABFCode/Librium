@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	isNovelUpdatesUrl,
-	parseNovelUpdatesHtml,
-} from "../lib/novelUpdates";
+import { isNovelUpdatesUrl, parseNovelUpdatesHtml } from "../lib/novelUpdates";
 
 const SOURCE = "https://www.novelupdates.com/series/martial-world/";
 
@@ -56,7 +53,10 @@ describe("parseNovelUpdatesHtml", () => {
 	});
 
 	it("falls back to og:description when the description block is absent", () => {
-		const withoutBlock = FIXTURE.replace(/<div id="editdescription">[\s\S]*?<\/div>/, "");
+		const withoutBlock = FIXTURE.replace(
+			/<div id="editdescription">[\s\S]*?<\/div>/,
+			"",
+		);
 		const candidate = parseNovelUpdatesHtml(withoutBlock, SOURCE);
 		expect(candidate.description).toBe("Truncated blurb…");
 	});
