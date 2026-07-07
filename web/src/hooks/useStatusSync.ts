@@ -61,18 +61,19 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 		});
 	}, [remote, local]);
 
-	// Push pass: send dirty rows (fires on edit and on reconnect).
-	const pushingRef = useRef(false);
+	// Push pass: send dirty rows (fires on edit and on reconnect). Passes
+	// serialize on a promise queue — a liveQuery emission landing mid-pass
+	// (e.g. bulk "Mark as" writing row N while row 1 pushes) enqueues another
+	// pass instead of being dropped; each pass re-reads dirty rows from Dexie.
+	const pushQueueRef = useRef<Promise<void>>(Promise.resolve());
 	useEffect(() => {
-		if (!canQuery || !local || pushingRef.current) {
+		if (!canQuery || !local || !local.some((row) => row.dirty)) {
 			return;
 		}
-		const dirtyRows = local.filter((row) => row.dirty);
-		if (dirtyRows.length === 0) {
-			return;
-		}
-		pushingRef.current = true;
-		void (async () => {
+		const pushPass = async () => {
+			const dirtyRows = await db.bookStatus
+				.filter((row) => row.dirty === 1)
+				.toArray();
 			for (const row of dirtyRows) {
 				const editedAt = row.editedAt;
 				try {
@@ -94,9 +95,8 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 					// Offline or transient — retried on the next edit or reconnect.
 				}
 			}
-		})().finally(() => {
-			pushingRef.current = false;
-		});
+		};
+		pushQueueRef.current = pushQueueRef.current.then(pushPass).catch(() => {});
 	}, [canQuery, local, updateStatus]);
 
 	// Effective explicit-status view: remote is authoritative except where an
