@@ -116,6 +116,62 @@ export const updateProgress = mutation({
 	},
 });
 
+export const updateStatus = mutation({
+	args: {
+		bookId: v.id("books"),
+		// null clears the explicit status → the client derives one from progress.
+		status: v.union(
+			v.literal("reading"),
+			v.literal("finished"),
+			v.literal("want"),
+			v.literal("abandoned"),
+			v.null(),
+		),
+		// Client edit time — same LWW convention as updateProgress, but on its
+		// own clock (statusEditedAt): status and progress are edited
+		// independently and must never reject each other's writes.
+		editedAt: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const userId = await requireViewerUserId(ctx);
+		await requireBookOwner(ctx, args.bookId);
+		const existing = await ctx.db
+			.query("userBooks")
+			.withIndex("by_user_book", (q) =>
+				q.eq("userId", userId).eq("bookId", args.bookId),
+			)
+			.first();
+
+		// LWW: reject writes older than what is already recorded.
+		if (
+			existing?.statusEditedAt !== undefined &&
+			args.editedAt !== undefined &&
+			args.editedAt < existing.statusEditedAt
+		) {
+			return existing._id;
+		}
+
+		const now = Date.now();
+		const patch = {
+			status: args.status ?? undefined,
+			statusEditedAt: args.editedAt ?? now,
+			updatedAt: now,
+		};
+
+		if (existing) {
+			await ctx.db.patch(existing._id, patch);
+			return existing._id;
+		}
+
+		return await ctx.db.insert("userBooks", {
+			userId,
+			bookId: args.bookId,
+			lastSectionIndex: 0,
+			...patch,
+		});
+	},
+});
+
 export const listRecentByUser = query({
 	args: {
 		limit: v.optional(v.number()),
@@ -183,6 +239,8 @@ export const listByUser = query({
 				lastSectionIndex: lastIndex,
 				totalSections,
 				progress,
+				status: entry.status ?? null,
+				statusEditedAt: entry.statusEditedAt ?? null,
 				updatedAt: entry.updatedAt,
 			});
 		}

@@ -59,6 +59,18 @@ const userBooks = defineTable({
 	// Client edit time of the progress fields (device clock, same-user devices).
 	// Used to reject stale offline pushes; pull ordering uses updatedAt (server).
 	progressEditedAt: v.optional(v.number()),
+	// Explicit reading status; absent = derived from progress on the client.
+	// Own LWW clock, disjoint from progressEditedAt — status and progress are
+	// edited independently and must never clobber each other.
+	status: v.optional(
+		v.union(
+			v.literal("reading"),
+			v.literal("finished"),
+			v.literal("want"),
+			v.literal("abandoned"),
+		),
+	),
+	statusEditedAt: v.optional(v.number()),
 })
 	.index("by_user_book", ["userId", "bookId"])
 	.index("by_user_updated", ["userId", "updatedAt"])
@@ -74,6 +86,33 @@ const userSettings = defineTable({
 	fontFamily: v.optional(v.string()),
 	updatedAt: v.number(),
 }).index("by_user", ["userId"]);
+
+// User-named book groups (many-to-many via collectionBooks). Same offline
+// sync plane as bookmarks: client-generated clientKey for idempotent offline
+// creates, deletedAt tombstones so deletes propagate across devices.
+const collections = defineTable({
+	userId: v.id("users"),
+	name: v.string(),
+	clientKey: v.string(),
+	createdAt: v.number(),
+	updatedAt: v.number(),
+	deletedAt: v.optional(v.number()),
+	// LWW clock for offline renames (device clock, same-user devices).
+	nameEditedAt: v.optional(v.number()),
+}).index("by_user", ["userId", "updatedAt"]);
+
+const collectionBooks = defineTable({
+	userId: v.id("users"),
+	collectionId: v.id("collections"),
+	bookId: v.id("books"),
+	clientKey: v.string(),
+	createdAt: v.number(),
+	updatedAt: v.number(),
+	deletedAt: v.optional(v.number()),
+})
+	.index("by_user", ["userId", "updatedAt"])
+	.index("by_collection", ["collectionId"])
+	.index("by_book", ["bookId"]);
 
 const bookmarks = defineTable({
 	userId: v.id("users"),
@@ -99,4 +138,6 @@ export default defineSchema({
 	userBooks,
 	userSettings,
 	bookmarks,
+	collections,
+	collectionBooks,
 });
