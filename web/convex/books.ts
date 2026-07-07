@@ -204,6 +204,15 @@ export const deleteBookData = internalMutation({
 		for (const bookmark of bookmarks) {
 			await ctx.db.delete(bookmark._id);
 		}
+		// Hard delete (like bookmarks): other devices purge their local copies
+		// when the membership's convexId vanishes from the remote list.
+		const memberships = await ctx.db
+			.query("collectionBooks")
+			.withIndex("by_book", (q) => q.eq("bookId", args.bookId))
+			.collect();
+		for (const membership of memberships) {
+			await ctx.db.delete(membership._id);
+		}
 		await ctx.db.delete(args.bookId);
 		return { epubKey: book.epubKey, coverKey: book.coverKey };
 	},
