@@ -1,4 +1,5 @@
 import Dexie, { type Table } from "dexie";
+import type { ReadingStatus } from "./status";
 
 // Version of @abfcode/spine that produced the locally stored blocks. Used to
 // detect stale parses once re-parsing from the raw EPUB lands (ROADMAP Phase 5).
@@ -16,6 +17,10 @@ export type LocalBook = {
 	sectionCount: number;
 	parserVersion: string;
 	addedAt: number;
+	// Mirrored from the server row (reconcile cache-fill) so series shelves
+	// work offline. Not indexed.
+	series?: string;
+	seriesIndex?: string;
 };
 
 export type LocalSection = {
@@ -74,6 +79,47 @@ export type LocalProgress = {
 	syncedServerTime: number;
 };
 
+export type LocalBookStatus = {
+	bookId: string;
+	// null = user explicitly chose "automatic" (clears the server field); the
+	// effective shelf status is then derived from progress.
+	status: ReadingStatus | null;
+	// Device wall-clock time of the edit (LWW, same convention as progress).
+	editedAt: number;
+	// 1 = not yet accepted by the server (offline or pending push).
+	dirty: 0 | 1;
+	// Server updatedAt of the last remote state merged into this record.
+	syncedServerTime: number;
+};
+
+export type LocalCollection = {
+	// Client-generated UUID; the stable identity across devices (the server
+	// stores it for idempotent creates and cross-device matching).
+	clientKey: string;
+	name: string;
+	createdAt: number;
+	// Device wall-clock time of the last rename (LWW).
+	nameEditedAt: number;
+	// Tombstone: set on delete; the row is removed once the server confirms.
+	deletedAt?: number;
+	// 1 = create/rename/delete not yet acknowledged by the server.
+	dirty: 0 | 1;
+	convexId?: string;
+};
+
+export type LocalCollectionBook = {
+	clientKey: string;
+	// LocalCollection.clientKey — references the collection by its client
+	// identity so memberships of an offline-created collection work before the
+	// collection has a convexId.
+	collectionKey: string;
+	bookId: string;
+	createdAt: number;
+	deletedAt?: number;
+	dirty: 0 | 1;
+	convexId?: string;
+};
+
 // ── Database ─────────────────────────────────────────────────────────────────
 
 class LibriumDB extends Dexie {
@@ -82,6 +128,9 @@ class LibriumDB extends Dexie {
 	images!: Table<LocalImage, [string, string]>;
 	progress!: Table<LocalProgress, string>;
 	bookmarks!: Table<LocalBookmark, string>;
+	bookStatus!: Table<LocalBookStatus, string>;
+	collections!: Table<LocalCollection, string>;
+	collectionBooks!: Table<LocalCollectionBook, string>;
 
 	constructor() {
 		super("librium");
@@ -95,6 +144,11 @@ class LibriumDB extends Dexie {
 		});
 		this.version(3).stores({
 			bookmarks: "clientKey, bookId",
+		});
+		this.version(4).stores({
+			bookStatus: "bookId",
+			collections: "clientKey",
+			collectionBooks: "clientKey, collectionKey, bookId",
 		});
 	}
 }
@@ -192,17 +246,23 @@ export async function purgeOrphanedContent() {
 export async function deleteLocalBook(bookId: string) {
 	await db.transaction(
 		"rw",
-		db.books,
-		db.sections,
-		db.images,
-		db.progress,
-		db.bookmarks,
+		[
+			db.books,
+			db.sections,
+			db.images,
+			db.progress,
+			db.bookmarks,
+			db.bookStatus,
+			db.collectionBooks,
+		],
 		async () => {
 			await db.books.delete(bookId);
 			await db.sections.where("bookId").equals(bookId).delete();
 			await db.images.where("bookId").equals(bookId).delete();
 			await db.progress.delete(bookId);
 			await db.bookmarks.where("bookId").equals(bookId).delete();
+			await db.bookStatus.delete(bookId);
+			await db.collectionBooks.where("bookId").equals(bookId).delete();
 		},
 	);
 }
