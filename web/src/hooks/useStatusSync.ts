@@ -67,7 +67,7 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 	// pass instead of being dropped; each pass re-reads dirty rows from Dexie.
 	const pushQueueRef = useRef<Promise<void>>(Promise.resolve());
 	useEffect(() => {
-		if (!canQuery || !local || !local.some((row) => row.dirty)) {
+		if (!canQuery || !local?.some((row) => row.dirty)) {
 			return;
 		}
 		const pushPass = async () => {
