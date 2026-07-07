@@ -111,6 +111,10 @@ export const attachFiles = mutation({
 				: {}),
 			updatedAt: now,
 		});
+		// Server time of the cover attach — the client stamps its local blob
+		// with this (not its own clock) so staleness comparisons stay on one
+		// clock.
+		return args.coverKey ? now : null;
 	},
 });
 

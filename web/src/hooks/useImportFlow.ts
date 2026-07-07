@@ -1,9 +1,10 @@
-import { useConvexAuth, useMutation } from "convex/react";
+import { useConvex, useConvexAuth, useMutation } from "convex/react";
 import { useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { saveImportedBook } from "../lib/db";
 import { parseEpubToPayload } from "../lib/epub";
 import { payloadToLocalBookInput } from "../lib/localBook";
+import { uploadBookAsset } from "../lib/uploadBookAsset";
 
 export type QueueStatus = "queued" | "importing" | "done" | "failed";
 
@@ -18,11 +19,10 @@ export type QueueItem = {
 const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
 
 export const useImportFlow = () => {
+	const convex = useConvex();
 	const { isAuthenticated } = useConvexAuth();
 	const registerImport = useMutation(api.books.registerImport);
 	const attachFiles = useMutation(api.books.attachFiles);
-	const generateBookUploadUrl = useMutation(api.books.generateBookUploadUrl);
-	const syncMetadata = useMutation(api.r2.syncMetadata);
 	const [queue, setQueue] = useState<QueueItem[]>([]);
 	const [isDragging, setIsDragging] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -39,26 +39,8 @@ export const useImportFlow = () => {
 	};
 
 	// Direct-to-R2 upload under a structured key (books/{bookId}/…).
-	const uploadToR2 = async (
-		bookId: string,
-		kind: "epub" | "cover",
-		blob: Blob,
-	): Promise<string> => {
-		const { url, key } = await generateBookUploadUrl({
-			bookId: bookId as never,
-			kind,
-		});
-		const res = await fetch(url, {
-			method: "PUT",
-			headers: blob.type ? { "Content-Type": blob.type } : undefined,
-			body: blob,
-		});
-		if (!res.ok) {
-			throw new Error(`Upload failed (${kind})`);
-		}
-		await syncMetadata({ key });
-		return key;
-	};
+	const uploadToR2 = (bookId: string, kind: "epub" | "cover", blob: Blob) =>
+		uploadBookAsset(convex, bookId, kind, blob);
 
 	const importOne = async (file: File) => {
 		const bytes = new Uint8Array(await file.arrayBuffer());

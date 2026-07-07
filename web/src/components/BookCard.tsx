@@ -34,6 +34,7 @@ type BookCardProps = {
 	onSaveEpub: (bookId: string, title: string) => void;
 	onDelete: (bookId: string) => void;
 	onAddToCollection: (bookId: string) => void;
+	onEditDetails: (bookId: string) => void;
 };
 
 // Memoized so a selection toggle or menu open/close re-renders only the
@@ -57,6 +58,7 @@ function BookCardImpl({
 	onSaveEpub,
 	onDelete,
 	onAddToCollection,
+	onEditDetails,
 }: BookCardProps) {
 	const showProgressBadge = progressPercent !== null && progressPercent > 0;
 
@@ -197,6 +199,16 @@ function BookCardImpl({
 								</button>
 							))}
 							<div className="menu-heading">Manage</div>
+							<button
+								type="button"
+								className="menu-item"
+								onClick={() => {
+									onMenuOpenChange(null);
+									onEditDetails(book._id);
+								}}
+							>
+								Edit details…
+							</button>
 							<button
 								type="button"
 								className="menu-item"

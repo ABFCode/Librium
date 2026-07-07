@@ -22,6 +22,7 @@ import {
 import { BookCard, type LibraryBook } from "./BookCard";
 import { CollectionPickerDialog } from "./CollectionPickerDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { type EditableBook, EditBookDialog } from "./EditBookDialog";
 import { type LibrarySort, LibraryToolbar } from "./LibraryToolbar";
 import { ManageCollectionsDialog } from "./ManageCollectionsDialog";
 import { RequireAuth } from "./RequireAuth";
@@ -613,6 +614,20 @@ export function Library() {
 		setPickerBookIds([bookId]);
 	}, []);
 
+	// Edit details: online-only, driven by the full server doc.
+	const [editingBookId, setEditingBookId] = useState<string | null>(null);
+	const editingBook = useMemo(
+		() =>
+			editingBookId
+				? ((remoteBooks?.find((b) => (b._id as string) === editingBookId) ??
+						null) as EditableBook | null)
+				: null,
+		[editingBookId, remoteBooks],
+	);
+	const openEditDetails = useCallback((bookId: string) => {
+		setEditingBookId(bookId);
+	}, []);
+
 	const countByCollection = useMemo(() => {
 		const map = new Map<string, number>();
 		for (const keys of membershipsByBook.values()) {
@@ -832,6 +847,7 @@ export function Library() {
 				explicitStatus={statusByBookId.get(book._id) ?? null}
 				onSetStatus={setStatus}
 				onAddToCollection={openPickerForBook}
+				onEditDetails={openEditDetails}
 				onToggleSelect={toggleSelected}
 				onMenuOpenChange={setOpenMenuId}
 				onDeviceDownload={handleDeviceDownload}
@@ -870,6 +886,13 @@ export function Library() {
 					onRemove={(key, ids) => void removeBooks(key, ids)}
 					onCreate={createCollection}
 					onClose={() => setPickerBookIds(null)}
+				/>
+			) : null}
+			{editingBook ? (
+				<EditBookDialog
+					book={editingBook}
+					coverUrl={coverUrls?.[editingBook._id]}
+					onClose={() => setEditingBookId(null)}
 				/>
 			) : null}
 			{isManageOpen ? (
