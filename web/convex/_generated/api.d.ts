@@ -18,6 +18,7 @@ import type * as collections from "../collections.js";
 import type * as config from "../config.js";
 import type * as http from "../http.js";
 import type * as metadata from "../metadata.js";
+import type * as metadataProviders from "../metadataProviders.js";
 import type * as r2 from "../r2.js";
 import type * as seed from "../seed.js";
 import type * as userBooks from "../userBooks.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   config: typeof config;
   http: typeof http;
   metadata: typeof metadata;
+  metadataProviders: typeof metadataProviders;
   r2: typeof r2;
   seed: typeof seed;
   userBooks: typeof userBooks;

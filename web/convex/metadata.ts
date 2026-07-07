@@ -1,6 +1,13 @@
 import { v } from "convex/values";
-import { mutation } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { action, internalQuery, mutation } from "./_generated/server";
 import { requireBookOwner } from "./authHelpers";
+import {
+	type MetadataCandidate,
+	type ProviderQuery,
+	searchGoogleBooks,
+	searchOpenLibrary,
+} from "./metadataProviders";
 
 // User-edited book metadata. Online-only by design (the books table is
 // server-authoritative); the client mirrors accepted edits into its local
@@ -38,5 +45,59 @@ export const updateBookMetadata = mutation({
 		}
 		patch.updatedAt = Date.now();
 		await ctx.db.patch(bookId, patch);
+	},
+});
+
+// Search keys for provider lookups — ownership-checked so the public action
+// can't be used to probe other users' books.
+export const getSearchKeys = internalQuery({
+	args: {
+		bookId: v.id("books"),
+	},
+	handler: async (ctx, args) => {
+		const { book } = await requireBookOwner(ctx, args.bookId);
+		// Prefer a real ISBN identifier; fall back to any identifier value that
+		// looks like an ISBN-13 once hyphens are stripped.
+		let isbn: string | undefined;
+		for (const identifier of book.identifiers ?? []) {
+			const value = identifier.value.replace(/-/g, "").trim();
+			if (/isbn/i.test(identifier.scheme) && /^\d{9,13}[\dX]?$/i.test(value)) {
+				isbn = value;
+				break;
+			}
+			if (!isbn && /^97[89]\d{10}$/.test(value)) {
+				isbn = value;
+			}
+		}
+		return { isbn, title: book.title, author: book.author ?? undefined };
+	},
+});
+
+/**
+ * User-triggered metadata search across providers. Never applies anything —
+ * the client shows candidates and a per-field diff; the user picks what to
+ * keep and the dialog's Save writes it via updateBookMetadata.
+ */
+export const fetchCandidates = action({
+	args: {
+		bookId: v.id("books"),
+	},
+	handler: async (ctx, args): Promise<MetadataCandidate[]> => {
+		const query: ProviderQuery = await ctx.runQuery(
+			internal.metadata.getSearchKeys,
+			{ bookId: args.bookId },
+		);
+		const searches: Promise<MetadataCandidate[]>[] = [searchOpenLibrary(query)];
+		// Optional provider: silently skipped when the key isn't configured.
+		const googleKey = process.env.GOOGLE_BOOKS_API_KEY;
+		if (googleKey) {
+			searches.push(searchGoogleBooks(query, googleKey));
+		}
+		const settled = await Promise.allSettled(searches);
+		const candidates = settled
+			.flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+			// A candidate with no title can't be matched by eye — drop it.
+			.filter((candidate) => candidate.title);
+		return candidates.slice(0, 8);
 	},
 });
