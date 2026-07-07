@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0 - 2026-07-07
+- **Reading status:** every book has a status — Reading / Want to read / Finished / Abandoned — set from the card menu (re-picking clears back to Automatic) or in bulk via "Mark as" over a selection. Unset books derive their status from progress (untouched → Want to read, started → Reading, ≥99% → Finished). Local-first with LWW sync on its own clock (`statusEditedAt`, disjoint from progress), so status edits work offline and never clobber or get clobbered by progress writes.
+- **Collections:** user-named, many-to-many book groups (a book can live in several) — "Add to collection…" from the card menu or over a bulk selection opens a picker with inline create; a Manage dialog renames/deletes. Fully offline-capable on the bookmark tombstone pattern (idempotent clientKey creates, deletedAt tombstones), with one new rule: memberships reference collections by client key, and pushes send collections first so books added to an offline-created collection sync correctly on reconnect.
+- **Series shelves:** a new "Series" sort groups the library by the EPUB's series metadata, volumes ordered numeric-aware ("Vol 2" before "Vol 10", fractional indexes like "1.5" in place); standalone books trail in one group. Works offline (series fields mirrored into the local shelf rows).
+- **Shelf filters:** a filter row under the header — status tabs, an "On this device" toggle (downloaded-only), and a Collection dropdown — all composable with search and sort, persisted across visits (`library:filters`).
+- **Sync hardening:** push passes now serialize on a promise queue and re-read dirty rows from IndexedDB — a change landing while a push was in flight could previously be dropped, stranding unsynced edits until the next unrelated write.
+- **Library toolbar extracted** (`LibraryToolbar`) — LibraryView had grown past 1,100 lines; the header/filter chrome is now a presentational component.
+- New e2e journey (`library.spec.ts`): status via menu → shelf tabs → collection create/file/filter → reload persistence; browser tests for the collection-sync push ordering, picker dialog, and every new filter.
+
 ## 0.8.1 - 2026-07-06
 - **Adopt Biome:** replaces the absent lint/format setup with Biome 2.5 (recommended rules + type-aware promise-safety rules) as a single dependency; `biome ci` gates CI ahead of the typecheck. One-time reformat + lint fixes across 76 files — missing button `type` attributes, non-null assertions replaced with real narrowing (surfaced one latent type hole in `authHelpers.ts`), module-scoped pure helpers pulled out of `ReaderExperience`, a11y suppressions documented where pointer-only affordances (backdrop click-to-close, hover-out menus) are intentional.
 

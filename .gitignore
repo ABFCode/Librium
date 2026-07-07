@@ -1,6 +1,7 @@
 ### Editors ###
 .idea/
 .vscode/
+.claude/
 *.iws
 *.iml
 *.ipr
