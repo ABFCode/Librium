@@ -11,6 +11,7 @@ import {
 	purgeOrphanedContent,
 	removeLocalContent,
 } from "../lib/db";
+import { rewriteEpubForExport } from "../lib/exportEpub";
 import { bookProgress } from "../lib/progress";
 import { seedBookFromR2 } from "../lib/seedBook";
 import { groupBySeries } from "../lib/series";
@@ -847,7 +848,13 @@ export function Library() {
 				if (!res.ok) {
 					throw new Error("Download failed");
 				}
-				const blob = await res.blob();
+				// Bake the edited metadata (and replaced cover) into the exported
+				// file — falls back to the raw R2 copy if the rewrite can't run.
+				const raw = new Uint8Array(await res.arrayBuffer());
+				const rewritten = await rewriteEpubForExport(raw, bookId);
+				const blob = new Blob([rewritten as BlobPart], {
+					type: "application/epub+zip",
+				});
 				const objectUrl = URL.createObjectURL(blob);
 				const safeTitle =
 					title
