@@ -131,10 +131,13 @@ function BookCardImpl({
 					</div>
 				</div>
 				<div className="book-menu-shell">
+					{/* Click-to-open only. Hover-open + click-toggle raced: the
+					    pointer's own hover opened the menu and the click closed it
+					    again — every touch tap (synthetic mouseenter precedes click)
+					    and the occasional CI run hit it. Hover-out still dismisses. */}
 					<button
 						type="button"
 						className="icon-btn"
-						onMouseEnter={() => onMenuOpenChange(book._id)}
 						onClick={(event) => {
 							event.stopPropagation();
 							onMenuOpenChange(isMenuOpen ? null : book._id);

@@ -11,12 +11,15 @@ Librium is a performance‑focused web app for uploading, managing, and reading 
 
 ## Features (current)
 
-* **Auth:** Email/password sign‑in + sign‑up
-* **Import:** Upload EPUBs, async parsing + ingest
-* **Library:** Covers, title/author, download, delete
-* **Reader:** TOC, next/prev, arrow keys, bookmarks, search
-* **Reader prefs:** Font size, line height, content width, theme
-* **Progress:** Remembers last section + scroll position
+* **Local-first reading:** every read is a local IndexedDB read; offline is a first-class mode; R2 holds the master EPUBs for durability and device seeding
+* **Import:** bulk EPUB upload, parsed in a Web Worker in the browser ([`@abfcode/spine`](https://www.npmjs.com/package/@abfcode/spine)); no parser service
+* **Library:** covers, search, sort (incl. series shelves), status shelves (Reading / Want to / Finished / Abandoned), collections, multi-select bulk actions, per-device download management
+* **Reader:** TOC/search/bookmarks drawer, whole-book search, chapter-turn nav at content end, page-turn margins on desktop, inline images (paper-backed in dark themes), position anchors that survive font/layout changes
+* **Reader prefs:** font family/size, line height, content width, night/sepia/paper themes
+* **Metadata:** edit any book's identity; fetch from Open Library / Google Books; NovelUpdates linking with a one-paste companion extension (`extension/`) that clips page + cover past Cloudflare
+* **Export:** EPUBs come back out with your edited metadata and cover baked in (spine writer)
+* **Sync:** progress, bookmarks, status, and collections sync near-realtime across devices (LWW + tombstones); works offline, reconciles on reconnect
+* **PWA:** installable, offline app shell, persistent-storage request so iOS doesn't evict the library
 
 ## Quick start (dev)
 
