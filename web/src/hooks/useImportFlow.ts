@@ -2,7 +2,7 @@ import { useConvex, useConvexAuth, useMutation } from "convex/react";
 import { useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { db, saveImportedBook } from "../lib/db";
-import { parseEpubToPayload } from "../lib/epub";
+import { parseEpubOffThread } from "../lib/parseEpubOffThread";
 import { payloadToLocalBookInput } from "../lib/localBook";
 import { uploadBookAsset } from "../lib/uploadBookAsset";
 
@@ -45,8 +45,9 @@ export const useImportFlow = () => {
 	const importOne = async (file: File) => {
 		const bytes = new Uint8Array(await file.arrayBuffer());
 
-		// Parse entirely in the browser (native DOMParser + fflate).
-		const payload = parseEpubToPayload(bytes);
+		// Parse entirely in the browser, off the main thread — a 2,000-chapter
+		// webnovel no longer freezes the import UI.
+		const payload = await parseEpubOffThread(bytes);
 		const m = payload.metadata;
 
 		// Register metadata first — the book exists (and is readable locally,

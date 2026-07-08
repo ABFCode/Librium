@@ -1,7 +1,7 @@
 import type { ConvexReactClient } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { db, type LocalBook, saveImportedBook } from "./db";
-import { parseEpubToPayload } from "./epub";
+import { parseEpubOffThread } from "./parseEpubOffThread";
 import { payloadToLocalBookInput } from "./localBook";
 
 // The identity fields a re-parse must NOT overwrite — user-edited metadata and
@@ -46,7 +46,7 @@ export async function seedBookFromR2(
 		throw new Error("EPUB download failed");
 	}
 	const bytes = new Uint8Array(await res.arrayBuffer());
-	const payload = parseEpubToPayload(bytes);
+	const payload = await parseEpubOffThread(bytes);
 	if (opts?.replace) {
 		// Replacing a stale parse wholesale — section counts may differ.
 		await db.sections.where("bookId").equals(bookId).delete();

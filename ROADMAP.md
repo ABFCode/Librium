@@ -162,8 +162,10 @@ at current library size.
   testing, mobile parse performance).
 - Highlights + notes (ride the Phase 4 sync layer when added).
 - One-click full export (books + progress as a zip) — durability escape hatch.
-- Web Worker parsing (blocked on `DOMParser` in workers; needs a pure-JS DOM in
-  `@abfcode/spine`). Import freeze of a few seconds is acceptable meanwhile.
+- ~~Web Worker parsing~~ — done (spine 0.4.0 removed the DOMParser dependency;
+  Librium parses imports/seeding in a module worker since the spine 0.8.0
+  upgrade).
 - More formats (MOBI/AZW3/FB2) in `@abfcode/spine` — grows the OSS library and
   the reader together.
-- `@abfcode/spine` OSS hygiene: LICENSE file, CI, golden-fixture test corpus.
+- ~~`@abfcode/spine` OSS hygiene~~ — done upstream (LICENSE, CI matrix incl.
+  epubcheck, golden corpus shipped in spine 0.2–0.8).

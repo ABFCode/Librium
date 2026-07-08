@@ -27,11 +27,20 @@ test("sign up, import, read, restore, search", async ({ page }) => {
 	await page.waitForURL("**/library", { timeout: 20_000 });
 
 	// ── Import the fixture EPUB ────────────────────────────────────────────
+	// Worker proof: the parse must run in the module worker. The main-thread
+	// fallback logs a distinctive marker — its appearance in a real
+	// Vite-served browser means the worker chunk is broken.
+	const workerFallbacks: string[] = [];
+	page.on("console", (message) => {
+		if (message.text().includes("[librium] parse worker unavailable")) {
+			workerFallbacks.push(message.text());
+		}
+	});
 	await page.goto("/import");
 	await page.locator('input[type="file"][accept*="epub"]').setInputFiles({
 		name: "e2e-fixture.epub",
 		mimeType: "application/epub+zip",
-		buffer: buildFixtureEpub(),
+		buffer: Buffer.from(buildFixtureEpub()),
 	});
 	await page.getByRole("button", { name: /Import 1 book/ }).click();
 	// Local-first: "Failed" here means only the R2 backup failed (no
@@ -39,6 +48,7 @@ test("sign up, import, read, restore, search", async ({ page }) => {
 	await expect(page.locator(".queue-status")).toHaveText(/Ready|Failed/, {
 		timeout: 30_000,
 	});
+	expect(workerFallbacks).toEqual([]);
 
 	// ── Open and read ──────────────────────────────────────────────────────
 	await page.goto("/library");

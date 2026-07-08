@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useConvex, useConvexAuth, useQuery } from "convex/react";
 import { useLiveQuery } from "dexie-react-hooks";
-import type { CSSProperties, JSX } from "react";
+import type { CSSProperties, JSX, ReactNode } from "react";
 import {
 	useCallback,
 	useEffect,
@@ -126,6 +126,19 @@ function resolveInternalSectionId(
 	}
 	if (!link && baseHref) {
 		link = baseHref;
+	}
+	// spine ≥0.6 pre-resolves inline hrefs to archive-relative paths — try the
+	// direct match first, and only fall back to treating the path as relative
+	// to the current section (how pre-0.6 stored blocks encode links).
+	const directBase = normalizeHref(link);
+	const directAnchor = normalizeAnchor(anchor);
+	if (directBase) {
+		const direct =
+			(directAnchor ? index.get(`${directBase}#${directAnchor}`) : undefined) ??
+			index.get(directBase);
+		if (direct) {
+			return direct;
+		}
 	}
 	link = resolveRelativePath(baseHref ?? "", link);
 	const baseKey = normalizeHref(link);
@@ -937,6 +950,22 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		}
 	};
 
+	// spine ≥0.7: styling is orthogonal to structure — combinable emph/strong/
+	// code flags on any inline (so <strong><em>x</em></strong> keeps both).
+	const wrapInlineStyles = (inline: InlinePayload, node: ReactNode) => {
+		let out = node;
+		if (inline.code) {
+			out = <code>{out}</code>;
+		}
+		if (inline.emph) {
+			out = <em>{out}</em>;
+		}
+		if (inline.strong) {
+			out = <strong>{out}</strong>;
+		}
+		return out;
+	};
+
 	const renderInlines = (inlines?: InlinePayload[], keyPrefix = "inline") => {
 		if (!inlines || inlines.length === 0) {
 			return null;
@@ -944,6 +973,8 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		return inlines.map((inline, index) => {
 			const key = `${keyPrefix}-${index}`;
 			switch (inline.kind) {
+				// "emphasis"/"strong"/"code" kinds only exist in blocks parsed by
+				// spine <0.7 (still on disk until the book re-parses).
 				case "emphasis":
 					return <em key={key}>{inline.text}</em>;
 				case "strong":
@@ -979,7 +1010,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 								}
 							}}
 						>
-							{inline.text}
+							{wrapInlineStyles(inline, inline.text)}
 						</a>
 					);
 				}
@@ -1012,7 +1043,8 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 				case "code":
 					return <code key={key}>{inline.text}</code>;
 				default:
-					return <span key={key}>{inline.text}</span>;
+					// "text" runs carry the style flags; plain text passes through.
+					return <span key={key}>{wrapInlineStyles(inline, inline.text)}</span>;
 			}
 		});
 	};

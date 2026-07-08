@@ -1,10 +1,12 @@
+import { VERSION as SPINE_VERSION } from "@abfcode/spine";
 import Dexie, { type Table } from "dexie";
 import type { ReadingStatus } from "./status";
 
-// Version of @abfcode/spine that produced the locally stored blocks. Used to
-// detect stale parses once re-parsing from the raw EPUB lands (ROADMAP Phase 5).
-// Keep in sync with the dependency version in package.json.
-export const PARSER_VERSION = "0.1.1";
+// Version of @abfcode/spine that produced the locally stored blocks — taken
+// from the library itself (spine ≥0.5 exports VERSION for exactly this), so
+// every dependency bump automatically invalidates local parses and books
+// re-parse from their raw EPUBs on next open.
+export const PARSER_VERSION = SPINE_VERSION;
 
 // ── Row types ────────────────────────────────────────────────────────────────
 

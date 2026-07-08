@@ -13,7 +13,7 @@ const importBook = async (page: Page, title: string) => {
 	await page.locator('input[type="file"][accept*="epub"]').setInputFiles({
 		name: `${title}.epub`,
 		mimeType: "application/epub+zip",
-		buffer: buildFixtureEpub(title),
+		buffer: Buffer.from(buildFixtureEpub(title)),
 	});
 	await page.getByRole("button", { name: /Import 1 book/ }).click();
 	await expect(page.locator(".queue-status")).toHaveText(/Ready|Failed/, {

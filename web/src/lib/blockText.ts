@@ -11,6 +11,7 @@ export type InlinePayload = {
 	height?: number;
 	emph?: boolean;
 	strong?: boolean;
+	code?: boolean;
 };
 
 export type TableCellPayload = {
@@ -40,7 +41,8 @@ export type BlockPayload = {
 
 export function inlineToText(inline: InlinePayload) {
 	if (inline.kind === "image") {
-		return inline.alt ?? "";
+		// Padded so alt text can't fuse with the surrounding runs when joined.
+		return inline.alt ? ` ${inline.alt} ` : "";
 	}
 	return inline.text ?? "";
 }
@@ -49,7 +51,13 @@ export function inlinesToText(inlines?: InlinePayload[]) {
 	if (!inlines || inlines.length === 0) {
 		return "";
 	}
-	return inlines.map(inlineToText).join(" ").trim();
+	// Text runs carry their own separator spaces (spine ≥0.1.1) — joining with
+	// " " would put gaps around every styled run: "(<i>sic</i>)" → "( sic )".
+	return inlines
+		.map(inlineToText)
+		.join("")
+		.replace(/ {2,}/g, " ")
+		.trim();
 }
 
 export function blockToText(block: BlockPayload) {

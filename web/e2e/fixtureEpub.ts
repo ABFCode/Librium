@@ -67,5 +67,6 @@ export function buildFixtureEpub(title = "E2E Fixture") {
 	for (const [id, heading, body] of chapters) {
 		files[`OEBPS/${id}.xhtml`] = strToU8(chapter(heading, body));
 	}
-	return Buffer.from(zipSync(files));
+	// Uint8Array so browser tests can use it too; Node callers wrap in Buffer.
+	return zipSync(files);
 }

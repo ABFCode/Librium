@@ -3,7 +3,7 @@
 // Produces the same JSON contract the Go service produced.
 
 import type { Block, Book, Inline, TOCItem } from "@abfcode/spine";
-import { parse, posixClean, posixDir, posixJoin } from "@abfcode/spine";
+import { parse, posixClean } from "@abfcode/spine";
 
 const CHUNKING = { mode: "size" as const, maxChars: 2000 };
 
@@ -81,22 +81,17 @@ function normalizeHrefPath(href: string): string {
 	return clean === "." ? "" : clean;
 }
 
-function resolveResourceHref(baseHref: string, src: string): string {
-	const clean0 = src.trim();
-	const lower = clean0.toLowerCase();
-	if (
+// spine ≥0.6 resolves internal srcs to archive-relative paths (directly
+// usable with openResource) and passes external URLs through untouched —
+// so the only job left here is telling the two apart.
+function isExternalSrc(src: string): boolean {
+	const lower = src.trim().toLowerCase();
+	return (
 		lower.startsWith("http://") ||
 		lower.startsWith("https://") ||
 		lower.startsWith("data:") ||
 		lower.startsWith("//")
-	) {
-		return "";
-	}
-	let clean = clean0.split("#")[0].split("?")[0];
-	clean = clean.replace(/^\.\//, "").replace(/^\//, "");
-	if (baseHref) clean = posixJoin(posixDir(baseHref), clean);
-	clean = posixClean(clean);
-	return clean === "." ? "" : clean;
+	);
 }
 
 function flattenTOC(
@@ -156,19 +151,17 @@ function buildSections(book: Book): SectionInfo[] {
 
 function convertInlines(
 	inlines: Inline[],
-	baseHref: string,
 	book: Book,
 	images: Map<string, ImagePayload>,
 ): Inline[] {
 	return inlines.map((inline) => {
 		if (inline.kind !== "image") return inline;
-		const resolved = resolveResourceHref(baseHref, inline.src ?? "");
-		if (!resolved) return inline;
-		ensureImage(book, resolved, images);
-		const meta = images.get(resolved);
+		const src = inline.src ?? "";
+		if (!src || isExternalSrc(src)) return inline;
+		ensureImage(book, src, images);
+		const meta = images.get(src);
 		return {
 			...inline,
-			src: resolved,
 			width: meta?.width,
 			height: meta?.height,
 		};
@@ -177,27 +170,25 @@ function convertInlines(
 
 function convertBlock(
 	block: Block,
-	baseHref: string,
 	book: Book,
 	images: Map<string, ImagePayload>,
 ): Block {
 	const out: Block = { ...block };
-	if (block.inlines)
-		out.inlines = convertInlines(block.inlines, baseHref, book, images);
+	if (block.inlines) out.inlines = convertInlines(block.inlines, book, images);
 	if (block.table) {
 		out.table = {
 			rows: block.table.rows.map((r) => ({
 				cells: r.cells.map((c) => ({
 					...c,
-					inlines: convertInlines(c.inlines, baseHref, book, images),
+					inlines: convertInlines(c.inlines, book, images),
 				})),
 			})),
 		};
 	}
 	if (block.figure) {
 		out.figure = {
-			images: convertInlines(block.figure.images, baseHref, book, images),
-			caption: convertInlines(block.figure.caption, baseHref, book, images),
+			images: convertInlines(block.figure.images, book, images),
+			caption: convertInlines(block.figure.caption, book, images),
 		};
 	}
 	return out;
@@ -231,22 +222,16 @@ function buildSectionBlocks(
 		sectionIndex: number;
 		spineIndex: number;
 		blockIndex: number;
-		baseHref: string;
 	}
 	const targets: Target[] = [];
 	for (const section of sections) {
 		if (section.anchorHref) {
 			const ref = book.resolveAnchor(section.anchorHref);
 			if (ref) {
-				const baseHref =
-					ref.spineIndex >= 0 && ref.spineIndex < book.spine.length
-						? normalizeHrefPath(book.spine[ref.spineIndex].href)
-						: "";
 				targets.push({
 					sectionIndex: section.orderIndex,
 					spineIndex: ref.spineIndex,
 					blockIndex: ref.blockIndex,
-					baseHref,
 				});
 				continue;
 			}
@@ -258,7 +243,6 @@ function buildSectionBlocks(
 					sectionIndex: section.orderIndex,
 					spineIndex: idx,
 					blockIndex: 0,
-					baseHref: normalizeHrefPath(section.href),
 				});
 			}
 		}
@@ -293,9 +277,7 @@ function buildSectionBlocks(
 			}
 			if (end < start) end = start;
 			const slice = blocks.slice(start, end);
-			const payloadBlocks = slice.map((b) =>
-				convertBlock(b, target.baseHref, book, images),
-			);
+			const payloadBlocks = slice.map((b) => convertBlock(b, book, images));
 			if (payloadBlocks.length > 0)
 				sectionBlocksMap.set(target.sectionIndex, payloadBlocks);
 		}

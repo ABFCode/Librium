@@ -2,17 +2,29 @@ import { describe, expect, it } from "vitest";
 import { blockToText, inlinesToText } from "../lib/blockText";
 
 describe("blockToText", () => {
-	it("joins paragraph inlines with spaces", () => {
+	it("respects the runs' own spacing without injecting gaps", () => {
+		// Inline runs carry their own separator spaces (spine ≥0.1.1)…
 		expect(
 			blockToText({
 				kind: "paragraph",
 				inlines: [
-					{ kind: "text", text: "what" },
-					{ kind: "emphasis", text: "are" },
-					{ kind: "text", text: "you" },
+					{ kind: "text", text: "what " },
+					{ kind: "text", text: "are", emph: true },
+					{ kind: "text", text: " you" },
 				],
 			}),
 		).toBe("what are you");
+		// …so a styled run inside punctuation must not grow spaces around it.
+		expect(
+			blockToText({
+				kind: "paragraph",
+				inlines: [
+					{ kind: "text", text: "(" },
+					{ kind: "text", text: "sic", emph: true },
+					{ kind: "text", text: ")" },
+				],
+			}),
+		).toBe("(sic)");
 	});
 
 	it("uses image alt text", () => {

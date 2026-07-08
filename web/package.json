@@ -16,7 +16,7 @@
 		"test:e2e:ui": "playwright test --ui"
 	},
 	"dependencies": {
-		"@abfcode/spine": "^0.1.1",
+		"@abfcode/spine": "^0.8.0",
 		"@convex-dev/better-auth": "^0.12.5",
 		"@convex-dev/r2": "^0.10.2",
 		"@fontsource-variable/fraunces": "^5.2.9",

@@ -32,7 +32,7 @@ test("edit details updates the shelf and survives a re-download", async ({
 	await page.locator('input[type="file"][accept*="epub"]').setInputFiles({
 		name: "e2e-fixture.epub",
 		mimeType: "application/epub+zip",
-		buffer: buildFixtureEpub(),
+		buffer: Buffer.from(buildFixtureEpub()),
 	});
 	await page.getByRole("button", { name: /Import 1 book/ }).click();
 	await expect(page.locator(".queue-status")).toHaveText(/Ready|Failed/, {
