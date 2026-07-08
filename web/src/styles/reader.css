@@ -61,6 +61,15 @@
 		pointer-events: auto;
 	}
 
+	/* The topbar grows with 44px coarse-pointer icon buttons — keep the
+	   drawer anchored below it instead of overlapping its bottom edge. */
+	@media (pointer: coarse) {
+		.reader-drawer {
+			top: 66px;
+			max-height: min(72vh, calc(100dvh - 82px));
+		}
+	}
+
 	/* Dim the page on small screens only — on desktop the panel coexists
      with the text instead of interrupting it. */
 	.reader-drawer-backdrop {

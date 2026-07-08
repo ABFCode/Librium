@@ -112,7 +112,9 @@ const collections = defineTable({
 	deletedAt: v.optional(v.number()),
 	// LWW clock for offline renames (device clock, same-user devices).
 	nameEditedAt: v.optional(v.number()),
-}).index("by_user", ["userId", "updatedAt"]);
+})
+	.index("by_user", ["userId", "updatedAt"])
+	.index("by_deleted", ["deletedAt"]);
 
 const collectionBooks = defineTable({
 	userId: v.id("users"),
@@ -125,7 +127,8 @@ const collectionBooks = defineTable({
 })
 	.index("by_user", ["userId", "updatedAt"])
 	.index("by_collection", ["collectionId"])
-	.index("by_book", ["bookId"]);
+	.index("by_book", ["bookId"])
+	.index("by_deleted", ["deletedAt"]);
 
 const bookmarks = defineTable({
 	userId: v.id("users"),
@@ -143,7 +146,9 @@ const bookmarks = defineTable({
 	deletedAt: v.optional(v.number()),
 })
 	.index("by_user_book", ["userId", "bookId"])
-	.index("by_book", ["bookId"]);
+	.index("by_book", ["bookId"])
+	// For the compaction cron: range over tombstones without a table scan.
+	.index("by_deleted", ["deletedAt"]);
 
 export default defineSchema({
 	users,

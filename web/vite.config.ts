@@ -30,7 +30,7 @@ const config = defineConfig({
 		VitePWA({
 			registerType: "autoUpdate",
 			workbox: {
-				globPatterns: ["**/*.{js,css,html,svg,ico,woff,woff2}"],
+				globPatterns: ["**/*.{js,css,html,svg,ico,png,woff,woff2}"],
 				navigateFallback: "/index.html",
 			},
 			manifest: {

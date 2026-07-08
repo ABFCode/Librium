@@ -45,11 +45,32 @@ describe("rewriteEpubBytes", () => {
 		);
 	});
 
-	it("leaves untouched fields as the source wrote them", () => {
+	it("treats the given metadata as the whole identity — absent fields clear", () => {
+		// The local row mirrors identity; a field the user cleared is absent
+		// here and must NOT survive from the source file.
 		const out = rewriteEpubBytes(buildFixtureEpub("Kept Title"), {});
 		const payload = parseEpubToPayload(out);
+		// Title never clears (the editor blocks empty titles) — source kept.
 		expect(payload.metadata.title).toBe("Kept Title");
-		expect(payload.metadata.authors).toEqual(["E2E"]);
+		expect(payload.metadata.authors).toEqual([]);
+	});
+
+	it("re-exports its own output without losing the cover replacement", () => {
+		// The writer relocates covers to its default path; a second export used
+		// to collide there (duplicate_href) and silently fall back to raw.
+		const first = rewriteEpubBytes(
+			buildFixtureEpub("Round Trip"),
+			{ title: "Round Trip" },
+			{ bytes: DOT_PNG, mediaType: "image/png" },
+		);
+		const second = rewriteEpubBytes(
+			first,
+			{ title: "Round Trip 2" },
+			{ bytes: DOT_PNG, mediaType: "image/png" },
+		);
+		const payload = parseEpubToPayload(second);
+		expect(payload.metadata.title).toBe("Round Trip 2");
+		expect(payload.cover?.bytes.length).toBe(DOT_PNG.length);
 	});
 
 	it.skipIf(!existsSync(TESTBOOKS_DIR))(

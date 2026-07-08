@@ -38,17 +38,33 @@ type WorkerResult =
 	| { ok: true; bytes: Uint8Array }
 	| { ok: false; error: string };
 
+// In-page rewrite, lazily loaded so spine's writer never weighs down the
+// main bundle — the fallback when module workers can't run here.
+function rewriteInPage(
+	bytes: Uint8Array,
+	metadata: ExportMetadata,
+	cover?: ExportCover,
+): Promise<Uint8Array> {
+	return import("./rewriteEpubCore").then(({ rewriteEpubBytes }) =>
+		rewriteEpubBytes(bytes, metadata, cover),
+	);
+}
+
 function rewriteInWorker(
 	bytes: Uint8Array,
 	metadata: ExportMetadata,
 	cover?: ExportCover,
 ): Promise<Uint8Array> {
-	const worker = new Worker(
-		new URL("./rewriteEpub.worker.ts", import.meta.url),
-		{
+	let worker: Worker;
+	try {
+		worker = new Worker(new URL("./rewriteEpub.worker.ts", import.meta.url), {
 			type: "module",
-		},
-	);
+		});
+	} catch {
+		// Synchronous construction failure (no module-worker support) — same
+		// fallback as the async onerror path below.
+		return rewriteInPage(bytes, metadata, cover);
+	}
 	return new Promise((resolve, reject) => {
 		worker.onmessage = (event: MessageEvent<WorkerResult>) => {
 			worker.terminate();
@@ -60,12 +76,8 @@ function rewriteInWorker(
 		};
 		worker.onerror = () => {
 			worker.terminate();
-			// Worker chunk unavailable — rewrite in-page instead (lazy import).
-			void import("./rewriteEpubCore")
-				.then(({ rewriteEpubBytes }) =>
-					resolve(rewriteEpubBytes(bytes, metadata, cover)),
-				)
-				.catch(reject);
+			// Worker chunk unavailable — rewrite in-page instead.
+			rewriteInPage(bytes, metadata, cover).then(resolve, reject);
 		};
 		worker.postMessage({ bytes, metadata, cover });
 	});

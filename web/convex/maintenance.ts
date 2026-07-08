@@ -23,13 +23,13 @@ export const compactTombstones = internalMutation({
 			"collections",
 			"collectionBooks",
 		] as const) {
+			// Indexed range: rows without deletedAt sort before all numbers in
+			// the index, so gt(0) skips the living and the scan reads only actual
+			// expired tombstones — no full-table scan, no read-ceiling risk.
 			const expired = await ctx.db
 				.query(table)
-				.filter((q) =>
-					q.and(
-						q.neq(q.field("deletedAt"), undefined),
-						q.lt(q.field("deletedAt"), horizon),
-					),
+				.withIndex("by_deleted", (q) =>
+					q.gt("deletedAt", 0).lt("deletedAt", horizon),
 				)
 				.take(BATCH);
 			for (const doc of expired) {

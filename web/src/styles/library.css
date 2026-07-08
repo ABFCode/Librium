@@ -59,6 +59,15 @@
 		min-height: 40px;
 	}
 
+	/* Icon buttons grow to 44px on coarse pointers (components.css) — the
+	   title/author column must cede the extra width or the button overlaps. */
+	@media (pointer: coarse) {
+		.book-meta {
+			padding-right: 48px;
+			min-height: 48px;
+		}
+	}
+
 	.book-text {
 		display: flex;
 		flex-direction: column;

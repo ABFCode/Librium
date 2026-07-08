@@ -26,33 +26,57 @@ export function rewriteEpubBytes(
 	cover?: ExportCover,
 ): Uint8Array {
 	const spec = bookToSpec(parse(bytes));
-	// bookToSpec fills the *refined* fields (titles[], structured authors,
-	// descriptions[]) and the writer prefers those — an override must replace
-	// both layers or the source values win.
+	// The local book row mirrors the book's full identity (import fills it,
+	// edits update it, clears empty it) — so an absent field here means the
+	// user CLEARED it, and the override removes the source value rather than
+	// letting it survive into the export. Keep this field list in sync with
+	// seedBook.ts's bookIdentityPatch (the re-seed side of the same identity).
+	//
+	// bookToSpec also fills the *refined* fields (titles[], structured
+	// authors, descriptions[], belongs-to-collection) and the writer prefers
+	// those — every override must replace both layers or the source wins.
 	if (metadata.title?.trim()) {
+		// Title never clears (the editor blocks empty titles).
 		spec.metadata.title = metadata.title.trim();
 		spec.metadata.titles = [{ value: metadata.title.trim(), type: "main" }];
 	}
-	if (metadata.author?.trim()) {
-		// Librium stores one display string; keep it as a single creator rather
-		// than guessing at how to split it.
-		spec.metadata.authors = [metadata.author.trim()];
-	}
-	if (metadata.description?.trim()) {
-		spec.metadata.description = metadata.description.trim();
-		spec.metadata.descriptions = [metadata.description.trim()];
-	}
-	if (metadata.series?.trim()) {
-		spec.metadata.series = {
-			name: metadata.series.trim(),
-			...(metadata.seriesIndex?.trim()
-				? { index: metadata.seriesIndex.trim() }
-				: {}),
-		};
-		// The refined belongs-to-collection entries would shadow the override.
-		spec.metadata.collections = undefined;
-	}
+	// Librium stores one display string; keep it as a single creator rather
+	// than guessing at how to split it.
+	spec.metadata.authors = metadata.author?.trim()
+		? [metadata.author.trim()]
+		: undefined;
+	spec.metadata.description = metadata.description?.trim() || undefined;
+	spec.metadata.descriptions = metadata.description?.trim()
+		? [metadata.description.trim()]
+		: undefined;
+	spec.metadata.series = metadata.series?.trim()
+		? {
+				name: metadata.series.trim(),
+				...(metadata.seriesIndex?.trim()
+					? { index: metadata.seriesIndex.trim() }
+					: {}),
+			}
+		: undefined;
+	spec.metadata.collections = undefined;
 	if (cover && cover.bytes.length > 0) {
+		// Drop the source cover from resources: leaving it would ship a stale
+		// image AND collide with the writer's default cover path whenever the
+		// source cover already lives there — true for any file this exporter
+		// previously produced — making writeEpub throw duplicate_href and the
+		// whole rewrite silently fall back to the raw copy. Also clear the
+		// default target path in case an unrelated resource occupies it.
+		const ext =
+			cover.mediaType === "image/png"
+				? "png"
+				: cover.mediaType === "image/gif"
+					? "gif"
+					: "jpg";
+		const stale = new Set(
+			[spec.cover?.href, `images/cover.${ext}`].filter(Boolean),
+		);
+		if (spec.resources) {
+			spec.resources = spec.resources.filter((r) => !stale.has(r.href));
+		}
 		spec.cover = { bytes: cover.bytes, mediaType: cover.mediaType };
 	}
 	return writeEpub(spec);
