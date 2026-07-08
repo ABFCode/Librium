@@ -1,6 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import type { LocalCollection } from "../lib/db";
+import {
+	canPromptInstall,
+	isIosInstallCandidate,
+	promptInstall,
+	subscribeInstallPrompt,
+} from "../lib/pwa";
 import { type ReadingStatus, STATUS_OPTIONS } from "../lib/status";
 import { Icon } from "./Icon";
 
@@ -80,6 +86,13 @@ export function LibraryToolbar({
 	onManageCollections,
 }: LibraryToolbarProps) {
 	const [isBulkMenuOpen, setIsBulkMenuOpen] = useState(false);
+	// Install affordances: Chromium exposes a real prompt; iOS only has the
+	// manual Share-sheet path, surfaced as a hint.
+	const installReady = useSyncExternalStore(
+		subscribeInstallPrompt,
+		canPromptInstall,
+		() => false,
+	);
 	const [isCollectionMenuOpen, setIsCollectionMenuOpen] = useState(false);
 
 	return (
@@ -190,6 +203,23 @@ export function LibraryToolbar({
 								>
 									Delete all books…
 								</button>
+								{installReady ? (
+									<button
+										type="button"
+										className="menu-item"
+										onClick={() => {
+											setIsBulkMenuOpen(false);
+											void promptInstall();
+										}}
+										title="Install Librium as an app on this device"
+									>
+										Install app
+									</button>
+								) : isIosInstallCandidate() ? (
+									<div className="menu-item pointer-events-none text-[var(--muted-2)]">
+										Install: Share → Add to Home Screen
+									</div>
+								) : null}
 							</div>
 						) : null}
 					</div>

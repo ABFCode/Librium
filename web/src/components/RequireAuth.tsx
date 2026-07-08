@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useConvexAuth } from "convex/react";
 import { useEffect, useState } from "react";
+import { ensurePersistentStorage } from "../lib/pwa";
 
 // Remembers that this device was signed in, so local-first content can render
 // while offline (Convex cannot confirm auth without a connection). Cleared on
@@ -42,6 +43,9 @@ export const RequireAuth = ({ children }: RequireAuthProps) => {
 	useEffect(() => {
 		if (isAuthenticated) {
 			window.localStorage.setItem(WAS_AUTHENTICATED_KEY, "true");
+			// The library lives in IndexedDB — ask the browser not to evict it
+			// (Safari purges site data after ~7 idle days without this).
+			ensurePersistentStorage();
 		}
 	}, [isAuthenticated]);
 

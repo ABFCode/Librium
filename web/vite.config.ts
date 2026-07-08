@@ -48,6 +48,16 @@ const config = defineConfig({
 						type: "image/svg+xml",
 						purpose: "any",
 					},
+					// PNG fallbacks: Android install prompts require 192/512, and a
+					// padded maskable variant keeps the mark inside adaptive shapes.
+					{ src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+					{ src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+					{
+						src: "/icon-512-maskable.png",
+						sizes: "512x512",
+						type: "image/png",
+						purpose: "maskable",
+					},
 				],
 			},
 		}),
