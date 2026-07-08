@@ -227,6 +227,68 @@
 		border-top: 1px solid color-mix(in srgb, var(--outline) 90%, transparent);
 	}
 
+	/* Chapter turn — the decision point lives where the reading stops, not a
+	   viewport away at the top bar. Both cells are full-height touch targets;
+	   Next is the primary path for serial reading, so it reads in ink while
+	   Previous stays muted. Sized in em so it scales with the reading font. */
+	.reader-chapter-end {
+		display: flex;
+		gap: 0.75rem;
+		margin: 3.5rem 0 1.5rem;
+		padding-top: 1.5rem;
+		border-top: 1px solid
+			color-mix(in srgb, var(--reader-muted) 30%, transparent);
+	}
+
+	.reader-turn {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 0.3em;
+		flex: 1;
+		min-width: 0;
+		min-height: 60px;
+		padding: 0.7em 1em;
+		border: 1px solid color-mix(in srgb, var(--reader-muted) 28%, transparent);
+		border-radius: var(--radius-sm);
+		background: transparent;
+		cursor: pointer;
+		text-align: left;
+		text-decoration: none;
+		color: var(--reader-muted);
+		transition:
+			border-color 150ms ease,
+			color 150ms ease;
+	}
+
+	.reader-turn.is-next {
+		align-items: flex-end;
+		text-align: right;
+		color: var(--reader-ink);
+	}
+
+	.reader-turn:hover {
+		border-color: color-mix(in srgb, var(--reader-muted) 55%, transparent);
+		color: var(--reader-ink);
+	}
+
+	.reader-turn-label {
+		font-size: 0.72em;
+		color: var(--reader-muted);
+	}
+
+	.reader-turn-title {
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 0.92em;
+	}
+
+	.reader-turn-spacer {
+		flex: 1;
+	}
+
 	.reader-image {
 		max-width: 100%;
 		height: auto;
@@ -234,12 +296,15 @@
 		display: block;
 	}
 
-	/* Dark content themes: take the glare off bright images — scanned book
-	   plates are typically ink on solid white, which floodlights a dark page.
-	   A slight contrast bump keeps the linework from going muddy. Never wrong
-	   for photos/color art either, unlike inversion tricks. */
+	/* Dark content themes: print images on paper. Two failure modes, one fix —
+	   transparent-background art (Standard Ebooks-style engravings are black
+	   ink on transparency) vanishes on a dark page without a light backing,
+	   while opaque white scans floodlight it without dimming. The warm backing
+	   restores the ink, the brightness pulls the glare, and the contrast bump
+	   keeps linework crisp. Never wrong for photos/color art, unlike inversion. */
 	.reader-theme-night .reader-image,
 	.reader-theme-sepia .reader-image {
+		background: #efe9dc;
 		filter: brightness(0.82) contrast(1.05);
 	}
 

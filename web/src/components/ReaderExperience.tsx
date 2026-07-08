@@ -1294,7 +1294,19 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		<>
 			{activeSideTab === "toc" ? (
 				!sections ? (
-					<p className="text-sm text-[var(--muted)]">Loading sections...</p>
+					<div
+						role="status"
+						aria-label="Loading chapters"
+						className="flex flex-col gap-2 py-1"
+					>
+						{[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+							<div
+								key={`toc-line-${i}`}
+								className="h-8 animate-pulse rounded-[var(--radius-sm)] bg-[color-mix(in_srgb,var(--surface-3)_60%,transparent)]"
+								style={{ opacity: 1 - i * 0.1 }}
+							/>
+						))}
+					</div>
 				) : sections.length === 0 ? (
 					<p className="text-sm text-[var(--muted)]">
 						No sections yet. Parser output not loaded.
@@ -1709,15 +1721,31 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 									</h1>
 								) : null}
 								{(blocks && blocks.length > 0 ? false : chunks.length === 0) ? (
-									<p className="text-sm text-[var(--reader-muted)]">
-										{isSeeding
-											? "Downloading book to this device…"
-											: seedError
-												? `Could not download this book: ${seedError}`
-												: sectionId
-													? "Loading chapter..."
+									isSeeding || seedError || !sectionId ? (
+										<p className="text-sm text-[var(--reader-muted)]">
+											{isSeeding
+												? "Downloading book to this device…"
+												: seedError
+													? `Could not download this book: ${seedError}`
 													: "Select a chapter to begin reading."}
-									</p>
+										</p>
+									) : (
+										// Paragraph-shaped shimmer while the chapter's blocks
+										// arrive from IndexedDB — text would flash, shape doesn't.
+										<div
+											role="status"
+											aria-label="Loading chapter"
+											className="flex flex-col"
+										>
+											{[94, 100, 97, 88, 99, 91, 58].map((width) => (
+												<div
+													key={`line-${width}`}
+													className="mb-[0.9em] h-[0.9em] animate-pulse rounded-full bg-[color-mix(in_srgb,var(--reader-muted)_16%,transparent)]"
+													style={{ width: `${width}%` }}
+												/>
+											))}
+										</div>
+									)
 								) : blocks && blocks.length > 0 ? (
 									renderBlocks(blocks)
 								) : (
@@ -1732,6 +1760,48 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 										</div>
 									))
 								)}
+								{sections &&
+								activeIndex >= 0 &&
+								((blocks && blocks.length > 0) || chunks.length > 0) ? (
+									<nav
+										className="reader-chapter-end"
+										aria-label="Chapter navigation"
+									>
+										{activeIndex > 0 ? (
+											<button
+												type="button"
+												className="reader-turn is-prev"
+												onClick={goPrev}
+											>
+												<span className="reader-turn-label">Previous</span>
+												<span className="reader-turn-title">
+													{sections[activeIndex - 1].title}
+												</span>
+											</button>
+										) : (
+											<span className="reader-turn-spacer" aria-hidden="true" />
+										)}
+										{activeIndex < sections.length - 1 ? (
+											<button
+												type="button"
+												className="reader-turn is-next"
+												onClick={goNext}
+											>
+												<span className="reader-turn-label">Next</span>
+												<span className="reader-turn-title">
+													{sections[activeIndex + 1].title}
+												</span>
+											</button>
+										) : (
+											<Link className="reader-turn is-next" to="/library">
+												<span className="reader-turn-label">The end</span>
+												<span className="reader-turn-title">
+													Back to library
+												</span>
+											</Link>
+										)}
+									</nav>
+								) : null}
 							</div>
 						</div>
 					)}

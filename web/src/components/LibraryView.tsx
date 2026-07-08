@@ -1104,7 +1104,25 @@ export function Library() {
 					) : null}
 
 					{!books ? (
-						<p className="text-sm text-[var(--muted)]">Loading...</p>
+						// Cover-shaped shimmer in the same grid the real shelf uses — the
+						// page keeps its structure while IndexedDB answers.
+						<div
+							role="status"
+							aria-label="Loading your library"
+							className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+						>
+							{[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => (
+								<div
+									key={`shelf-skeleton-${i}`}
+									className="animate-pulse"
+									style={{ opacity: 1 - i * 0.06 }}
+								>
+									<div className="book-cover-frame aspect-[2/3] w-full" />
+									<div className="mt-2 h-3 w-4/5 rounded-full bg-[color-mix(in_srgb,var(--surface-3)_65%,transparent)]" />
+									<div className="mt-1.5 h-3 w-1/2 rounded-full bg-[color-mix(in_srgb,var(--surface-3)_45%,transparent)]" />
+								</div>
+							))}
+						</div>
 					) : books.length === 0 ? (
 						<div className="surface-soft rounded-2xl p-6">
 							<p className="text-sm text-[var(--muted)]">

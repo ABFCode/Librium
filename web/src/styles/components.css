@@ -159,6 +159,15 @@
 		opacity: 0.4;
 	}
 
+	/* Fingers need more than 34px — Apple's floor is 44pt. Coarse pointers
+	   get the bigger target everywhere icon buttons appear. */
+	@media (pointer: coarse) {
+		.icon-btn {
+			width: 44px;
+			height: 44px;
+		}
+	}
+
 	.icon-btn.is-active {
 		color: var(--accent);
 		background: color-mix(in srgb, var(--accent) 12%, transparent);
