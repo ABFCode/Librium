@@ -1,15 +1,23 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import { parseEpubToPayload } from "../lib/epub";
 
-// Real-EPUB corpus smoke: parse the repo's testbooks through the full ingest
-// pipeline. Guards the spine upgrade path — in particular that image srcs in
-// blocks always match an entry in the images payload (spine ≥0.6 pre-resolves
-// srcs to archive-relative paths; re-resolving them corrupts every path).
+// Corpus smoke: parse EPUBs through the full ingest pipeline. Guards the
+// spine upgrade path — in particular that image srcs in blocks always match
+// an entry in the images payload (spine ≥0.6 pre-resolves srcs to
+// archive-relative paths; re-resolving them corrupts every path).
+//
+// Two tiers: a synthetic image-bearing EPUB that always runs (CI included),
+// and the real testbooks/ novels — copyrighted files deliberately absent
+// from the public repo, so those tests run only where the directory exists
+// (dev machines).
+
+const TESTBOOKS_DIR = join(__dirname, "../../../testbooks");
 
 const testbook = (name: string) =>
-	new Uint8Array(readFileSync(join(__dirname, "../../../testbooks", name)));
+	new Uint8Array(readFileSync(join(TESTBOOKS_DIR, name)));
 
 type Payload = ReturnType<typeof parseEpubToPayload>;
 
@@ -58,23 +66,71 @@ function expectCoherent(payload: Payload) {
 	}
 }
 
-describe("real-EPUB corpus (testbooks/)", () => {
-	it("parses memorizeFIN.epub coherently", () => {
-		const payload = parseEpubToPayload(testbook("memorizeFIN.epub"));
-		expect(payload.metadata.title).toBe("Mesmorize");
-		expect(payload.metadata.authors).toEqual(["Bob"]);
-		// Section structure is deterministic for a fixed fixture + parser major
-		// behavior; chunk counts stay loose (they track the chunker, not us).
-		expect(payload.sections.length).toBe(1003);
-		expect(payload.chunks.length).toBeGreaterThan(5000);
-		expectCoherent(payload);
-	});
+// 1x1 transparent PNG.
+const DOT_PNG = Uint8Array.from(
+	atob(
+		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+	),
+	(c) => c.charCodeAt(0),
+);
 
-	it("parses worm4.epub coherently", () => {
-		const payload = parseEpubToPayload(testbook("worm4.epub"));
-		expect(payload.metadata.title).toBe("Worm");
-		expect(payload.sections.length).toBe(32);
-		expect(payload.chunks.length).toBeGreaterThan(3000);
+// Minimal EPUB whose chapter references an image via a RELATIVE src from a
+// nested directory — the exact shape that breaks if the pipeline ever
+// re-resolves spine's already-resolved srcs again (double-join).
+function buildImageEpub(): Uint8Array {
+	const opf = `<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="uid">urn:uuid:img-fixture</dc:identifier><dc:title>Image Fixture</dc:title><dc:language>en</dc:language><meta property="dcterms:modified">2026-01-01T00:00:00Z</meta></metadata><manifest><item id="nav" href="text/nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="c1" href="text/c1.xhtml" media-type="application/xhtml+xml"/><item id="dot" href="images/dot.png" media-type="image/png"/></manifest><spine><itemref idref="c1"/></spine></package>`;
+	return zipSync({
+		mimetype: [strToU8("application/epub+zip"), { level: 0 }],
+		"META-INF/container.xml": strToU8(
+			`<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`,
+		),
+		"OEBPS/content.opf": strToU8(opf),
+		"OEBPS/text/nav.xhtml": strToU8(
+			`<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title></head><body><nav epub:type="toc"><ol><li><a href="c1.xhtml">One</a></li></ol></nav></body></html>`,
+		),
+		"OEBPS/text/c1.xhtml": strToU8(
+			`<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>One</title></head><body><h1>One</h1><p>Before the image.</p><p><img src="../images/dot.png" alt="a dot"/></p></body></html>`,
+		),
+		"OEBPS/images/dot.png": DOT_PNG,
+	});
+}
+
+describe("synthetic image EPUB (always runs)", () => {
+	it("resolves a nested relative image src to extracted bytes", () => {
+		const payload = parseEpubToPayload(buildImageEpub());
+		expect(payload.metadata.title).toBe("Image Fixture");
+		const srcs = collectImageSrcs(payload);
+		expect(srcs).toEqual(["OEBPS/images/dot.png"]);
+		expect(payload.images.map((img) => img.href)).toEqual([
+			"OEBPS/images/dot.png",
+		]);
+		expect(payload.images[0].bytes.length).toBe(DOT_PNG.length);
 		expectCoherent(payload);
 	});
 });
+
+// Copyrighted real books — absent from the public repo, present on dev
+// machines. CI covers the same invariants via the synthetic fixture above.
+describe.skipIf(!existsSync(TESTBOOKS_DIR))(
+	"real-EPUB corpus (testbooks/)",
+	() => {
+		it("parses memorizeFIN.epub coherently", () => {
+			const payload = parseEpubToPayload(testbook("memorizeFIN.epub"));
+			expect(payload.metadata.title).toBe("Mesmorize");
+			expect(payload.metadata.authors).toEqual(["Bob"]);
+			// Section structure is deterministic for a fixed fixture + parser major
+			// behavior; chunk counts stay loose (they track the chunker, not us).
+			expect(payload.sections.length).toBe(1003);
+			expect(payload.chunks.length).toBeGreaterThan(5000);
+			expectCoherent(payload);
+		});
+
+		it("parses worm4.epub coherently", () => {
+			const payload = parseEpubToPayload(testbook("worm4.epub"));
+			expect(payload.metadata.title).toBe("Worm");
+			expect(payload.sections.length).toBe(32);
+			expect(payload.chunks.length).toBeGreaterThan(3000);
+			expectCoherent(payload);
+		});
+	},
+);
