@@ -234,6 +234,15 @@
 		display: block;
 	}
 
+	/* Dark content themes: take the glare off bright images — scanned book
+	   plates are typically ink on solid white, which floodlights a dark page.
+	   A slight contrast bump keeps the linework from going muddy. Never wrong
+	   for photos/color art either, unlike inversion tricks. */
+	.reader-theme-night .reader-image,
+	.reader-theme-sepia .reader-image {
+		filter: brightness(0.82) contrast(1.05);
+	}
+
 	.reader-figure {
 		margin: 1.4rem 0;
 	}
