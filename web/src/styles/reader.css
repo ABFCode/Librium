@@ -70,6 +70,29 @@
 		}
 	}
 
+	/* Phones: the drawer is a bottom sheet — thumb-reachable, and it slides
+	   up "to where you are" (the chapter list auto-scrolls to the current
+	   chapter). Overrides the popover geometry above. */
+	@media (max-width: 599px) {
+		.reader-drawer {
+			top: auto;
+			right: 0;
+			bottom: 0;
+			left: 0;
+			width: 100%;
+			max-height: 72dvh;
+			border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+			border-bottom: none;
+			opacity: 1;
+			transform: translateY(100%);
+			transition: transform 220ms ease;
+		}
+
+		.reader-drawer.is-open {
+			transform: none;
+		}
+	}
+
 	/* Dim the page on small screens only — on desktop the panel coexists
      with the text instead of interrupting it. */
 	.reader-drawer-backdrop {

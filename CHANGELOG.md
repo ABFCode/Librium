@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- **Tap the middle to navigate (mobile).** The standard e-reader gesture: a clean touch tap in the center of the page toggles the chapters drawer — edges stay clear for reading, and scrolls, link/image taps, and text selection are all excluded. On phones the drawer now rises as a **bottom sheet** (full-width, rounded top, thumb-reachable) instead of the desktop top-right popover, and it opens auto-scrolled to your current chapter — so it feels dragged up to where you are. Toggle decided on `click` (not pointerup) so the tap's own synthetic click can't land on the freshly-rendered backdrop and reclose it.
 - **Book downloads got a real progress bar.** The reader's first-open seeding state ("Downloading book to this device…" as bare text) now streams the R2 download and shows an actual percentage — paragraph shimmer, a thin gold bar, "Downloading book — 42%", then "Preparing book…" while the parse runs. The heading shows the book's title instead of "Untitled chapter" while no section exists yet. Verified live under a throttled connection.
 
 ## 0.13.0 - 2026-07-08

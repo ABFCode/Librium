@@ -288,6 +288,48 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 	const [blocks, setBlocks] = useState<BlockPayload[] | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [isTocOpen, setIsTocOpen] = useState(false);
+	// Tap-the-middle-to-navigate (the standard mobile-reader gesture): a clean
+	// touch tap in the central zone of the text toggles the chapters drawer.
+	// The decision happens on CLICK, not pointerup: opening on pointerup would
+	// let the tap's own synthetic click land on the freshly-rendered backdrop
+	// and immediately close the drawer again (verified). pointerdown captures
+	// the touch context; the single click that follows does the toggle, before
+	// any backdrop exists to swallow it. Scrolls, link/image taps, and text
+	// selection are all excluded.
+	const touchTapRef = useRef<{ x: number; y: number; at: number } | null>(null);
+	const handleContentPointerDown = (event: React.PointerEvent) => {
+		touchTapRef.current =
+			event.pointerType === "touch"
+				? { x: event.clientX, y: event.clientY, at: Date.now() }
+				: null;
+	};
+	const handleContentClick = (event: React.MouseEvent) => {
+		const start = touchTapRef.current;
+		touchTapRef.current = null;
+		if (!start) {
+			return; // not a touch gesture (mouse/keyboard) — no center-tap here
+		}
+		if (Date.now() - start.at > 400) {
+			return; // long press — selection, not a tap
+		}
+		if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 12) {
+			return; // moved between down and up — a scroll, not a tap
+		}
+		const target = event.target as HTMLElement;
+		if (target.closest("a, button, img")) {
+			return; // interactive content owns its taps
+		}
+		if (window.getSelection()?.toString()) {
+			return; // finishing a selection
+		}
+		const rect = event.currentTarget.getBoundingClientRect();
+		const fx = (event.clientX - rect.left) / rect.width;
+		const fy = (event.clientY - rect.top) / rect.height;
+		if (fx < 0.3 || fx > 0.7 || fy < 0.2 || fy > 0.8) {
+			return; // only the central zone summons navigation
+		}
+		setIsTocOpen((prev) => !prev);
+	};
 	const [activeSideTab, setActiveSideTab] = useState<
 		"toc" | "search" | "bookmarks"
 	>("toc");
@@ -1725,8 +1767,12 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 							Restoring your place…
 						</div>
 					) : (
+						// biome-ignore lint/a11y/noStaticElementInteractions: center-tap is a touch-only convenience for summoning navigation; keyboard/AT users have the fully-operable topbar controls
+						// biome-ignore lint/a11y/useKeyWithClickEvents: see above — pointer-only enhancement, not the sole path to navigation
 						<div
 							ref={parentRef}
+							onPointerDown={handleContentPointerDown}
+							onClick={handleContentClick}
 							className="reader-scroll h-full overflow-auto px-6 py-10 text-left"
 							style={{
 								fontSize: `${fontSize}px`,
