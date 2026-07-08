@@ -31,10 +31,15 @@ export function bookIdentityPatch(existing: LocalBook): Partial<LocalBook> {
 // Seed a book's content onto this device: download the raw EPUB from R2 and
 // re-parse it locally (ROADMAP Phase 5). Used by the reader (automatic, on
 // open) and the library's explicit "Download to this device" action.
+// onProgress reports streamed download bytes (total from Content-Length,
+// which is CORS-safelisted so R2 exposes it without extra headers).
 export async function seedBookFromR2(
 	convex: ConvexReactClient,
 	bookId: string,
-	opts?: { replace?: boolean },
+	opts?: {
+		replace?: boolean;
+		onProgress?: (loaded: number, total?: number) => void;
+	},
 ) {
 	const url = (await convex.query(api.books.getEpubUrl, {
 		bookId: bookId as never,
@@ -46,7 +51,30 @@ export async function seedBookFromR2(
 	if (!res.ok) {
 		throw new Error("EPUB download failed");
 	}
-	const bytes = new Uint8Array(await res.arrayBuffer());
+	let bytes: Uint8Array;
+	if (opts?.onProgress && res.body) {
+		const total = Number(res.headers.get("content-length") ?? 0) || undefined;
+		const reader = res.body.getReader();
+		const chunks: Uint8Array[] = [];
+		let loaded = 0;
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				break;
+			}
+			chunks.push(value);
+			loaded += value.byteLength;
+			opts.onProgress(loaded, total);
+		}
+		bytes = new Uint8Array(loaded);
+		let offset = 0;
+		for (const chunk of chunks) {
+			bytes.set(chunk, offset);
+			offset += chunk.byteLength;
+		}
+	} else {
+		bytes = new Uint8Array(await res.arrayBuffer());
+	}
 	const payload = await parseEpubOffThread(bytes);
 	if (opts?.replace) {
 		// Replacing a stale parse wholesale — section counts may differ.

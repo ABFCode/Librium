@@ -35,6 +35,22 @@ import { Icon } from "./Icon";
 import { ReaderPreferencesModal } from "./ReaderPreferencesModal";
 import { RequireAuth } from "./RequireAuth";
 
+// Paragraph-shaped shimmer — text placeholders flash, shapes don't. Shared
+// by the chapter-loading and book-downloading states.
+function ParagraphSkeleton() {
+	return (
+		<div className="flex flex-col">
+			{[94, 100, 97, 88, 99, 91, 58].map((width) => (
+				<div
+					key={`line-${width}`}
+					className="mb-[0.9em] h-[0.9em] animate-pulse rounded-full bg-[color-mix(in_srgb,var(--reader-muted)_16%,transparent)]"
+					style={{ width: `${width}%` }}
+				/>
+			))}
+		</div>
+	);
+}
+
 type ReaderSection = {
 	_id: string;
 	title: string;
@@ -207,6 +223,11 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 	const convex = useConvex();
 	const [isSeeding, setIsSeeding] = useState(false);
 	const [seedError, setSeedError] = useState<string | null>(null);
+	// Streamed download progress for the seeding state ({loaded, total?}).
+	const [seedProgress, setSeedProgress] = useState<{
+		loaded: number;
+		total?: number;
+	} | null>(null);
 	const seedingRef = useRef(false);
 	useEffect(() => {
 		if (!canQuery || !remoteBook || seedingRef.current) {
@@ -231,8 +252,12 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 			seedingRef.current = true;
 			setIsSeeding(true);
 			setSeedError(null);
+			setSeedProgress(null);
 			try {
-				await seedBookFromR2(convex, bookId, { replace: stale });
+				await seedBookFromR2(convex, bookId, {
+					replace: stale,
+					onProgress: (loaded, total) => setSeedProgress({ loaded, total }),
+				});
 			} catch (err) {
 				setSeedError(
 					err instanceof Error ? err.message : "Failed to download book",
@@ -240,6 +265,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 			} finally {
 				seedingRef.current = false;
 				setIsSeeding(false);
+				setSeedProgress(null);
 			}
 		})();
 	}, [canQuery, remoteBook, localSectionRows, bookId, convex]);
@@ -1717,33 +1743,50 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 							>
 								{!blocks || blocks.length === 0 ? (
 									<h1 className="mb-6 text-2xl text-[var(--reader-ink)]">
-										{activeSection?.title ?? "Untitled chapter"}
+										{/* While seeding there's no section yet — the book's own
+										    title beats a placeholder. */}
+										{activeSection?.title ?? (bookTitle || "Untitled chapter")}
 									</h1>
 								) : null}
 								{(blocks && blocks.length > 0 ? false : chunks.length === 0) ? (
-									isSeeding || seedError || !sectionId ? (
+									isSeeding ? (
+										// First open on this device: streamed download with real
+										// progress (Content-Length), then a brief parse.
+										<div role="status" aria-label="Downloading book">
+											<ParagraphSkeleton />
+											<div className="mt-8 flex flex-col gap-2">
+												<div className="h-0.5 w-full overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--reader-muted)_20%,transparent)]">
+													<div
+														className={`h-full rounded-full bg-[var(--accent)] transition-[width] duration-200 ${
+															seedProgress?.total ? "" : "w-1/3 animate-pulse"
+														}`}
+														style={
+															seedProgress?.total
+																? {
+																		width: `${Math.min(100, Math.round((seedProgress.loaded / seedProgress.total) * 100))}%`,
+																	}
+																: undefined
+														}
+													/>
+												</div>
+												<p className="text-xs text-[var(--reader-muted)]">
+													{seedProgress?.total
+														? seedProgress.loaded >= seedProgress.total
+															? "Preparing book…"
+															: `Downloading book — ${Math.min(100, Math.round((seedProgress.loaded / seedProgress.total) * 100))}%`
+														: "Downloading book…"}
+												</p>
+											</div>
+										</div>
+									) : seedError || !sectionId ? (
 										<p className="text-sm text-[var(--reader-muted)]">
-											{isSeeding
-												? "Downloading book to this device…"
-												: seedError
-													? `Could not download this book: ${seedError}`
-													: "Select a chapter to begin reading."}
+											{seedError
+												? `Could not download this book: ${seedError}`
+												: "Select a chapter to begin reading."}
 										</p>
 									) : (
-										// Paragraph-shaped shimmer while the chapter's blocks
-										// arrive from IndexedDB — text would flash, shape doesn't.
-										<div
-											role="status"
-											aria-label="Loading chapter"
-											className="flex flex-col"
-										>
-											{[94, 100, 97, 88, 99, 91, 58].map((width) => (
-												<div
-													key={`line-${width}`}
-													className="mb-[0.9em] h-[0.9em] animate-pulse rounded-full bg-[color-mix(in_srgb,var(--reader-muted)_16%,transparent)]"
-													style={{ width: `${width}%` }}
-												/>
-											))}
+										<div role="status" aria-label="Loading chapter">
+											<ParagraphSkeleton />
 										</div>
 									)
 								) : blocks && blocks.length > 0 ? (

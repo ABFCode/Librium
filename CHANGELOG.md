@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- **Book downloads got a real progress bar.** The reader's first-open seeding state ("Downloading book to this device…" as bare text) now streams the R2 download and shows an actual percentage — paragraph shimmer, a thin gold bar, "Downloading book — 42%", then "Preparing book…" while the parse runs. The heading shows the book's title instead of "Untitled chapter" while no section exists yet. Verified live under a throttled connection.
+
 ## 0.13.0 - 2026-07-08
 - **Mobile ergonomics:** chapter navigation now lives where the reading stops — a chapter-turn block at the end of every chapter (muted Previous, ink-weight Next with the next chapter's title, "The end — back to library" on the last), sized for thumbs and scaled to the reading font. Icon buttons grow to Apple's 44px floor on touch devices (were 34px). The book-card menu no longer hover-opens *and* click-toggles — a race where the pointer's own hover opened the menu and the click closed it again, which broke every touch tap (synthetic mouseenter precedes click) and was the source of the intermittent `library.spec` CI failure.
 - **Loading states grew shapes:** cover-grid shimmer on the library shelf, row shimmer in the chapter list, paragraph shimmer while a chapter's blocks arrive — replacing bare "Loading..." text. Meaningful copy (downloading to device, restoring position) stays as words.
