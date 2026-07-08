@@ -11,6 +11,11 @@ const mocks = vi.hoisted(() => ({
 	fetchCandidates: vi.fn(),
 	fetchPageHtml: vi.fn(),
 	fetchCoverImage: vi.fn(),
+	uploadBookAsset: vi.fn(),
+}));
+
+vi.mock("../lib/uploadBookAsset", () => ({
+	uploadBookAsset: mocks.uploadBookAsset,
 }));
 
 vi.mock("convex/react", async () => {
@@ -86,7 +91,7 @@ describe("EditBookDialog", () => {
 			bookId: "book1",
 			title: "Martial World",
 		});
-		expect(onClose).toHaveBeenCalled();
+		await expect.poll(() => onClose.mock.calls.length).toBe(1);
 	});
 
 	it("clears a field with an emptied input (null), and blocks empty titles", async () => {
@@ -136,5 +141,130 @@ describe("EditBookDialog", () => {
 		await expect
 			.element(screen.getByLabelText("Author"))
 			.toHaveValue("Unknown Uploader");
+	});
+
+	it("adopts a pasted image as the pending cover and uploads it on save", async () => {
+		mocks.uploadBookAsset.mockResolvedValue("books/book1/cover");
+		mocks.attachFiles.mockResolvedValue(42);
+		const onClose = vi.fn();
+		const screen = await render(
+			<EditBookDialog book={book} onClose={onClose} />,
+		);
+
+		const file = new File([new Uint8Array([137, 80, 78, 71])], "cover.png", {
+			type: "image/png",
+		});
+		const data = new DataTransfer();
+		data.items.add(file);
+		window.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data }));
+
+		await screen.getByRole("button", { name: "Save" }).click();
+
+		await expect.poll(() => mocks.attachFiles.mock.calls.length).toBe(1);
+		expect(mocks.uploadBookAsset).toHaveBeenCalledWith(
+			expect.anything(),
+			"book1",
+			"cover",
+			expect.any(Blob),
+		);
+		expect(mocks.attachFiles).toHaveBeenCalledWith({
+			bookId: "book1",
+			coverKey: "books/book1/cover",
+		});
+		await expect.poll(() => onClose.mock.calls.length).toBe(1);
+		// Only the cover changed — no metadata patch.
+		expect(mocks.updateBookMetadata).not.toHaveBeenCalled();
+	});
+
+	it("fills candidate, source URL, and cover from an extension clipboard payload", async () => {
+		const screen = await render(
+			<EditBookDialog book={book} onClose={vi.fn()} />,
+		);
+
+		const payload = {
+			librium: 1,
+			sourceUrl: "https://www.novelupdates.com/series/martial-world/",
+			html: `<html><head>
+				<meta property="og:title" content="Martial World - Novel Updates" />
+				<meta property="og:image" content="https://cdn.novelupdates.com/images/mw.jpg" />
+			</head><body><div id="showauthors"><a href="#">Cocooned Cow</a></div></body></html>`,
+			coverDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+		};
+		const data = new DataTransfer();
+		data.setData("text/plain", JSON.stringify(payload));
+		window.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data }));
+
+		// Source URL adopted, candidate offered in the (auto-opened) fetch panel,
+		// pasted cover pending in the preview frame.
+		await expect
+			.element(screen.getByLabelText("Source page URL"))
+			.toHaveValue("https://www.novelupdates.com/series/martial-world/");
+		await expect
+			.element(screen.getByRole("button", { name: /Cocooned Cow/ }))
+			.toBeVisible();
+		await expect
+			.poll(() =>
+				document.querySelector(".book-cover-frame img")?.getAttribute("src"),
+			)
+			.toMatch(/^blob:/);
+
+		// Applying the candidate (cover row checked by default) must NOT clobber
+		// the staged file cover with the candidate's url cover — NU CDN urls are
+		// Cloudflare-blocked and would fail at Save.
+		await screen.getByRole("button", { name: /Cocooned Cow/ }).click();
+		await screen.getByRole("button", { name: "Apply selected" }).click();
+		await expect
+			.element(screen.getByLabelText("Title"))
+			.toHaveValue("Martial World");
+		await expect
+			.poll(() =>
+				document.querySelector(".book-cover-frame img")?.getAttribute("src"),
+			)
+			.toMatch(/^blob:/);
+	});
+
+	it("keeps saved details and offers paste guidance when a candidate cover can't be fetched", async () => {
+		mocks.fetchCandidates.mockResolvedValue([
+			{
+				title: "Martial World",
+				author: "Cocooned Cow",
+				coverUrl: "https://cdn.example.com/cover.jpg",
+				source: "openlibrary",
+			},
+		]);
+		// Browser-side fetch fails (CORS) and the server proxy is blocked (403) —
+		// the NovelUpdates cover reality.
+		const fetchSpy = vi
+			.spyOn(window, "fetch")
+			.mockRejectedValue(new TypeError("Failed to fetch"));
+		mocks.fetchCoverImage.mockRejectedValue(
+			new Error("Image fetch failed (403)."),
+		);
+		const onClose = vi.fn();
+		try {
+			const screen = await render(
+				<EditBookDialog book={book} onClose={onClose} />,
+			);
+
+			await screen.getByRole("button", { name: "Fetch metadata" }).click();
+			await screen.getByRole("button", { name: "Search online" }).click();
+			await screen.getByRole("button", { name: /Cocooned Cow/ }).click();
+			await screen.getByRole("button", { name: "Apply selected" }).click();
+			await screen.getByRole("button", { name: "Save" }).click();
+
+			// The details commit; the cover failure is reported with a way forward
+			// and the dialog stays open.
+			await expect
+				.element(screen.getByText(/Details saved, but the cover/))
+				.toBeVisible();
+			expect(mocks.updateBookMetadata).toHaveBeenCalledWith({
+				bookId: "book1",
+				title: "Martial World",
+				author: "Cocooned Cow",
+			});
+			expect(onClose).not.toHaveBeenCalled();
+		} finally {
+			fetchSpy.mockRestore();
+		}
 	});
 });

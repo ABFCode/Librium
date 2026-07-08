@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { isNovelUpdatesUrl, parseNovelUpdatesHtml } from "../lib/novelUpdates";
+import {
+	dataUrlToBlob,
+	isNovelUpdatesUrl,
+	parseLibriumPayload,
+	parseNovelUpdatesHtml,
+} from "../lib/novelUpdates";
+// Real NovelUpdates series page, captured live via the clipper extension on
+// 2026-07-07 (Cloudflare blocks every server-side fetch, so this is the only
+// way to obtain genuine markup). Guards the community selectors
+// (#editdescription, #showauthors, #seriesgenre) against wishful thinking.
+import realNuPage from "./fixtures/nu-memorize.html?raw";
 
 const SOURCE = "https://www.novelupdates.com/series/martial-world/";
 
@@ -66,6 +76,30 @@ describe("parseNovelUpdatesHtml", () => {
 		expect(candidate.title).toBeUndefined();
 		expect(candidate.source).toBe("novelupdates");
 	});
+
+	it("extracts every field from a real captured NU series page", () => {
+		const nuSource = "https://www.novelupdates.com/series/m-e-m-o-r-i-z-e/";
+		const candidate = parseNovelUpdatesHtml(realNuPage, nuSource);
+		// og:title carries no " - Novel Updates" suffix on the live page (only
+		// <title> does); the strip regex must be a harmless no-op.
+		expect(candidate.title).toBe("M E M O R I Z E");
+		// NU lists romanized + original-script author entries.
+		expect(candidate.author).toBe("Ro Yu-jin, 로유진");
+		expect(candidate.description).toContain("A man who had lost everything.");
+		expect(candidate.description).toContain("Zero Code");
+		expect(candidate.subjects).toEqual([
+			"Action",
+			"Adventure",
+			"Fantasy",
+			"Harem",
+			"Mature",
+			"Seinen",
+		]);
+		expect(candidate.coverUrl).toBe(
+			"https://cdn.novelupdates.com/images/2019/06/memorize.jpeg",
+		);
+		expect(candidate.sourceUrl).toBe(nuSource);
+	});
 });
 
 describe("isNovelUpdatesUrl", () => {
@@ -84,5 +118,66 @@ describe("isNovelUpdatesUrl", () => {
 			false,
 		);
 		expect(isNovelUpdatesUrl("not a url")).toBe(false);
+	});
+});
+
+describe("parseLibriumPayload", () => {
+	const valid = {
+		librium: 1,
+		sourceUrl: SOURCE,
+		html: FIXTURE,
+		coverDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+	};
+
+	it("accepts the extension's payload shape", () => {
+		const payload = parseLibriumPayload(JSON.stringify(valid));
+		expect(payload).not.toBeNull();
+		expect(payload?.sourceUrl).toBe(SOURCE);
+		expect(payload?.html).toBe(FIXTURE);
+		expect(payload?.coverDataUrl).toBe(valid.coverDataUrl);
+	});
+
+	it("drops a non-image cover data URL but keeps the payload", () => {
+		const payload = parseLibriumPayload(
+			JSON.stringify({ ...valid, coverDataUrl: "data:text/html;base64,PGI+" }),
+		);
+		expect(payload).not.toBeNull();
+		expect(payload?.coverDataUrl).toBeUndefined();
+	});
+
+	it("rejects wrong versions, non-NU sources, and plain text", () => {
+		expect(
+			parseLibriumPayload(JSON.stringify({ ...valid, librium: 2 })),
+		).toBeNull();
+		expect(
+			parseLibriumPayload(
+				JSON.stringify({ ...valid, sourceUrl: "https://evil.com/series/x/" }),
+			),
+		).toBeNull();
+		expect(parseLibriumPayload("just some pasted text")).toBeNull();
+		expect(parseLibriumPayload("{not json")).toBeNull();
+	});
+});
+
+describe("dataUrlToBlob", () => {
+	it("decodes a base64 image data URL", () => {
+		const blob = dataUrlToBlob("data:image/png;base64,iVBORw0KGgo=");
+		expect(blob).not.toBeNull();
+		expect(blob?.type).toBe("image/png");
+		expect(blob?.size).toBe(8);
+	});
+
+	it("tolerates media type parameters, dropping them from the Blob type", () => {
+		const blob = dataUrlToBlob(
+			"data:image/jpeg;charset=UTF-8;base64,iVBORw0KGgo=",
+		);
+		expect(blob).not.toBeNull();
+		expect(blob?.type).toBe("image/jpeg");
+	});
+
+	it("returns null for non-image or malformed input", () => {
+		expect(dataUrlToBlob("data:text/plain;base64,aGk=")).toBeNull();
+		expect(dataUrlToBlob("data:image/png;base64,%%%")).toBeNull();
+		expect(dataUrlToBlob("https://example.com/x.png")).toBeNull();
 	});
 });

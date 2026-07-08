@@ -7,9 +7,10 @@ import type { MetadataCandidate } from "../../convex/metadataProviders";
 // their side degrades that one field instead of throwing.
 //
 // Selectors follow the ids community scrapers use (#editdescription,
-// #showauthors, #seriesgenre) — unverified against a live page (Cloudflare
-// blocks automated checks); og:* tags are the stable part and cover the
-// essentials on their own.
+// #showauthors, #seriesgenre) — verified against real live markup captured
+// 2026-07-07 (fixture: src/test/fixtures/nu-memorize.html; note og:title
+// carries no " - Novel Updates" suffix there, only <title> does). og:* tags
+// are the stable part and cover the essentials on their own.
 
 export function isNovelUpdatesUrl(raw: string): boolean {
 	try {
@@ -21,6 +22,71 @@ export function isNovelUpdatesUrl(raw: string): boolean {
 		);
 	} catch {
 		return false;
+	}
+}
+
+// Clipboard payload produced by the companion browser extension
+// (extension/): right-click → "Copy to Librium" on a NU series page copies
+// the page HTML plus the cover (as a data URL — screenshot-cropped from the
+// rendered page, since both fetch paths are blocked; see extension/README)
+// as one JSON blob. `librium: 1` is the contract version; bump it and branch
+// here if the shape ever changes. The extension may also attach a
+// diagnostic-only `coverError` field, which the app ignores.
+export type LibriumNuPayload = {
+	sourceUrl: string;
+	html: string;
+	coverDataUrl?: string;
+};
+
+export function parseLibriumPayload(text: string): LibriumNuPayload | null {
+	if (!text.startsWith("{")) {
+		return null;
+	}
+	let obj: unknown;
+	try {
+		obj = JSON.parse(text);
+	} catch {
+		return null;
+	}
+	if (typeof obj !== "object" || obj === null) {
+		return null;
+	}
+	const payload = obj as Record<string, unknown>;
+	if (
+		payload.librium !== 1 ||
+		typeof payload.html !== "string" ||
+		typeof payload.sourceUrl !== "string" ||
+		!isNovelUpdatesUrl(payload.sourceUrl)
+	) {
+		return null;
+	}
+	const coverDataUrl =
+		typeof payload.coverDataUrl === "string" &&
+		payload.coverDataUrl.startsWith("data:image/")
+			? payload.coverDataUrl
+			: undefined;
+	return { sourceUrl: payload.sourceUrl, html: payload.html, coverDataUrl };
+}
+
+// Base64 image data URL → Blob (null on anything malformed). Tolerates media
+// type parameters (";charset=…") but drops them from the Blob type.
+export function dataUrlToBlob(dataUrl: string): Blob | null {
+	const match =
+		/^data:(image\/[\w.+-]+)(?:;[\w.+-]+=[^;,]*)*;base64,([A-Za-z0-9+/=]*)$/.exec(
+			dataUrl,
+		);
+	if (!match) {
+		return null;
+	}
+	try {
+		const binary = atob(match[2]);
+		const bytes = new Uint8Array(binary.length);
+		for (let i = 0; i < binary.length; i++) {
+			bytes[i] = binary.charCodeAt(i);
+		}
+		return new Blob([bytes], { type: match[1] });
+	} catch {
+		return null;
 	}
 }
 

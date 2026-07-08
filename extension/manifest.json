@@ -1,0 +1,33 @@
+{
+	"manifest_version": 3,
+	"name": "Librium — NovelUpdates Clipper",
+	"version": "0.2.1",
+	"description": "One click on a NovelUpdates series page copies its metadata and cover for pasting into Librium's Edit details dialog.",
+	"permissions": ["clipboardWrite", "activeTab", "contextMenus"],
+	"action": {
+		"default_title": "Copy to Librium"
+	},
+	"host_permissions": [
+		"https://www.novelupdates.com/*",
+		"https://novelupdates.com/*"
+	],
+	"content_scripts": [
+		{
+			"matches": [
+				"https://www.novelupdates.com/series/*",
+				"https://novelupdates.com/series/*"
+			],
+			"js": ["content.js"]
+		}
+	],
+	"background": {
+		"service_worker": "background.js",
+		"scripts": ["background.js"]
+	},
+	"browser_specific_settings": {
+		"gecko": {
+			"id": "librium-nu-clipper@librium.dev",
+			"strict_min_version": "121.0"
+		}
+	}
+}

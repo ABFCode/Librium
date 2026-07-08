@@ -1,10 +1,15 @@
 import { useAction, useConvex, useConvexAuth, useMutation } from "convex/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { MetadataCandidate } from "../../convex/metadataProviders";
 import { db } from "../lib/db";
 import type { DiffField } from "../lib/metadataDiff";
-import { isNovelUpdatesUrl, parseNovelUpdatesHtml } from "../lib/novelUpdates";
+import {
+	dataUrlToBlob,
+	isNovelUpdatesUrl,
+	parseLibriumPayload,
+	parseNovelUpdatesHtml,
+} from "../lib/novelUpdates";
 import { uploadBookAsset } from "../lib/uploadBookAsset";
 import { Icon } from "./Icon";
 import { MetadataFetchPanel } from "./MetadataFetchPanel";
@@ -49,9 +54,9 @@ const toForm = (book: EditableBook): FormState => ({
 	sourceUrl: book.sourceUrl ?? "",
 });
 
-// Pending replacement cover: a picked file, or a fetched candidate's image
-// URL (downloaded via the server proxy at save time — image hosts rarely
-// send CORS headers).
+// Pending replacement cover: a picked/pasted file, or a fetched candidate's
+// image URL (downloaded at save time — browser fetch first for CORS-friendly
+// hosts, then the server proxy).
 type PendingCover =
 	| { kind: "file"; blob: Blob; previewUrl: string }
 	| { kind: "url"; url: string; previewUrl: string };
@@ -94,8 +99,9 @@ export const EditBookDialog = ({
 	const [nuNotice, setNuNotice] = useState<string | null>(null);
 	const sourceIsNovelUpdates = isNovelUpdatesUrl(form.sourceUrl.trim());
 
-	const adoptNuHtml = (html: string) => {
-		const candidate = parseNovelUpdatesHtml(html, form.sourceUrl.trim());
+	// Stable (setters only) so the window-level paste listener can call it.
+	const adoptNuHtml = useCallback((html: string, sourceUrl: string) => {
+		const candidate = parseNovelUpdatesHtml(html, sourceUrl);
 		if (!candidate.title && !candidate.description && !candidate.coverUrl) {
 			setNuNotice(
 				"Couldn't find metadata in that page — make sure it's the full series page HTML.",
@@ -106,7 +112,7 @@ export const EditBookDialog = ({
 		setNuNotice(null);
 		setShowPasteFallback(false);
 		setIsFetchOpen(true);
-	};
+	}, []);
 
 	const fetchFromLinkedPage = async () => {
 		setIsNuFetching(true);
@@ -114,7 +120,7 @@ export const EditBookDialog = ({
 		try {
 			const result = await fetchPageHtml({ url: form.sourceUrl.trim() });
 			if (result.ok && result.html) {
-				adoptNuHtml(result.html);
+				adoptNuHtml(result.html, form.sourceUrl.trim());
 				return;
 			}
 			// The expected Cloudflare outcome — degrade to paste.
@@ -148,6 +154,79 @@ export const EditBookDialog = ({
 			}
 		};
 	}, [pendingCover]);
+
+	// Single construction site for file-kind covers — picked, pasted, or from
+	// the extension payload. (The revoke effect above cleans up previewUrls.)
+	// Stable (setter only) so the window-level paste listener can call it.
+	const setCoverFromBlob = useCallback((blob: Blob) => {
+		setPendingCover({
+			kind: "file",
+			blob,
+			previewUrl: URL.createObjectURL(blob),
+		});
+	}, []);
+
+	// Pasting (Ctrl+V) anywhere in the dialog handles two special clipboards —
+	// both exist because Cloudflare blocks every server-side fetch of
+	// NovelUpdates, so data must arrive via the user's browser:
+	//  - an image becomes the pending cover (right-click → Copy image on NU);
+	//  - the companion extension's JSON payload (page HTML + cover data URL)
+	//    fills the whole candidate and cover in one paste.
+	// Plain text pastes match neither branch, so form fields are unaffected.
+	useEffect(() => {
+		const handlePaste = (event: ClipboardEvent) => {
+			for (const item of event.clipboardData?.items ?? []) {
+				if (!item.type.startsWith("image/")) {
+					continue;
+				}
+				// An image item can still yield no File (synthetic pastes, some
+				// clipboard managers) — keep scanning and let the text branch run.
+				const file = item.getAsFile();
+				if (file) {
+					event.preventDefault();
+					setError(null);
+					setCoverFromBlob(file);
+					return;
+				}
+			}
+			const text = event.clipboardData?.getData("text/plain") ?? "";
+			const payload = parseLibriumPayload(text);
+			if (!payload) {
+				// A Librium-prefixed text that fails to parse is a truncated
+				// payload — swallow it instead of dumping ~200KB of JSON into
+				// whatever field has focus.
+				if (text.startsWith('{"librium"')) {
+					event.preventDefault();
+					setNuNotice(
+						"That looked like a clipper payload but couldn't be read — copy the page again.",
+					);
+				}
+				return;
+			}
+			event.preventDefault();
+			setError(null);
+			// Adopt the page's URL as the source link unless one is already set.
+			setForm((prev) =>
+				prev.sourceUrl.trim()
+					? prev
+					: { ...prev, sourceUrl: payload.sourceUrl },
+			);
+			adoptNuHtml(payload.html, payload.sourceUrl);
+			if (payload.coverDataUrl) {
+				const blob = dataUrlToBlob(payload.coverDataUrl);
+				if (blob) {
+					setCoverFromBlob(blob);
+				} else {
+					// After adoptNuHtml so this notice isn't cleared by its success.
+					setNuNotice(
+						"The copied cover couldn't be decoded — right-click the cover on the page, Copy image, and paste it here instead.",
+					);
+				}
+			}
+		};
+		window.addEventListener("paste", handlePaste);
+		return () => window.removeEventListener("paste", handlePaste);
+	}, [adoptNuHtml, setCoverFromBlob]);
 
 	const set = (field: keyof FormState) => (value: string) =>
 		setForm((prev) => ({ ...prev, [field]: value }));
@@ -187,11 +266,7 @@ export const EditBookDialog = ({
 			return;
 		}
 		setError(null);
-		setPendingCover({
-			kind: "file",
-			blob: file,
-			previewUrl: URL.createObjectURL(file),
-		});
+		setCoverFromBlob(file);
 	};
 
 	// Fetched metadata lands in the form (and pending cover/subjects) — the
@@ -214,8 +289,41 @@ export const EditBookDialog = ({
 			setPendingSubjects(fields.subjects);
 		}
 		if (coverUrl) {
-			setPendingCover({ kind: "url", url: coverUrl, previewUrl: coverUrl });
+			// Never downgrade a staged file cover to a url one: file covers
+			// (picked/pasted/extension-captured) always upload, while url covers
+			// can fail at Save — NU's CDN blocks every non-page fetch, and the
+			// diff's cover row is checked by default, so without this guard
+			// applying an NU candidate would clobber the working cover with one
+			// that is guaranteed to 403.
+			setPendingCover((prev) =>
+				prev?.kind === "file"
+					? prev
+					: { kind: "url", url: coverUrl, previewUrl: coverUrl },
+			);
 		}
+	};
+
+	// Browser-side fetch first: the user's browser gets past Cloudflare where
+	// the server can't, and CORS-friendly hosts (Open Library, Google Books)
+	// let it read the bytes directly. The server proxy stays as the fallback
+	// for hosts without CORS headers — and enforces this same cap server-side
+	// (COVER_MAX_BYTES in convex/metadata.ts), so an oversized direct download
+	// falls through to the proxy and fails there rather than uploading uncapped.
+	const COVER_MAX_BYTES = 4 * 1024 * 1024;
+	const fetchCoverBlob = async (url: string): Promise<Blob> => {
+		try {
+			const res = await fetch(url);
+			if (res.ok) {
+				const blob = await res.blob();
+				if (blob.type.startsWith("image/") && blob.size <= COVER_MAX_BYTES) {
+					return blob;
+				}
+			}
+		} catch {
+			// CORS or network — fall through to the proxy.
+		}
+		const { bytes, contentType } = await fetchCoverImage({ url });
+		return new Blob([bytes], { type: contentType });
 	};
 
 	const save = async () => {
@@ -241,15 +349,21 @@ export const EditBookDialog = ({
 				await db.books.update(book._id, mirror).catch(() => {});
 			}
 			if (pendingCover) {
-				const blob =
-					pendingCover.kind === "file"
-						? pendingCover.blob
-						: await (async () => {
-								const { bytes, contentType } = await fetchCoverImage({
-									url: pendingCover.url,
-								});
-								return new Blob([bytes], { type: contentType });
-							})();
+				// Cover failure is non-fatal — the details above are already
+				// committed, so surface a way forward instead of a bare error.
+				let blob: Blob;
+				try {
+					blob =
+						pendingCover.kind === "file"
+							? pendingCover.blob
+							: await fetchCoverBlob(pendingCover.url);
+				} catch {
+					setPendingCover(null);
+					setError(
+						"Details saved, but the cover couldn't be downloaded (the image host blocks server-side fetches). Copy the image in your browser and paste it here (Ctrl+V), or use Replace…",
+					);
+					return;
+				}
 				const coverKey = await uploadBookAsset(convex, book._id, "cover", blob);
 				const coverStamp = await attachFiles({
 					bookId: book._id as never,
@@ -333,6 +447,9 @@ export const EditBookDialog = ({
 							>
 								Replace…
 							</button>
+							<p className="mt-1 text-center text-[10px] text-[var(--muted-2)]">
+								or paste an image
+							</p>
 						</div>
 						<div className="flex min-w-0 flex-1 flex-col gap-2">
 							{field("Title", "title")}
@@ -393,7 +510,7 @@ export const EditBookDialog = ({
 								type="button"
 								className="btn btn-ghost self-start text-xs"
 								disabled={pastedHtml.trim().length === 0}
-								onClick={() => adoptNuHtml(pastedHtml)}
+								onClick={() => adoptNuHtml(pastedHtml, form.sourceUrl.trim())}
 							>
 								Parse pasted page
 							</button>

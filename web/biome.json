@@ -6,7 +6,13 @@
 		"useIgnoreFile": true
 	},
 	"files": {
-		"includes": ["**", "!convex/_generated", "!src/routeTree.gen.ts", "!public"]
+		"includes": [
+			"**",
+			"!convex/_generated",
+			"!src/routeTree.gen.ts",
+			"!public",
+			"!src/test/fixtures"
+		]
 	},
 	"linter": {
 		"domains": {
