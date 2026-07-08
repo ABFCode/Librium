@@ -132,5 +132,23 @@ describe.skipIf(!existsSync(TESTBOOKS_DIR))(
 			expect(payload.chunks.length).toBeGreaterThan(3000);
 			expectCoherent(payload);
 		});
+
+		// Standard Ebooks' Alice (public domain, Tenniel illustrations) — the
+		// corpus' genuinely illustrated book: 42 inline plates referenced from
+		// nested chapter files, ~10MB of image bytes through the pipeline.
+		it("parses alice-se.epub with all illustrations extracted", () => {
+			const payload = parseEpubToPayload(testbook("alice-se.epub"));
+			expect(payload.metadata.title).toBe("Alice’s Adventures in Wonderland");
+			expect(payload.metadata.authors).toEqual(["Lewis Carroll"]);
+			expect(payload.sections.length).toBe(20);
+			expect(payload.images.length).toBe(44);
+			const totalImageBytes = payload.images.reduce(
+				(n, img) => n + img.bytes.length,
+				0,
+			);
+			expect(totalImageBytes).toBeGreaterThan(9_000_000);
+			expect(payload.cover?.contentType).toBe("image/jpeg");
+			expectCoherent(payload);
+		});
 	},
 );
