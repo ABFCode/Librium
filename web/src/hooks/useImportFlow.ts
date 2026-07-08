@@ -2,8 +2,8 @@ import { useConvex, useConvexAuth, useMutation } from "convex/react";
 import { useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { db, saveImportedBook } from "../lib/db";
-import { parseEpubOffThread } from "../lib/parseEpubOffThread";
 import { payloadToLocalBookInput } from "../lib/localBook";
+import { parseEpubOffThread } from "../lib/parseEpubOffThread";
 import { uploadBookAsset } from "../lib/uploadBookAsset";
 
 export type QueueStatus = "queued" | "importing" | "done" | "failed";
@@ -125,8 +125,8 @@ export const useImportFlow = () => {
 		runningRef.current = true;
 		setIsUploading(true);
 		setError(null);
-		// Sequential: parsing is CPU-bound on the main thread; one book at a
-		// time keeps the tab responsive and failures isolated per file.
+		// Sequential: one book at a time keeps memory bounded (parse runs in a
+		// worker now, but each payload is large) and failures isolated per file.
 		for (const item of pending) {
 			setItem(item.id, { status: "importing" });
 			try {

@@ -53,11 +53,7 @@ export function inlinesToText(inlines?: InlinePayload[]) {
 	}
 	// Text runs carry their own separator spaces (spine ≥0.1.1) — joining with
 	// " " would put gaps around every styled run: "(<i>sic</i>)" → "( sic )".
-	return inlines
-		.map(inlineToText)
-		.join("")
-		.replace(/ {2,}/g, " ")
-		.trim();
+	return inlines.map(inlineToText).join("").replace(/ {2,}/g, " ").trim();
 }
 
 export function blockToText(block: BlockPayload) {
