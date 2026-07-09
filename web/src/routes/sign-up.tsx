@@ -104,6 +104,17 @@ function SignUp() {
 							{error ? (
 								<p className="text-sm text-[var(--danger)]">{error}</p>
 							) : null}
+							<p className="text-xs text-[var(--muted-2)]">
+								By creating an account you agree to the{" "}
+								<Link className="underline" to="/terms">
+									terms
+								</Link>{" "}
+								and{" "}
+								<Link className="underline" to="/privacy">
+									privacy policy
+								</Link>
+								.
+							</p>
 						</div>
 					</>
 				)}

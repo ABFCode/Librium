@@ -9,6 +9,7 @@ import { db, saveImportedBook } from "../lib/db";
 import { payloadToLocalBookInput } from "../lib/localBook";
 import { parseEpubOffThread } from "../lib/parseEpubOffThread";
 import { ensurePersistentStorage } from "../lib/persistentStorage";
+import { quotaErrorMessage } from "../lib/quotaErrors";
 import { uploadBookAsset } from "../lib/uploadBookAsset";
 
 export type QueueStatus = "queued" | "importing" | "done" | "failed";
@@ -27,7 +28,6 @@ export const useImportFlow = () => {
 	const convex = useConvex();
 	const { isAuthenticated } = useConvexAuth();
 	const registerImport = useMutation(api.books.registerImport);
-	const attachFiles = useMutation(api.books.attachFiles);
 	const [queue, setQueue] = useState<QueueItem[]>([]);
 	const [isDragging, setIsDragging] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -96,33 +96,31 @@ export const useImportFlow = () => {
 			// IndexedDB unavailable — the R2 backup below still works.
 		}
 
-		// Backup the master copy (raw EPUB + cover) to R2, then attach the keys.
-		const epubKey = await uploadToR2(
+		// Backup the master copy (raw EPUB + cover) to R2. Each upload is
+		// verified and attached server-side (finalizeUpload) — quota is
+		// enforced on the size R2 actually reports, and a rejected upload
+		// never touches this device's local copy.
+		await uploadToR2(
 			bookId,
 			"epub",
 			new Blob([bytes as BlobPart], { type: "application/epub+zip" }),
 		);
-		let coverKey: string | undefined;
 		if (payload.cover) {
 			const coverType = payload.cover.contentType || "image/jpeg";
-			coverKey = await uploadToR2(
+			const { coverStamp } = await uploadToR2(
 				bookId,
 				"cover",
 				new Blob([payload.cover.bytes as BlobPart], { type: coverType }),
 			);
-		}
-		const coverStamp = await attachFiles({
-			bookId: bookId as never,
-			epubKey,
-			coverKey,
-		});
-		// Stamp the local cover with the server's coverUpdatedAt. Without this the
-		// library reconcile sees coverVersion=undefined < remote.coverUpdatedAt,
-		// drops the just-saved blob, and re-downloads the identical bytes from R2.
-		if (coverKey && coverStamp) {
-			await db.books
-				.update(bookId, { coverVersion: coverStamp })
-				.catch(() => {});
+			// Stamp the local cover with the server's coverUpdatedAt. Without
+			// this the library reconcile sees coverVersion=undefined <
+			// remote.coverUpdatedAt, drops the just-saved blob, and re-downloads
+			// the identical bytes from R2.
+			if (coverStamp) {
+				await db.books
+					.update(bookId, { coverVersion: coverStamp })
+					.catch(() => {});
+			}
 		}
 
 		return m.title || file.name;
@@ -154,7 +152,9 @@ export const useImportFlow = () => {
 			} catch (err) {
 				setItem(item.id, {
 					status: "failed",
-					error: err instanceof Error ? err.message : "Import failed",
+					error:
+						quotaErrorMessage(err) ??
+						(err instanceof Error ? err.message : "Import failed"),
 				});
 			}
 		}

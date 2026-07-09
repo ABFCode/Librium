@@ -7,7 +7,6 @@ import { db } from "../lib/db";
 
 const mocks = vi.hoisted(() => ({
 	updateBookMetadata: vi.fn(),
-	attachFiles: vi.fn(),
 	fetchCandidates: vi.fn(),
 	fetchPageHtml: vi.fn(),
 	fetchCoverImage: vi.fn(),
@@ -29,9 +28,6 @@ vi.mock("convex/react", async () => {
 			const name = nameOf(ref);
 			if (name === nameOf(apiRef.metadata.updateBookMetadata)) {
 				return mocks.updateBookMetadata;
-			}
-			if (name === nameOf(apiRef.books.attachFiles)) {
-				return mocks.attachFiles;
 			}
 			return vi.fn();
 		},
@@ -144,8 +140,12 @@ describe("EditBookDialog", () => {
 	});
 
 	it("adopts a pasted image as the pending cover and uploads it on save", async () => {
-		mocks.uploadBookAsset.mockResolvedValue("books/book1/cover");
-		mocks.attachFiles.mockResolvedValue(42);
+		// uploadBookAsset finalizes server-side now (verified size + attach)
+		// and returns the cover stamp.
+		mocks.uploadBookAsset.mockResolvedValue({
+			key: "books/book1/cover",
+			coverStamp: 42,
+		});
 		const onClose = vi.fn();
 		const screen = await render(
 			<EditBookDialog book={book} onClose={onClose} />,
@@ -160,17 +160,13 @@ describe("EditBookDialog", () => {
 
 		await screen.getByRole("button", { name: "Save" }).click();
 
-		await expect.poll(() => mocks.attachFiles.mock.calls.length).toBe(1);
+		await expect.poll(() => mocks.uploadBookAsset.mock.calls.length).toBe(1);
 		expect(mocks.uploadBookAsset).toHaveBeenCalledWith(
 			expect.anything(),
 			"book1",
 			"cover",
 			expect.any(Blob),
 		);
-		expect(mocks.attachFiles).toHaveBeenCalledWith({
-			bookId: "book1",
-			coverKey: "books/book1/cover",
-		});
 		await expect.poll(() => onClose.mock.calls.length).toBe(1);
 		// Only the cover changed — no metadata patch.
 		expect(mocks.updateBookMetadata).not.toHaveBeenCalled();

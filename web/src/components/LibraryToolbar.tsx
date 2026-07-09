@@ -54,6 +54,7 @@ type LibraryToolbarProps = {
 	collections: LocalCollection[];
 	countByCollection: Map<string, number>;
 	onManageCollections: () => void;
+	onOpenAccount: () => void;
 };
 
 // Presentational only: the library header (title, stats, search, sort,
@@ -84,6 +85,7 @@ export function LibraryToolbar({
 	collections,
 	countByCollection,
 	onManageCollections,
+	onOpenAccount,
 }: LibraryToolbarProps) {
 	const [isBulkMenuOpen, setIsBulkMenuOpen] = useState(false);
 	// Install affordances: Chromium exposes a real prompt; iOS only has the
@@ -190,6 +192,17 @@ export function LibraryToolbar({
 									title="Download every book's EPUB file (cloud backup copy)"
 								>
 									Export all EPUBs
+								</button>
+								<button
+									type="button"
+									className="menu-item"
+									onClick={() => {
+										setIsBulkMenuOpen(false);
+										onOpenAccount();
+									}}
+									title="Cloud storage usage and supporter subscription"
+								>
+									Account & storage…
 								</button>
 								<button
 									type="button"

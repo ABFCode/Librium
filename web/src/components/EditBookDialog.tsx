@@ -10,6 +10,7 @@ import {
 	parseLibriumPayload,
 	parseNovelUpdatesHtml,
 } from "../lib/novelUpdates";
+import { quotaErrorMessage } from "../lib/quotaErrors";
 import { uploadBookAsset } from "../lib/uploadBookAsset";
 import { Icon } from "./Icon";
 import { MetadataFetchPanel } from "./MetadataFetchPanel";
@@ -69,7 +70,6 @@ export const EditBookDialog = ({
 	const convex = useConvex();
 	const { isAuthenticated } = useConvexAuth();
 	const updateBookMetadata = useMutation(api.metadata.updateBookMetadata);
-	const attachFiles = useMutation(api.books.attachFiles);
 	const fetchCoverImage = useAction(api.metadata.fetchCoverImage);
 
 	const [form, setForm] = useState<FormState>(() => toForm(book));
@@ -364,11 +364,12 @@ export const EditBookDialog = ({
 					);
 					return;
 				}
-				const coverKey = await uploadBookAsset(convex, book._id, "cover", blob);
-				const coverStamp = await attachFiles({
-					bookId: book._id as never,
-					coverKey,
-				});
+				const { coverStamp } = await uploadBookAsset(
+					convex,
+					book._id,
+					"cover",
+					blob,
+				);
 				await db.books
 					.update(book._id, {
 						coverBlob: blob,
@@ -379,7 +380,10 @@ export const EditBookDialog = ({
 			}
 			onClose();
 		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to save changes");
+			setError(
+				quotaErrorMessage(err) ??
+					(err instanceof Error ? err.message : "Failed to save changes"),
+			);
 		} finally {
 			setIsSaving(false);
 		}

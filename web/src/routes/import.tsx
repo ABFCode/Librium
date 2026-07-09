@@ -1,7 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { RequireAuth } from "../components/RequireAuth";
 import { type QueueItem, useImportFlow } from "../hooks/useImportFlow";
 import { filesFromDataTransfer } from "../lib/fileTree";
+import { formatStorage } from "../lib/quotaErrors";
+
+// Quota context where it matters: only rendered (and only meaningful) while
+// enforcement is on — otherwise the line stays silent.
+function StorageLine() {
+	const storage = useQuery(api.quota.getStorage);
+	if (!storage?.enforced || storage.limitBytes === null) {
+		return null;
+	}
+	const nearFull = storage.usedBytes / storage.limitBytes >= 0.9;
+	return (
+		<p
+			className={`mt-1 text-xs ${nearFull ? "text-[var(--danger)]" : "text-[var(--muted-2)]"}`}
+		>
+			Cloud storage: {formatStorage(storage.usedBytes)} of{" "}
+			{formatStorage(storage.limitBytes)} used
+			{storage.plan === "free" && nearFull
+				? " — free up space or become a supporter (Library → ⋯ → Account & storage)"
+				: ""}
+		</p>
+	);
+}
 
 export const Route = createFileRoute("/import")({
 	component: ImportPage,
@@ -73,6 +97,7 @@ function ImportPage() {
 						<p className="mt-1 text-sm text-[var(--muted-2)]">
 							Drop EPUBs — or an entire folder of them.
 						</p>
+						<StorageLine />
 					</div>
 
 					{/* biome-ignore lint/a11y/noStaticElementInteractions: drag-and-drop is inherently pointer-only; the file/folder pickers below are the accessible path */}

@@ -20,6 +20,7 @@ import {
 	type ReadingStatus,
 	STATUS_OPTIONS,
 } from "../lib/status";
+import { AccountStorageDialog } from "./AccountStorageDialog";
 import { BookCard, type LibraryBook } from "./BookCard";
 import { CollectionPickerDialog } from "./CollectionPickerDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -621,6 +622,7 @@ export function Library() {
 	// bulk select); null = closed.
 	const [pickerBookIds, setPickerBookIds] = useState<string[] | null>(null);
 	const [isManageOpen, setIsManageOpen] = useState(false);
+	const [isAccountOpen, setIsAccountOpen] = useState(false);
 	const openPickerForBook = useCallback((bookId: string) => {
 		setPickerBookIds([bookId]);
 	}, []);
@@ -650,7 +652,8 @@ export function Library() {
 				confirmRequest !== null ||
 				pickerBookIds !== null ||
 				editingBookId !== null ||
-				isManageOpen;
+				isManageOpen ||
+				isAccountOpen;
 			if (event.key === "Escape" && !overlayOpen) {
 				exitSelection();
 			}
@@ -663,6 +666,7 @@ export function Library() {
 		pickerBookIds,
 		editingBookId,
 		isManageOpen,
+		isAccountOpen,
 		exitSelection,
 	]);
 
@@ -964,6 +968,9 @@ export function Library() {
 					onClose={() => setIsManageOpen(false)}
 				/>
 			) : null}
+			{isAccountOpen ? (
+				<AccountStorageDialog onClose={() => setIsAccountOpen(false)} />
+			) : null}
 			<div className="min-h-screen px-6 pb-16 pt-8">
 				<div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
 					<LibraryToolbar
@@ -992,6 +999,7 @@ export function Library() {
 						collections={collections ?? []}
 						countByCollection={countByCollection}
 						onManageCollections={() => setIsManageOpen(true)}
+						onOpenAccount={() => setIsAccountOpen(true)}
 					/>
 					{isSelecting ? (
 						<div className="surface-soft flex flex-wrap items-center gap-2 px-3 py-2">
