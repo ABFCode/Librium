@@ -1,5 +1,6 @@
 import type { ConvexReactClient } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { COVER_TOO_LARGE_MESSAGE, MAX_COVER_BYTES } from "./quotaErrors";
 
 // Direct-to-R2 upload under a structured key (books/{bookId}/…): signed PUT
 // URL → browser upload → server-side finalize, which verifies the object's
@@ -12,6 +13,12 @@ export async function uploadBookAsset(
 	kind: "epub" | "cover",
 	blob: Blob,
 ): Promise<{ key: string; coverStamp: number | null }> {
+	// Refuse oversized covers BEFORE the PUT: the cover key is fixed, so an
+	// upload the server would reject has already overwritten (destroyed) the
+	// previous cover by the time verification runs.
+	if (kind === "cover" && blob.size > MAX_COVER_BYTES) {
+		throw new Error(COVER_TOO_LARGE_MESSAGE);
+	}
 	const { url, key } = await convex.mutation(api.books.generateBookUploadUrl, {
 		bookId: bookId as never,
 		kind,

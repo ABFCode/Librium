@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import {
 	action,
 	internalMutation,
@@ -14,8 +15,7 @@ import {
 } from "./authHelpers";
 import {
 	assertWithinQuota,
-	attachedUsageBytes,
-	getPlanAndLimit,
+	checkQuota,
 	MAX_COVER_BYTES,
 	quotaEnforced,
 } from "./quota";
@@ -97,9 +97,22 @@ export const registerImport = mutation({
 	},
 });
 
+// The one place the key layout lives — every mint/attach/verify/delete site
+// derives from here so they can never disagree about where an object is.
+export const bookAssetKey = (
+	bookId: Id<"books"> | string,
+	kind: "epub" | "cover",
+) => (kind === "epub" ? `books/${bookId}/book.epub` : `books/${bookId}/cover`);
+
 /**
  * Signed R2 upload URL with a structured key (books/{bookId}/…) so the
  * bucket stays debuggable — each book's objects live under one prefix.
+ *
+ * The EPUB master is immutable once attached: refusing a re-mint here is
+ * what makes "fileSize describes the object" durable — otherwise anyone
+ * could finalize a small file and then overwrite the fixed key with a huge
+ * one, and the accounting (and other devices' seeding) would never know.
+ * Covers stay replaceable by design (edit dialog).
  */
 export const generateBookUploadUrl = mutation({
 	args: {
@@ -107,12 +120,11 @@ export const generateBookUploadUrl = mutation({
 		kind: v.union(v.literal("epub"), v.literal("cover")),
 	},
 	handler: async (ctx, args) => {
-		await requireBookOwner(ctx, args.bookId);
-		const key =
-			args.kind === "epub"
-				? `books/${args.bookId}/book.epub`
-				: `books/${args.bookId}/cover`;
-		return await r2.generateUploadUrl(key);
+		const { book } = await requireBookOwner(ctx, args.bookId);
+		if (args.kind === "epub" && book.epubKey) {
+			throw new Error("This book's EPUB is already uploaded.");
+		}
+		return await r2.generateUploadUrl(bookAssetKey(args.bookId, args.kind));
 	},
 });
 
@@ -139,11 +151,10 @@ export const attachFiles = mutation({
 		// Bind the keys to this book's own prefix. Without this an owner could
 		// attach another book's key (books/{otherId}/…) and then read that
 		// object via getEpubUrl/getCoverUrls, which only re-check row ownership.
-		const prefix = `books/${args.bookId}/`;
-		if (args.epubKey && args.epubKey !== `${prefix}book.epub`) {
+		if (args.epubKey && args.epubKey !== bookAssetKey(args.bookId, "epub")) {
 			throw new Error("epubKey does not belong to this book.");
 		}
-		if (args.coverKey && args.coverKey !== `${prefix}cover`) {
+		if (args.coverKey && args.coverKey !== bookAssetKey(args.bookId, "cover")) {
 			throw new Error("coverKey does not belong to this book.");
 		}
 		const now = Date.now();
@@ -190,20 +201,23 @@ export const attachVerified = internalMutation({
 		args,
 	): Promise<
 		| { ok: true; coverStamp: number | null }
+		| { ok: false; code: "cover_too_large" }
 		| {
 				ok: false;
-				code: "quota_exceeded" | "cover_too_large";
-				usedBytes?: number;
-				limitBytes?: number;
+				code: "quota_exceeded";
+				usedBytes: number;
+				limitBytes: number;
 		  }
 	> => {
-		const { viewerId } = await requireBookOwner(ctx, args.bookId);
+		const { viewerId, book } = await requireBookOwner(ctx, args.bookId);
 		const now = Date.now();
 		if (args.kind === "cover") {
 			if (args.verifiedSize > MAX_COVER_BYTES) {
 				// The upload already overwrote the fixed-key object, so any
 				// previous cover is gone regardless; unset the key so the book
-				// falls back to the no-cover state instead of dangling.
+				// falls back to the no-cover state instead of dangling. (The
+				// client pre-checks the blob size, so an honest flow never
+				// lands here — see uploadBookAsset.)
 				await ctx.db.patch(args.bookId, {
 					coverKey: undefined,
 					coverUpdatedAt: undefined,
@@ -212,26 +226,48 @@ export const attachVerified = internalMutation({
 				return { ok: false, code: "cover_too_large" };
 			}
 			await ctx.db.patch(args.bookId, {
-				coverKey: `books/${args.bookId}/cover`,
+				coverKey: bookAssetKey(args.bookId, "cover"),
 				coverUpdatedAt: now,
 				updatedAt: now,
 			});
 			return { ok: true, coverStamp: now };
 		}
-		// EPUB: quota is the attached (verified) bytes, excluding this book so
-		// a re-finalize replaces rather than double-counts its own size.
-		const { enforced, limitBytes } = await getPlanAndLimit(ctx, viewerId);
-		const used = await attachedUsageBytes(ctx, viewerId, args.bookId);
-		if (enforced && used + args.verifiedSize > limitBytes) {
+		// EPUB. A finalize retry on an already-attached book with an unchanged
+		// size is a no-op success — CRITICALLY, it must never reach the
+		// rejection path, because rejection lets the caller delete the object,
+		// and here the object IS the live master copy (e.g. a downgraded
+		// supporter over the free limit retrying a flaky finalize).
+		const alreadyAttached = Boolean(book.epubKey);
+		if (alreadyAttached && book.fileSize === args.verifiedSize) {
+			return { ok: true, coverStamp: null };
+		}
+		// Size changed on an attached book (only reachable by re-PUTting with a
+		// leftover signed URL — re-mints are refused) or a first attach: both
+		// must pass quota, excluding this book's own recorded size.
+		const check = await checkQuota(
+			ctx,
+			viewerId,
+			args.verifiedSize,
+			args.bookId,
+		);
+		if (!check.ok) {
+			if (alreadyAttached) {
+				// The object at the key no longer matches what was attached, and
+				// the caller is about to delete it — don't leave a dangling key.
+				await ctx.db.patch(args.bookId, {
+					epubKey: undefined,
+					updatedAt: now,
+				});
+			}
 			return {
 				ok: false,
 				code: "quota_exceeded",
-				usedBytes: used,
-				limitBytes,
+				usedBytes: check.usedBytes,
+				limitBytes: check.limitBytes,
 			};
 		}
 		await ctx.db.patch(args.bookId, {
-			epubKey: `books/${args.bookId}/book.epub`,
+			epubKey: bookAssetKey(args.bookId, "epub"),
 			// Replace the client-declared size with what R2 actually stores —
 			// the accounting must describe reality. (book.fileName keeps the
 			// source file's name as provenance.)
@@ -259,10 +295,7 @@ export const finalizeUpload = action({
 		await ctx.runQuery(internal.books.assertBookOwner, {
 			bookId: args.bookId,
 		});
-		const key =
-			args.kind === "epub"
-				? `books/${args.bookId}/book.epub`
-				: `books/${args.bookId}/cover`;
+		const key = bookAssetKey(args.bookId, args.kind);
 		// Sync pulls the object's real metadata from R2 into the component's
 		// index; without a successful upload there's nothing to attach.
 		await r2.syncMetadata(ctx, key);
@@ -277,8 +310,17 @@ export const finalizeUpload = action({
 			verifiedSize: size,
 		});
 		if (!result.ok) {
-			// Rejected uploads don't get to occupy the bucket.
-			await r2.deleteObject(ctx, key);
+			// Rejected uploads don't get to occupy the bucket. attachVerified
+			// guarantees a rejection never refers to a live attached object
+			// (attached retries short-circuit to success; a size-changed attach
+			// unsets the key first), so this delete can't destroy a book's only
+			// cloud copy. Best-effort: if R2 hiccups, the orphan sweep
+			// (maintenance.ts) reclaims it — the user still needs the real error.
+			try {
+				await r2.deleteObject(ctx, key);
+			} catch (err) {
+				console.warn("[librium] rejected-upload delete failed:", err);
+			}
 			throw new ConvexError(
 				result.code === "quota_exceeded"
 					? {
@@ -412,15 +454,14 @@ export const deleteBook = action({
 		bookId: v.id("books"),
 	},
 	handler: async (ctx, args) => {
-		const { epubKey, coverKey } = await ctx.runMutation(
-			internal.books.deleteBookData,
-			{ bookId: args.bookId },
-		);
-		if (epubKey) {
-			await r2.deleteObject(ctx, epubKey);
-		}
-		if (coverKey) {
-			await r2.deleteObject(ctx, coverKey);
-		}
+		await ctx.runMutation(internal.books.deleteBookData, {
+			bookId: args.bookId,
+		});
+		// Delete the DERIVED keys unconditionally, not just what the row
+		// recorded: a book deleted mid-import (registered, uploaded, never
+		// finalized) has no epubKey/coverKey, but its objects may exist —
+		// deleting only row keys would strand them in the bucket forever.
+		await r2.deleteObject(ctx, bookAssetKey(args.bookId, "epub"));
+		await r2.deleteObject(ctx, bookAssetKey(args.bookId, "cover"));
 	},
 });

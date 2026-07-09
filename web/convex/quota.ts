@@ -29,11 +29,19 @@ const MB = 1024 * 1024;
 
 const envInt = (name: string, fallback: number): number => {
 	const raw = process.env[name];
-	if (!raw) {
+	if (raw === undefined || raw === "") {
 		return fallback;
 	}
 	const parsed = Number.parseInt(raw, 10);
-	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+	// 0 is a legitimate operator choice (shut a tier's uploads off entirely);
+	// only garbage falls back — loudly, so a typo'd quota isn't silent.
+	if (!Number.isFinite(parsed) || parsed < 0) {
+		console.warn(
+			`[librium] ${name}="${raw}" is not a valid MB value; using default ${fallback}`,
+		);
+		return fallback;
+	}
+	return parsed;
 };
 
 export const quotaEnforced = (): boolean => {
@@ -76,19 +84,6 @@ export const attachedUsageBytes = async (
 	return total;
 };
 
-/** Plan + resolved limit in one read — for callers that need the numbers. */
-export const getPlanAndLimit = async (
-	ctx: QueryCtx | MutationCtx,
-	ownerId: Id<"users">,
-): Promise<{ enforced: boolean; plan: Plan; limitBytes: number }> => {
-	const plan = await getPlan(ctx, ownerId);
-	return {
-		enforced: quotaEnforced(),
-		plan,
-		limitBytes: limitBytesForPlan(plan),
-	};
-};
-
 export const quotaExceededError = (usedBytes: number, limitBytes: number) =>
 	new ConvexError({
 		code: "quota_exceeded" as const,
@@ -96,25 +91,44 @@ export const quotaExceededError = (usedBytes: number, limitBytes: number) =>
 		limitBytes,
 	});
 
+export type QuotaCheck =
+	| { ok: true }
+	| { ok: false; usedBytes: number; limitBytes: number };
+
 /**
- * Throw quota_exceeded if adding `addBytes` would push the owner past their
- * plan's limit. No-op while enforcement is off. Callers run this inside a
- * mutation so the usage read and the write commit atomically.
+ * THE quota policy — the fast-fail pre-check (registerImport) and the
+ * authoritative verified-size check (attachVerified) both run exactly this,
+ * so they cannot drift. Callers run it inside a mutation so the usage read
+ * and the write commit atomically (Convex mutations are serializable).
  */
+export const checkQuota = async (
+	ctx: QueryCtx | MutationCtx,
+	ownerId: Id<"users">,
+	addBytes: number,
+	excludeBookId?: Id<"books">,
+): Promise<QuotaCheck> => {
+	if (!quotaEnforced()) {
+		return { ok: true };
+	}
+	const plan = await getPlan(ctx, ownerId);
+	const limit = limitBytesForPlan(plan);
+	const used = await attachedUsageBytes(ctx, ownerId, excludeBookId);
+	if (used + addBytes > limit) {
+		return { ok: false, usedBytes: used, limitBytes: limit };
+	}
+	return { ok: true };
+};
+
+/** Throwing form of checkQuota, for callers with no bookkeeping to commit. */
 export const assertWithinQuota = async (
 	ctx: QueryCtx | MutationCtx,
 	ownerId: Id<"users">,
 	addBytes: number,
 	excludeBookId?: Id<"books">,
 ): Promise<void> => {
-	if (!quotaEnforced()) {
-		return;
-	}
-	const plan = await getPlan(ctx, ownerId);
-	const limit = limitBytesForPlan(plan);
-	const used = await attachedUsageBytes(ctx, ownerId, excludeBookId);
-	if (used + addBytes > limit) {
-		throw quotaExceededError(used, limit);
+	const check = await checkQuota(ctx, ownerId, addBytes, excludeBookId);
+	if (!check.ok) {
+		throw quotaExceededError(check.usedBytes, check.limitBytes);
 	}
 };
 

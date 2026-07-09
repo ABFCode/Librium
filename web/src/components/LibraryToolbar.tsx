@@ -7,16 +7,12 @@ import {
 	promptInstall,
 	subscribeInstallPrompt,
 } from "../lib/installPrompt";
+import { formatStorage } from "../lib/quotaErrors";
 import { type ReadingStatus, STATUS_OPTIONS } from "../lib/status";
 import { Icon } from "./Icon";
 
-// Whole-MB floor: browser storage estimates wobble at KB granularity
-// (SQLite WAL churn, estimate padding), which reads as jumpy noise.
-const formatBytes = (bytes: number) => {
-	if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-	if (bytes >= 1024 ** 2) return `${Math.round(bytes / 1024 ** 2)} MB`;
-	return "< 1 MB";
-};
+// (formatStorage's whole-MB floor exists for exactly this line: browser
+// storage estimates wobble at KB granularity, which reads as jumpy noise.)
 
 export type LibrarySort = "recent" | "title" | "author" | "progress" | "series";
 
@@ -107,7 +103,7 @@ export function LibraryToolbar({
 							? "Loading…"
 							: bookCount === 0
 								? "No books yet"
-								: `${bookCount} book${bookCount === 1 ? "" : "s"} · ${downloadedCount} on this device${storageUsage !== null ? ` · ${formatBytes(storageUsage)} used` : ""}`}
+								: `${bookCount} book${bookCount === 1 ? "" : "s"} · ${downloadedCount} on this device${storageUsage !== null ? ` · ${formatStorage(storageUsage)} used` : ""}`}
 					</p>
 				</div>
 				<div className="flex flex-wrap items-center gap-2">

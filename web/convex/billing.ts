@@ -2,7 +2,7 @@ import { Polar } from "@convex-dev/polar";
 import { components, internal } from "./_generated/api";
 import type { DataModel, Id } from "./_generated/dataModel";
 import type { ActionCtx, MutationCtx, QueryCtx } from "./_generated/server";
-import { internalQuery, query } from "./_generated/server";
+import { internalAction, internalQuery, query } from "./_generated/server";
 import { requireViewerUserId } from "./authHelpers";
 
 // Polar is the merchant of record: it is the seller, handles global VAT/sales
@@ -80,7 +80,13 @@ export const getPlan = async (
 			userId: userId as string,
 		});
 		return sub && ACTIVE_STATUSES.has(sub.status) ? "supporter" : "free";
-	} catch {
+	} catch (err) {
+		// Fail open, but NEVER silently: the known trap is a subscription row
+		// whose product isn't in the component's products table (products sync
+		// via product.* webhooks or billing:syncProducts) — that throws here,
+		// and swallowing it invisibly would leave a PAYING user on the free
+		// plan. The warn is the tripwire.
+		console.warn("[librium] plan lookup failed; treating as free:", err);
 		return "free";
 	}
 };
@@ -97,9 +103,24 @@ export const getConfig = query({
 // Checkout + customer-portal actions consumed by the CheckoutLink /
 // CustomerPortalLink components. These throw if Polar is unconfigured —
 // the UI only renders them when getConfig says billing is live.
-export const {
-	generateCheckoutLink,
-	generateCustomerPortalUrl,
-	cancelCurrentSubscription,
-	changeCurrentSubscription,
-} = polar.api();
+// Deliberately NOT exporting polar.api()'s cancel/changeCurrentSubscription:
+// they'd be live public endpoints with no consumer — cancellation goes
+// through the Polar customer portal, the flow the dialog copy promises.
+export const { generateCheckoutLink, generateCustomerPortalUrl } = polar.api();
+
+/**
+ * Pull the org's product catalog into the component's tables. Run once
+ * after configuring env vars (`npx convex run billing:syncProducts`):
+ * getCurrentSubscription joins subscriptions against this table, and a
+ * product created BEFORE the webhook endpoint existed is otherwise absent —
+ * which would make a paying supporter resolve to the free plan.
+ */
+export const syncProducts = internalAction({
+	args: {},
+	handler: async (ctx) => {
+		if (!isBillingConfigured()) {
+			throw new Error("Polar is not configured (POLAR_ORGANIZATION_TOKEN).");
+		}
+		await polar.syncProducts(ctx);
+	},
+});

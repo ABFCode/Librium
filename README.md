@@ -20,6 +20,7 @@ Librium is a performance‑focused web app for uploading, managing, and reading 
 * **Export:** EPUBs come back out with your edited metadata and cover baked in (spine writer)
 * **Sync:** progress, bookmarks, status, and collections sync near-realtime across devices (LWW + tombstones); works offline, reconciles on reconnect
 * **PWA:** installable, offline app shell, persistent-storage request so iOS doesn't evict the library
+* **Supporter plan (optional):** cloud-storage quota with a free allowance and a yearly Supporter subscription via Polar (merchant of record); quota gates new uploads only — reading, sync, and export are never limited, and everything runs free/unlimited until the operator configures Polar (`web/docs/billing-setup.md`)
 
 ## Quick start (dev)
 

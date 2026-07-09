@@ -5,11 +5,11 @@ import {
 	convertTextOffThread,
 	isTextImport,
 } from "../lib/convertTextOffThread";
-import { db, saveImportedBook } from "../lib/db";
+import { db, deleteLocalBook, saveImportedBook } from "../lib/db";
 import { payloadToLocalBookInput } from "../lib/localBook";
 import { parseEpubOffThread } from "../lib/parseEpubOffThread";
 import { ensurePersistentStorage } from "../lib/persistentStorage";
-import { quotaErrorMessage } from "../lib/quotaErrors";
+import { isQuotaExceededError, quotaErrorMessage } from "../lib/quotaErrors";
 import { uploadBookAsset } from "../lib/uploadBookAsset";
 
 export type QueueStatus = "queued" | "importing" | "done" | "failed";
@@ -20,6 +20,8 @@ export type QueueItem = {
 	status: QueueStatus;
 	title?: string;
 	error?: string;
+	// Import succeeded, but with a caveat (e.g. the cover didn't upload).
+	warning?: string;
 };
 
 const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
@@ -67,24 +69,34 @@ export const useImportFlow = () => {
 		const m = payload.metadata;
 
 		// Register metadata first — the book exists (and is readable locally,
-		// below) before any blob upload starts.
-		const bookId = (await registerImport({
-			fileName: file.name,
-			fileSize: storedSize,
-			sectionCount: payload.sections.length,
-			metadata: {
-				title: m.title,
-				author:
-					m.authors && m.authors.length > 0 ? m.authors.join(", ") : undefined,
-				language: m.language,
-				publisher: m.publisher,
-				publishedAt: m.publishedAt,
-				series: m.series,
-				seriesIndex: m.seriesIndex,
-				subjects: m.subjects,
-				identifiers: m.identifiers,
-			},
-		})) as unknown as string;
+		// below) before any blob upload starts. The quota pre-check can refuse
+		// here (nothing created yet); map it with the file's size so "this
+		// book can never fit" reads differently from "storage is full".
+		let bookId: string;
+		try {
+			bookId = (await registerImport({
+				fileName: file.name,
+				fileSize: storedSize,
+				sectionCount: payload.sections.length,
+				metadata: {
+					title: m.title,
+					author:
+						m.authors && m.authors.length > 0
+							? m.authors.join(", ")
+							: undefined,
+					language: m.language,
+					publisher: m.publisher,
+					publishedAt: m.publishedAt,
+					series: m.series,
+					seriesIndex: m.seriesIndex,
+					subjects: m.subjects,
+					identifiers: m.identifiers,
+				},
+			})) as unknown as string;
+		} catch (err) {
+			const mapped = quotaErrorMessage(err, storedSize);
+			throw mapped ? new Error(mapped) : err;
+		}
 
 		// Local-first: the parsed book lands in IndexedDB immediately.
 		try {
@@ -98,32 +110,62 @@ export const useImportFlow = () => {
 
 		// Backup the master copy (raw EPUB + cover) to R2. Each upload is
 		// verified and attached server-side (finalizeUpload) — quota is
-		// enforced on the size R2 actually reports, and a rejected upload
-		// never touches this device's local copy.
-		await uploadToR2(
-			bookId,
-			"epub",
-			new Blob([bytes as BlobPart], { type: "application/epub+zip" }),
-		);
-		if (payload.cover) {
-			const coverType = payload.cover.contentType || "image/jpeg";
-			const { coverStamp } = await uploadToR2(
+		// enforced on the size R2 actually reports.
+		try {
+			await uploadToR2(
 				bookId,
-				"cover",
-				new Blob([payload.cover.bytes as BlobPart], { type: coverType }),
+				"epub",
+				new Blob([bytes as BlobPart], { type: "application/epub+zip" }),
 			);
-			// Stamp the local cover with the server's coverUpdatedAt. Without
-			// this the library reconcile sees coverVersion=undefined <
-			// remote.coverUpdatedAt, drops the just-saved blob, and re-downloads
-			// the identical bytes from R2.
-			if (coverStamp) {
-				await db.books
-					.update(bookId, { coverVersion: coverStamp })
+		} catch (err) {
+			if (isQuotaExceededError(err)) {
+				// A quota rejection is deterministic (retrying won't help), so a
+				// half-created book must not survive it: without this cleanup the
+				// metadata row syncs to every device as a phantom that can never
+				// seed, and re-importing the file would create a duplicate.
+				await convex
+					.action(api.books.deleteBook, { bookId: bookId as never })
 					.catch(() => {});
+				await deleteLocalBook(bookId).catch(() => {});
+				throw new Error(
+					quotaErrorMessage(err, storedSize) ?? "Cloud storage is full.",
+				);
+			}
+			// Non-quota failures (network, etc.) keep the old semantics: the
+			// book stays local + registered, and the R2 backup can be retried
+			// by a future download/seed cycle.
+			throw err;
+		}
+		// Cover problems must never fail an import whose EPUB is already
+		// attached — the book is fully usable, and marking it "failed" invites
+		// a retry that would create a duplicate. Surface a warning instead.
+		let warning: string | undefined;
+		if (payload.cover) {
+			try {
+				const coverType = payload.cover.contentType || "image/jpeg";
+				const { coverStamp } = await uploadToR2(
+					bookId,
+					"cover",
+					new Blob([payload.cover.bytes as BlobPart], { type: coverType }),
+				);
+				// Stamp the local cover with the server's coverUpdatedAt. Without
+				// this the library reconcile sees coverVersion=undefined <
+				// remote.coverUpdatedAt, drops the just-saved blob, and re-downloads
+				// the identical bytes from R2.
+				if (coverStamp) {
+					await db.books
+						.update(bookId, { coverVersion: coverStamp })
+						.catch(() => {});
+				}
+			} catch (err) {
+				warning = `Imported without its cover — ${
+					quotaErrorMessage(err) ??
+					(err instanceof Error ? err.message : "the cover upload failed")
+				}`;
 			}
 		}
 
-		return m.title || file.name;
+		return { title: m.title || file.name, warning };
 	};
 
 	const submit = async () => {
@@ -147,8 +189,8 @@ export const useImportFlow = () => {
 		for (const item of pending) {
 			setItem(item.id, { status: "importing" });
 			try {
-				const title = await importOne(item.file);
-				setItem(item.id, { status: "done", title });
+				const { title, warning } = await importOne(item.file);
+				setItem(item.id, { status: "done", title, warning });
 			} catch (err) {
 				setItem(item.id, {
 					status: "failed",

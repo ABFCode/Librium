@@ -354,3 +354,79 @@ describe("enforcement off (pre-billing deployments)", () => {
 		}
 	});
 });
+
+describe("attached books survive re-finalize (data-destruction guard)", () => {
+	test("a finalize retry on an attached book succeeds even when the owner is over-limit", async () => {
+		const { t, as } = await seed();
+		const bookId = await register(as, 0);
+		expect((await attach(as, bookId, 1 * MB)).ok).toBe(true);
+		// Downgrade below current usage (e.g. supporter lapsed; 0 is a legal
+		// operator value now). A retry of the SAME attach must short-circuit
+		// to success — a rejection here would let finalizeUpload delete the
+		// book's only cloud copy.
+		process.env.FREE_QUOTA_MB = "0";
+		try {
+			const retry = await attach(as, bookId, 1 * MB);
+			expect(retry.ok).toBe(true);
+			const state = await attachedState(t);
+			expect(state[0].attached).toBe(true);
+			expect(state[0].fileSize).toBe(1 * MB);
+		} finally {
+			process.env.FREE_QUOTA_MB = "1";
+		}
+	});
+
+	test("a size-changed re-attach that busts the limit unsets the key instead of dangling", async () => {
+		const { t, as } = await seed();
+		const bookId = await register(as, 0);
+		expect((await attach(as, bookId, 600 * 1024)).ok).toBe(true);
+		// Only reachable by re-PUTting with a leftover signed URL (re-mints
+		// are refused): the object no longer matches what was attached, the
+		// caller will delete it, so the key must not dangle.
+		const result = await attach(as, bookId, 2 * MB);
+		expect(result).toMatchObject({ ok: false, code: "quota_exceeded" });
+		const state = await attachedState(t);
+		expect(state[0].attached).toBe(false);
+	});
+
+	test("epub upload URLs cannot be re-minted once attached", async () => {
+		const { as } = await seed();
+		const bookId = await register(as, 0);
+		expect((await attach(as, bookId, 1024)).ok).toBe(true);
+		await expect(
+			as.mutation(api.books.generateBookUploadUrl, {
+				bookId,
+				kind: "epub" as const,
+			}),
+		).rejects.toThrow(/already uploaded/i);
+	});
+});
+
+describe("orphan sweep bookkeeping (isKeyAttached)", () => {
+	test("claims exactly the keys that rows point at", async () => {
+		const { t, as } = await seed();
+		const attachedBook = await register(as, 0);
+		expect((await attach(as, attachedBook, 1024)).ok).toBe(true);
+		const pendingBook = await register(as, 0);
+
+		const check = (key: string) =>
+			as.query(internal.maintenance.isKeyAttached, { key });
+
+		// Attached epub is claimed; its never-uploaded cover is not.
+		expect(await check(`books/${attachedBook}/book.epub`)).toBe(true);
+		expect(await check(`books/${attachedBook}/cover`)).toBe(false);
+		// Registered-but-unfinalized book claims nothing.
+		expect(await check(`books/${pendingBook}/book.epub`)).toBe(false);
+		// Deleted book claims nothing.
+		await as.mutation(internal.books.deleteBookData, {
+			bookId: attachedBook,
+		});
+		expect(await check(`books/${attachedBook}/book.epub`)).toBe(false);
+		// Garbage ids are unclaimed (sweepable)…
+		expect(await check("books/not-a-real-id/book.epub")).toBe(false);
+		// …but keys outside the book-asset shape are never touched.
+		expect(await check("something/else.bin")).toBe(true);
+		expect(await check(`books/${pendingBook}/other.txt`)).toBe(true);
+		void t;
+	});
+});

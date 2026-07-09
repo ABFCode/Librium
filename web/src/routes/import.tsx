@@ -192,6 +192,10 @@ function ImportPage() {
 											<div className="mt-0.5 truncate text-xs text-[var(--danger)]">
 												{item.error}
 											</div>
+										) : item.warning ? (
+											<div className="mt-0.5 truncate text-xs text-[var(--muted-2)]">
+												{item.warning}
+											</div>
 										) : null}
 									</div>
 									<span className={`queue-status shrink-0 ${statusChip(item)}`}>

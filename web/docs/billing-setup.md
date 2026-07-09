@@ -32,6 +32,11 @@ Webhook (subscription state reaches Convex ONLY via this — checkout will
    events (all events is fine).
 4. Copy the endpoint secret:
    `npx convex env set POLAR_WEBHOOK_SECRET <secret>`
+5. **Sync the product catalog** (required): the product was created before
+   the webhook existed, so its `product.created` event never arrived —
+   without this step a paying supporter resolves to the FREE plan
+   (getCurrentSubscription can't join the subscription to a product):
+   `npx convex run billing:syncProducts`
 
 ## 3. Test the loop end to end (sandbox)
 
@@ -59,6 +64,11 @@ Frontends deployed before this feature will get "Please reload Librium to
 finish this import." on their next import (the legacy unverified attach
 path refuses while enforcement is on) — push the new frontend before or
 with the flip.
+
+Deploy ordering for the release itself is the reverse: `npx convex deploy`
+BEFORE (or immediately with) the main push — the new frontend calls
+`books.finalizeUpload`, which the old backend doesn't have, so a frontend
+that goes live first fails every import until the Convex deploy lands.
 
 ## 5. Go production
 
