@@ -3,6 +3,7 @@ import { api } from "../../convex/_generated/api";
 import { db, type LocalBook, saveImportedBook } from "./db";
 import { payloadToLocalBookInput } from "./localBook";
 import { parseEpubOffThread } from "./parseEpubOffThread";
+import { ensurePersistentStorage } from "./pwa";
 
 // The identity fields a re-parse must NOT overwrite — user-edited metadata and
 // a replaced cover, both server-authoritative and mirrored locally. Pure so
@@ -89,4 +90,8 @@ export async function seedBookFromR2(
 	if (existing) {
 		await db.books.update(bookId, bookIdentityPatch(existing));
 	}
+	// A book's content now lives on this device — the moment persistence is
+	// worth asking for (Safari evicts IndexedDB after ~7 idle days otherwise).
+	// Deferred to here (not login) so the browser's prompt is self-explanatory.
+	ensurePersistentStorage();
 }

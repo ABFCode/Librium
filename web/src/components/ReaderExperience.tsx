@@ -288,14 +288,18 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 	const [blocks, setBlocks] = useState<BlockPayload[] | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [isTocOpen, setIsTocOpen] = useState(false);
-	// Tap-the-middle-to-navigate (the standard mobile-reader gesture): a clean
-	// touch tap in the central zone of the text toggles the chapters drawer.
-	// The decision happens on CLICK, not pointerup: opening on pointerup would
-	// let the tap's own synthetic click land on the freshly-rendered backdrop
-	// and immediately close the drawer again (verified). pointerdown captures
-	// the touch context; the single click that follows does the toggle, before
-	// any backdrop exists to swallow it. Scrolls, link/image taps, and text
-	// selection are all excluded.
+	// Immersive chrome (phone): the top bar and a bottom control bar hide while
+	// you read and return when you scroll to the top or tap the page. Desktop
+	// keeps its always-on top bar (CSS gates the hide to phone widths; the tap
+	// toggle is touch-only), so this state is inert there.
+	const [chromeHidden, setChromeHidden] = useState(false);
+	const lastChromeScrollRef = useRef(0);
+
+	// A clean touch tap on the page (not a scroll, long-press, selection, or
+	// link/image) toggles the chrome. On CLICK, not pointerup: toggling on
+	// pointerup let the tap's own synthetic click land on freshly-rendered
+	// chrome and immediately re-toggle it (verified). pointerdown captures the
+	// touch context; the single following click does the toggle.
 	const touchTapRef = useRef<{ x: number; y: number; at: number } | null>(null);
 	const handleContentPointerDown = (event: React.PointerEvent) => {
 		touchTapRef.current =
@@ -307,7 +311,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		const start = touchTapRef.current;
 		touchTapRef.current = null;
 		if (!start) {
-			return; // not a touch gesture (mouse/keyboard) — no center-tap here
+			return; // not a touch gesture (mouse/keyboard) — desktop unaffected
 		}
 		if (Date.now() - start.at > 400) {
 			return; // long press — selection, not a tap
@@ -322,13 +326,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		if (window.getSelection()?.toString()) {
 			return; // finishing a selection
 		}
-		const rect = event.currentTarget.getBoundingClientRect();
-		const fx = (event.clientX - rect.left) / rect.width;
-		const fy = (event.clientY - rect.top) / rect.height;
-		if (fx < 0.3 || fx > 0.7 || fy < 0.2 || fy > 0.8) {
-			return; // only the central zone summons navigation
-		}
-		setIsTocOpen((prev) => !prev);
+		setChromeHidden((hidden) => !hidden);
 	};
 	const [activeSideTab, setActiveSideTab] = useState<
 		"toc" | "search" | "bookmarks"
@@ -671,6 +669,15 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 			return;
 		}
 		const handleScroll = () => {
+			// Immersive chrome: hide when scrolling down into the text, show at
+			// the top. Scroll-up mid-page is left to the tap toggle (per design).
+			const cur = container.scrollTop;
+			if (cur < 48) {
+				setChromeHidden(false);
+			} else if (cur - lastChromeScrollRef.current > 8) {
+				setChromeHidden(true);
+			}
+			lastChromeScrollRef.current = cur;
 			// Programmatic restores land exactly on lastAppliedScrollTop; anything
 			// else is the user, which cancels pending silent re-anchors.
 			if (Math.abs(container.scrollTop - lastAppliedScrollTopRef.current) > 4) {
@@ -1590,7 +1597,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 	return (
 		<RequireAuth>
 			<div className={`reader-shell ${themeClass} text-[var(--reader-ink)]`}>
-				<div className="reader-topbar">
+				<div className={`reader-topbar ${chromeHidden ? "is-hidden" : ""}`}>
 					<Link
 						className="icon-btn tooltip shrink-0"
 						data-tooltip="Library"
@@ -1895,6 +1902,50 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 						</div>
 					)}
 				</div>
+
+				{/* Thumb-zone control bar (phone only, CSS-gated) — the reachable
+				    mirror of the top bar's reading controls. Contents opens the
+				    chapter sheet. Hidden with the rest of the chrome. */}
+				{sections && sections.length > 0 && activeIndex >= 0 ? (
+					<div className={`reader-botbar ${chromeHidden ? "is-hidden" : ""}`}>
+						<button
+							type="button"
+							className="reader-botbar-nav"
+							onClick={goPrev}
+							disabled={activeIndex <= 0}
+						>
+							<span className="sr-only">Previous chapter</span>
+							<Icon name="chevron-left" />
+						</button>
+						<button
+							type="button"
+							className="reader-botbar-center"
+							onClick={() => setIsTocOpen(true)}
+						>
+							<Icon name="menu" size={16} />
+							<span>
+								{`${activeIndex + 1} / ${sections.length} · ${Math.round(
+									bookProgress(
+										activeIndex,
+										effectiveProgress?.sectionIndex === activeIndex
+											? effectiveProgress.sectionFraction
+											: 0,
+										sections.length,
+									) * 100,
+								)}%`}
+							</span>
+						</button>
+						<button
+							type="button"
+							className="reader-botbar-nav"
+							onClick={goNext}
+							disabled={activeIndex >= sections.length - 1}
+						>
+							<span className="sr-only">Next chapter</span>
+							<Icon name="chevron-right" />
+						</button>
+					</div>
+				) : null}
 
 				{renderDrawer()}
 			</div>

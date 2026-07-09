@@ -15,6 +15,29 @@
 		border-bottom: 1px solid color-mix(in srgb, var(--outline) 60%, transparent);
 		background: color-mix(in srgb, var(--surface) 65%, transparent);
 		backdrop-filter: blur(10px);
+		transition: transform 200ms ease;
+	}
+
+	/* Immersive reading on phones: the top bar overlays the text (fixed, out
+	   of flow so the column gets full height) and slides away while reading.
+	   Desktop keeps it pinned in flow — the hide is phone-only. */
+	@media (max-width: 599px) {
+		.reader-topbar {
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			z-index: 30;
+		}
+
+		.reader-topbar.is-hidden {
+			transform: translateY(-100%);
+		}
+
+		/* Clear the fixed bar so the first lines aren't hidden beneath it. */
+		.reader-content .reader-scroll {
+			padding-top: 4.25rem;
+		}
 	}
 
 	.reader-topbar-title {
@@ -29,6 +52,65 @@
 	.reader-content {
 		flex: 1;
 		min-height: 0;
+	}
+
+	/* Thumb-zone control bar — phone only, the reachable mirror of the top
+	   bar's reading controls. Overlays the bottom of the text and slides away
+	   with the rest of the chrome. */
+	.reader-botbar {
+		display: none;
+	}
+
+	@media (max-width: 599px) {
+		.reader-botbar {
+			position: fixed;
+			bottom: 0;
+			left: 0;
+			right: 0;
+			z-index: 30;
+			display: flex;
+			align-items: center;
+			gap: 0.5rem;
+			padding: 0.4rem 0.75rem calc(0.4rem + env(safe-area-inset-bottom));
+			border-top: 1px solid color-mix(in srgb, var(--outline) 60%, transparent);
+			background: color-mix(in srgb, var(--surface) 80%, transparent);
+			backdrop-filter: blur(10px);
+			transition: transform 200ms ease;
+		}
+
+		.reader-botbar.is-hidden {
+			transform: translateY(100%);
+		}
+	}
+
+	.reader-botbar-nav {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 48px;
+		height: 44px;
+		border-radius: var(--radius-sm);
+		border: none;
+		background: transparent;
+		color: var(--ink);
+	}
+
+	.reader-botbar-nav:disabled {
+		opacity: 0.3;
+	}
+
+	.reader-botbar-center {
+		display: inline-flex;
+		flex: 1;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		height: 44px;
+		border-radius: var(--radius-sm);
+		border: none;
+		background: transparent;
+		color: var(--muted);
+		font-size: 0.8rem;
 	}
 
 	/* Chapters / search / bookmarks: a floating panel anchored under the

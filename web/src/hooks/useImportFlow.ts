@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import { db, saveImportedBook } from "../lib/db";
 import { payloadToLocalBookInput } from "../lib/localBook";
 import { parseEpubOffThread } from "../lib/parseEpubOffThread";
+import { ensurePersistentStorage } from "../lib/pwa";
 import { uploadBookAsset } from "../lib/uploadBookAsset";
 
 export type QueueStatus = "queued" | "importing" | "done" | "failed";
@@ -73,6 +74,9 @@ export const useImportFlow = () => {
 		// Local-first: the parsed book lands in IndexedDB immediately.
 		try {
 			await saveImportedBook(payloadToLocalBookInput(bookId, payload));
+			// Content now lives on this device — ask to keep it (the browser's
+			// prompt reads clearly here, unlike at login).
+			ensurePersistentStorage();
 		} catch {
 			// IndexedDB unavailable — the R2 backup below still works.
 		}
