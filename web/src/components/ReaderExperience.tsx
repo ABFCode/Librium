@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useConvex, useConvexAuth, useQuery } from "convex/react";
 import { useLiveQuery } from "dexie-react-hooks";
-import type { CSSProperties, JSX, ReactNode } from "react";
+import type { CSSProperties } from "react";
 import {
 	useCallback,
 	useEffect,
@@ -29,9 +29,11 @@ import {
 } from "../lib/db";
 import { bookProgress } from "../lib/progress";
 import { anchorScrollTop, findAnchor } from "../lib/readerAnchors";
+import { normalizeAnchor, normalizeHref } from "../lib/readerLinks";
 import { scanSections } from "../lib/searchScan";
 import { seedBookFromR2 } from "../lib/seedBook";
 import { Icon } from "./Icon";
+import { ReaderBlocks } from "./ReaderBlocks";
 import { ReaderPreferencesModal } from "./ReaderPreferencesModal";
 import { RequireAuth } from "./RequireAuth";
 
@@ -67,109 +69,6 @@ type ReaderChunk = {
 type ReaderExperienceProps = {
 	bookId: string;
 };
-
-function normalizeHref(href?: string | null) {
-	if (!href) {
-		return "";
-	}
-	let value = href.trim();
-	if (!value) {
-		return "";
-	}
-	if (value.includes("#")) {
-		value = value.split("#")[0];
-	}
-	if (value.includes("?")) {
-		value = value.split("?")[0];
-	}
-	value = value.replace(/^\.\//, "").replace(/^\//, "");
-	return value;
-}
-
-function normalizeAnchor(anchor?: string | null) {
-	if (!anchor) {
-		return "";
-	}
-	return anchor.replace(/^#/, "").trim();
-}
-
-function resolveRelativePath(baseHref: string, relative: string) {
-	if (!relative) {
-		return normalizeHref(baseHref);
-	}
-	if (relative.startsWith("/")) {
-		return normalizeHref(relative);
-	}
-	if (!baseHref) {
-		return normalizeHref(relative);
-	}
-	const base = normalizeHref(baseHref);
-	const baseParts = base.split("/").filter(Boolean);
-	baseParts.pop();
-	const relParts = relative.split("/").filter((part) => part !== "");
-	for (const part of relParts) {
-		if (part === "." || part === "") {
-			continue;
-		}
-		if (part === "..") {
-			baseParts.pop();
-			continue;
-		}
-		baseParts.push(part);
-	}
-	return baseParts.join("/");
-}
-
-function resolveInternalSectionId(
-	href: string,
-	baseHref: string | undefined,
-	index: Map<string, string>,
-) {
-	const trimmed = href.trim();
-	if (!trimmed) {
-		return null;
-	}
-	if (trimmed.startsWith("#")) {
-		const anchorKey = `#${normalizeAnchor(trimmed)}`;
-		return index.get(anchorKey) ?? null;
-	}
-	let link = trimmed;
-	let anchor = "";
-	if (link.includes("#")) {
-		const parts = link.split("#");
-		link = parts[0] ?? "";
-		anchor = parts[1] ?? "";
-	}
-	if (!link && baseHref) {
-		link = baseHref;
-	}
-	// spine ≥0.6 pre-resolves inline hrefs to archive-relative paths — try the
-	// direct match first, and only fall back to treating the path as relative
-	// to the current section (how pre-0.6 stored blocks encode links).
-	const directBase = normalizeHref(link);
-	const directAnchor = normalizeAnchor(anchor);
-	if (directBase) {
-		const direct =
-			(directAnchor ? index.get(`${directBase}#${directAnchor}`) : undefined) ??
-			index.get(directBase);
-		if (direct) {
-			return direct;
-		}
-	}
-	link = resolveRelativePath(baseHref ?? "", link);
-	const baseKey = normalizeHref(link);
-	const anchorKey = normalizeAnchor(anchor);
-	if (baseKey && anchorKey) {
-		return index.get(`${baseKey}#${anchorKey}`) ?? index.get(baseKey) ?? null;
-	}
-	if (baseKey) {
-		return index.get(baseKey) ?? null;
-	}
-	if (anchorKey) {
-		return index.get(`#${anchorKey}`) ?? null;
-	}
-	return null;
-}
 
 export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 	const { isAuthenticated } = useConvexAuth();
@@ -1025,265 +924,6 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		}
 	};
 
-	// spine ≥0.7: styling is orthogonal to structure — combinable emph/strong/
-	// code flags on any inline (so <strong><em>x</em></strong> keeps both).
-	const wrapInlineStyles = (inline: InlinePayload, node: ReactNode) => {
-		let out = node;
-		if (inline.code) {
-			out = <code>{out}</code>;
-		}
-		if (inline.emph) {
-			out = <em>{out}</em>;
-		}
-		if (inline.strong) {
-			out = <strong>{out}</strong>;
-		}
-		return out;
-	};
-
-	const renderInlines = (inlines?: InlinePayload[], keyPrefix = "inline") => {
-		if (!inlines || inlines.length === 0) {
-			return null;
-		}
-		return inlines.map((inline, index) => {
-			const key = `${keyPrefix}-${index}`;
-			switch (inline.kind) {
-				// "emphasis"/"strong"/"code" kinds only exist in blocks parsed by
-				// spine <0.7 (still on disk until the book re-parses).
-				case "emphasis":
-					return <em key={key}>{inline.text}</em>;
-				case "strong":
-					return <strong key={key}>{inline.text}</strong>;
-				case "link": {
-					const href = inline.href ?? "#";
-					const external =
-						href.startsWith("http://") ||
-						href.startsWith("https://") ||
-						href.startsWith("mailto:") ||
-						href.startsWith("tel:") ||
-						href.startsWith("data:");
-					const targetSectionId = !external
-						? resolveInternalSectionId(
-								href,
-								activeSection?.href,
-								sectionLinkIndex,
-							)
-						: null;
-					return (
-						<a
-							key={key}
-							href={href}
-							className="reader-link"
-							target={external ? "_blank" : undefined}
-							rel={external ? "noreferrer" : undefined}
-							onClick={(event) => {
-								if (!external) {
-									event.preventDefault();
-									if (targetSectionId) {
-										setActiveSectionId(targetSectionId);
-									}
-								}
-							}}
-						>
-							{wrapInlineStyles(inline, inline.text)}
-						</a>
-					);
-				}
-				case "image": {
-					const src = inline.src ? imageUrls?.[inline.src] : undefined;
-					if (!src) {
-						return null;
-					}
-					const width =
-						inline.width && inline.width > 0 ? inline.width : undefined;
-					const height =
-						inline.height && inline.height > 0 ? inline.height : undefined;
-					return (
-						<img
-							key={key}
-							src={src}
-							alt={inline.alt ?? ""}
-							width={width}
-							height={height}
-							style={
-								width && height
-									? { aspectRatio: `${width}/${height}` }
-									: undefined
-							}
-							className="reader-image"
-							loading="lazy"
-						/>
-					);
-				}
-				case "code":
-					return <code key={key}>{inline.text}</code>;
-				default:
-					// "text" runs carry the style flags; plain text passes through.
-					return <span key={key}>{wrapInlineStyles(inline, inline.text)}</span>;
-			}
-		});
-	};
-
-	const renderBlocks = (contentBlocks: BlockPayload[]) => {
-		const nodes: JSX.Element[] = [];
-		const normalizedTitle = activeSection?.title
-			? activeSection.title.trim().toLowerCase()
-			: null;
-		const shouldSkipFirstHeading =
-			normalizedTitle &&
-			contentBlocks.length > 0 &&
-			contentBlocks[0].kind === "heading" &&
-			blockToText(contentBlocks[0]).trim().toLowerCase() === normalizedTitle;
-		for (let i = 0; i < contentBlocks.length; i += 1) {
-			if (i === 0 && shouldSkipFirstHeading) {
-				continue;
-			}
-			const block = contentBlocks[i];
-			if (block.kind === "list_item") {
-				const ordered = Boolean(block.ordered);
-				const items: BlockPayload[] = [block];
-				let j = i + 1;
-				while (
-					j < contentBlocks.length &&
-					contentBlocks[j].kind === "list_item" &&
-					Boolean(contentBlocks[j].ordered) === ordered
-				) {
-					items.push(contentBlocks[j]);
-					j += 1;
-				}
-				i = j - 1;
-				const ListTag = ordered ? "ol" : "ul";
-				nodes.push(
-					<ListTag key={`list-${i}`} className="reader-list">
-						{items.map((item, itemIndex) => (
-							<li
-								// biome-ignore lint/suspicious/noArrayIndexKey: chapter blocks are static per load and never reorder
-								key={`list-item-${i}-${itemIndex}`}
-								data-chunk-index={i + itemIndex}
-							>
-								{renderInlines(item.inlines, `li-${i}-${itemIndex}`)}
-							</li>
-						))}
-					</ListTag>,
-				);
-				continue;
-			}
-			if (block.kind === "heading") {
-				const level = Math.min(6, Math.max(1, block.level ?? 2));
-				const Tag = `h${level}` as keyof JSX.IntrinsicElements;
-				nodes.push(
-					<Tag
-						key={`heading-${i}`}
-						data-chunk-index={i}
-						className="reader-heading"
-					>
-						{renderInlines(block.inlines, `heading-${i}`)}
-					</Tag>,
-				);
-				continue;
-			}
-			if (block.kind === "blockquote") {
-				nodes.push(
-					<blockquote
-						key={`quote-${i}`}
-						data-chunk-index={i}
-						className="reader-quote"
-					>
-						{renderInlines(block.inlines, `quote-${i}`)}
-					</blockquote>,
-				);
-				continue;
-			}
-			if (block.kind === "pre") {
-				nodes.push(
-					<pre key={`pre-${i}`} data-chunk-index={i} className="reader-pre">
-						<code>{renderInlines(block.inlines, `pre-${i}`)}</code>
-					</pre>,
-				);
-				continue;
-			}
-			if (block.kind === "hr") {
-				nodes.push(
-					<hr key={`hr-${i}`} data-chunk-index={i} className="reader-hr" />,
-				);
-				continue;
-			}
-			if (block.kind === "table" && block.table) {
-				nodes.push(
-					<div key={`table-${i}`} data-chunk-index={i} className="reader-table">
-						<table>
-							<tbody>
-								{block.table.rows.map((row, rowIndex) => (
-									<tr
-										// biome-ignore lint/suspicious/noArrayIndexKey: chapter tables are static per load and never reorder
-										key={`row-${i}-${rowIndex}`}
-									>
-										{row.cells.map((cell, cellIndex) =>
-											cell.header ? (
-												<th
-													// biome-ignore lint/suspicious/noArrayIndexKey: chapter tables are static per load and never reorder
-													key={`cell-${i}-${rowIndex}-${cellIndex}`}
-												>
-													{renderInlines(
-														cell.inlines,
-														`cell-${i}-${rowIndex}-${cellIndex}`,
-													)}
-												</th>
-											) : (
-												<td
-													// biome-ignore lint/suspicious/noArrayIndexKey: chapter tables are static per load and never reorder
-													key={`cell-${i}-${rowIndex}-${cellIndex}`}
-												>
-													{renderInlines(
-														cell.inlines,
-														`cell-${i}-${rowIndex}-${cellIndex}`,
-													)}
-												</td>
-											),
-										)}
-									</tr>
-								))}
-							</tbody>
-						</table>
-					</div>,
-				);
-				continue;
-			}
-			if (block.kind === "figure" && block.figure) {
-				nodes.push(
-					<figure
-						key={`figure-${i}`}
-						data-chunk-index={i}
-						className="reader-figure"
-					>
-						<div className="reader-figure-images">
-							{block.figure.images.map((inline, idx) => (
-								<div
-									// biome-ignore lint/suspicious/noArrayIndexKey: figure images are static per load and never reorder
-									key={`fig-${i}-${idx}`}
-								>
-									{renderInlines([inline], `fig-${i}-${idx}`)}
-								</div>
-							))}
-						</div>
-						{block.figure.caption.length > 0 ? (
-							<figcaption className="reader-figure-caption">
-								{renderInlines(block.figure.caption, `figcap-${i}`)}
-							</figcaption>
-						) : null}
-					</figure>,
-				);
-				continue;
-			}
-			nodes.push(
-				<p key={`para-${i}`} data-chunk-index={i} className="reader-paragraph">
-					{renderInlines(block.inlines, `para-${i}`)}
-				</p>,
-			);
-		}
-		return nodes;
-	};
-
 	const handleCreateBookmark = async () => {
 		if (!sectionId || !parentRef.current || activeIndex < 0) {
 			return;
@@ -1843,7 +1483,14 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 										</div>
 									)
 								) : blocks && blocks.length > 0 ? (
-									renderBlocks(blocks)
+									<ReaderBlocks
+										blocks={blocks}
+										imageUrls={imageUrls}
+										activeSectionTitle={activeSection?.title}
+										activeSectionHref={activeSection?.href}
+										sectionLinkIndex={sectionLinkIndex}
+										onNavigateToSection={setActiveSectionId}
+									/>
 								) : (
 									chunks.map((chunk, index) => (
 										<div
