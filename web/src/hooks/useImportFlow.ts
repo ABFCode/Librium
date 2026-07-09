@@ -56,6 +56,10 @@ export const useImportFlow = () => {
 		if (isTextImport(file.name)) {
 			bytes = await convertTextOffThread(bytes, file.name);
 		}
+		// fileName keeps the source's name (provenance); fileSize describes the
+		// bytes actually stored in R2 — for text imports that's the converted
+		// EPUB, not the original rip.
+		const storedSize = bytes.byteLength;
 
 		// Parse entirely in the browser, off the main thread — a 2,000-chapter
 		// webnovel no longer freezes the import UI.
@@ -66,7 +70,7 @@ export const useImportFlow = () => {
 		// below) before any blob upload starts.
 		const bookId = (await registerImport({
 			fileName: file.name,
-			fileSize: file.size,
+			fileSize: storedSize,
 			sectionCount: payload.sections.length,
 			metadata: {
 				title: m.title,
@@ -130,7 +134,7 @@ export const useImportFlow = () => {
 		}
 		const pending = queue.filter((q) => q.status === "queued");
 		if (pending.length === 0) {
-			setError("Select at least one EPUB file.");
+			setError("Select at least one book file.");
 			return;
 		}
 		if (!isAuthenticated) {
@@ -159,8 +163,9 @@ export const useImportFlow = () => {
 	};
 
 	const addFiles = (incoming: FileList | File[]) => {
-		const next = Array.from(incoming).filter((file) =>
-			/\.(epub|txt|md|markdown)$/i.test(file.name),
+		const next = Array.from(incoming).filter(
+			(file) =>
+				file.name.toLowerCase().endsWith(".epub") || isTextImport(file.name),
 		);
 		if (next.length === 0) {
 			setError("Only EPUB, .txt, and .md files are supported.");

@@ -17,5 +17,9 @@ export function convertTextToEpub(
 		// Gutenberg START/END banners are common in rips; stripping is guarded
 		// (data-loss check + warnings) so enabling it is safe.
 		stripBoilerplate: true,
+		// The guard's warnings must be visible somewhere — a silently-dropped
+		// data-loss warning would defeat the point of having one.
+		onWarning: (warning) =>
+			console.warn(`[librium] text import (${fileName}):`, warning),
 	});
 }
