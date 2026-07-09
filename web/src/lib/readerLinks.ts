@@ -4,6 +4,9 @@
 // Shared by the reader shell (which builds the index) and ReaderBlocks (which
 // resolves link clicks).
 
+// Deliberately separate from epub.ts's normalizeHrefPath: that one runs at
+// ingest with spine's posixClean; this one normalizes *stored* hrefs for map
+// lookups at read time and must keep matching what past ingests wrote.
 export function normalizeHref(href?: string | null) {
 	if (!href) {
 		return "";

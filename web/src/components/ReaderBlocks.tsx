@@ -1,4 +1,5 @@
 import type { JSX, ReactNode } from "react";
+import { memo } from "react";
 import {
 	type BlockPayload,
 	blockToText,
@@ -41,7 +42,11 @@ function wrapInlineStyles(inline: InlinePayload, node: ReactNode): ReactNode {
 	return out;
 }
 
-export function ReaderBlocks({
+// memo: every prop is referentially stable across the reader's chrome
+// show/hide toggle (blocks/imageUrls are per-section state, sectionLinkIndex
+// is memoized, the navigate callback is a setState) — without this, each
+// chrome flip re-rendered the whole chapter's block tree for nothing.
+export const ReaderBlocks = memo(function ReaderBlocks({
 	blocks,
 	imageUrls,
 	activeSectionTitle,
@@ -289,4 +294,4 @@ export function ReaderBlocks({
 		);
 	}
 	return <>{nodes}</>;
-}
+});
