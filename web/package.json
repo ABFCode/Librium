@@ -12,6 +12,7 @@
 		"test:watch": "vitest",
 		"test:browser": "vitest --run --project browser",
 		"test:node": "vitest --run --project node",
+		"test:convex": "vitest --run --project convex",
 		"test:e2e": "playwright test",
 		"test:e2e:ui": "playwright test --ui"
 	},
@@ -38,6 +39,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.2",
+		"@edge-runtime/vm": "^5.0.0",
 		"@playwright/test": "^1.61.1",
 		"@tailwindcss/vite": "^4.3.2",
 		"@tanstack/devtools-vite": "^0.8.1",
@@ -47,6 +49,8 @@
 		"@vitejs/plugin-react": "^6.0.3",
 		"@vitest/browser": "^4.1.9",
 		"@vitest/browser-playwright": "^4.1.9",
+		"convex-test": "^0.0.54",
+		"fast-check": "^4.9.0",
 		"jsdom": "^29.1.1",
 		"playwright": "^1.61.1",
 		"tailwindcss": "^4.3.2",

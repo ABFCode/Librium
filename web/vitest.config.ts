@@ -38,8 +38,21 @@ export default defineConfig({
 				test: {
 					name: "node",
 					include: ["src/test/**/*.test.{ts,tsx}"],
-					exclude: ["src/test/**/*.browser.test.{ts,tsx}"],
+					exclude: [
+						"src/test/**/*.browser.test.{ts,tsx}",
+						"src/test/**/*.convex.test.{ts,tsx}",
+					],
 					environment: "node",
+				},
+			},
+			{
+				// convex-test runs the real backend functions in an in-memory
+				// Convex on the edge runtime.
+				test: {
+					name: "convex",
+					include: ["src/test/**/*.convex.test.{ts,tsx}"],
+					environment: "edge-runtime",
+					server: { deps: { inline: ["convex-test"] } },
 				},
 			},
 			{

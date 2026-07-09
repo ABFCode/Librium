@@ -42,6 +42,9 @@ jobs:
       - name: Unit tests (node)
         run: pnpm test:node
 
+      - name: Sync property tests (convex-test)
+        run: pnpm test:convex
+
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
 
