@@ -224,17 +224,21 @@ describe("Library", () => {
 	it("filters by collection", async () => {
 		const screen = await render(<Library />);
 
-		// The merge pass adopts the remote collection + membership into Dexie.
+		// The merge pass adopts the remote collection + membership into Dexie —
+		// an async reconcile, so poll generously (the default ~1s races under
+		// the parallel browser suite and flaked in CI).
 		await screen.getByRole("button", { name: /Collection/ }).click();
 		await expect
-			.poll(() =>
-				screen.container.textContent?.includes("Favorites") ? true : false,
-			)
+			.poll(() => !!screen.container.textContent?.includes("Favorites"), {
+				timeout: 5000,
+			})
 			.toBe(true);
 		await screen.getByRole("button", { name: /Favorites/ }).click();
 
 		await expect
-			.poll(() => screen.container.querySelectorAll(".book-card").length)
+			.poll(() => screen.container.querySelectorAll(".book-card").length, {
+				timeout: 5000,
+			})
 			.toBe(1);
 		expect(cardTitles(screen)).toEqual(["Alice in Wonderland"]);
 	});

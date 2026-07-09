@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 import { db, saveImportedBook } from "../lib/db";
 import { payloadToLocalBookInput } from "../lib/localBook";
 import { parseEpubOffThread } from "../lib/parseEpubOffThread";
-import { ensurePersistentStorage } from "../lib/pwa";
+import { ensurePersistentStorage } from "../lib/persistentStorage";
 import { uploadBookAsset } from "../lib/uploadBookAsset";
 
 export type QueueStatus = "queued" | "importing" | "done" | "failed";

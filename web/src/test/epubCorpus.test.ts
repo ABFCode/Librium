@@ -1,8 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import { parseEpubToPayload } from "../lib/epub";
+import { DOT_PNG, TESTBOOKS_DIR, testbook } from "./corpusFixtures";
 
 // Corpus smoke: parse EPUBs through the full ingest pipeline. Guards the
 // spine upgrade path — in particular that image srcs in blocks always match
@@ -13,11 +13,6 @@ import { parseEpubToPayload } from "../lib/epub";
 // and the real testbooks/ novels — copyrighted files deliberately absent
 // from the public repo, so those tests run only where the directory exists
 // (dev machines).
-
-const TESTBOOKS_DIR = join(__dirname, "../../../testbooks");
-
-const testbook = (name: string) =>
-	new Uint8Array(readFileSync(join(TESTBOOKS_DIR, name)));
 
 type Payload = ReturnType<typeof parseEpubToPayload>;
 
@@ -65,14 +60,6 @@ function expectCoherent(payload: Payload) {
 		expect(img.bytes.length).toBeGreaterThan(0);
 	}
 }
-
-// 1x1 transparent PNG.
-const DOT_PNG = Uint8Array.from(
-	atob(
-		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
-	),
-	(c) => c.charCodeAt(0),
-);
 
 // Minimal EPUB whose chapter references an image via a RELATIVE src from a
 // nested directory — the exact shape that breaks if the pipeline ever

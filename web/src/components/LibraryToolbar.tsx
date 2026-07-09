@@ -6,7 +6,7 @@ import {
 	isIosInstallCandidate,
 	promptInstall,
 	subscribeInstallPrompt,
-} from "../lib/pwa";
+} from "../lib/installPrompt";
 import { type ReadingStatus, STATUS_OPTIONS } from "../lib/status";
 import { Icon } from "./Icon";
 

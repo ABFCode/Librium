@@ -140,7 +140,8 @@ const bookmarks = defineTable({
 	createdAt: v.number(),
 	// Sync (ROADMAP Phase 4): client-generated key for idempotent offline
 	// creates; deletedAt is a tombstone so deletes propagate instead of
-	// resurrecting on other devices. TODO: compact old tombstones eventually.
+	// resurrecting on other devices. Compacted daily past a 90-day horizon
+	// (crons.ts → maintenance.compactTombstones).
 	clientKey: v.optional(v.string()),
 	updatedAt: v.optional(v.number()),
 	deletedAt: v.optional(v.number()),

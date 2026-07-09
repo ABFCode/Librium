@@ -3,14 +3,15 @@ import { api } from "../../convex/_generated/api";
 import { db, type LocalBook, saveImportedBook } from "./db";
 import { payloadToLocalBookInput } from "./localBook";
 import { parseEpubOffThread } from "./parseEpubOffThread";
-import { ensurePersistentStorage } from "./pwa";
+import { ensurePersistentStorage } from "./persistentStorage";
 
 // The identity fields a re-parse must NOT overwrite — user-edited metadata and
 // a replaced cover, both server-authoritative and mirrored locally. Pure so
 // the field list is unit-tested (the real regression risk is forgetting to add
 // a newly-introduced identity field here). Twin list: rewriteEpubCore.ts's
-// ExportMetadata bakes these same fields into exported EPUBs — extend both. A replaced cover is preserved only
-// when one exists locally, so a re-seed can still fill a missing cover.
+// ExportMetadata bakes these same fields into exported EPUBs — extend both.
+// A replaced cover is preserved only when one exists locally, so a re-seed
+// can still fill a missing cover.
 export function bookIdentityPatch(existing: LocalBook): Partial<LocalBook> {
 	return {
 		title: existing.title,

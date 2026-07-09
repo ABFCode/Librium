@@ -202,7 +202,9 @@ function ensureImage(
 	if (!href || images.has(href)) return;
 	const bytes = book.openResource(href);
 	if (!bytes || bytes.length === 0) return;
-	images.set(href, { href, bytes }); // contentType/width/height filled later (async)
+	// contentType is inferred at save time (localBook.ts); width/height are
+	// not populated — the reader re-anchors after images load instead.
+	images.set(href, { href, bytes });
 }
 
 function buildSectionBlocks(

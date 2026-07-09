@@ -1,22 +1,12 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { buildFixtureEpub } from "../../e2e/fixtureEpub";
 import { parseEpubToPayload } from "../lib/epub";
 import { rewriteEpubBytes } from "../lib/rewriteEpubCore";
-
-const TESTBOOKS_DIR = join(__dirname, "../../../testbooks");
+import { DOT_PNG, TESTBOOKS_DIR, testbook } from "./corpusFixtures";
 
 // Round-trip: the exported file must carry the edited identity when parsed
 // back, and its content must survive the rewrite unharmed.
-
-// 1x1 transparent PNG.
-const DOT_PNG = Uint8Array.from(
-	atob(
-		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
-	),
-	(c) => c.charCodeAt(0),
-);
 
 describe("rewriteEpubBytes", () => {
 	it("bakes edited metadata and a replaced cover into the output", () => {
@@ -76,10 +66,9 @@ describe("rewriteEpubBytes", () => {
 	it.skipIf(!existsSync(TESTBOOKS_DIR))(
 		"carries a real illustrated book through the writer intact",
 		() => {
-			const bytes = new Uint8Array(
-				readFileSync(join(TESTBOOKS_DIR, "alice-se.epub")),
-			);
-			const out = rewriteEpubBytes(bytes, { title: "Alice, Renamed" });
+			const out = rewriteEpubBytes(testbook("alice-se.epub"), {
+				title: "Alice, Renamed",
+			});
 			const payload = parseEpubToPayload(out);
 			expect(payload.metadata.title).toBe("Alice, Renamed");
 			// All 44 illustrations survive the rebuild.
