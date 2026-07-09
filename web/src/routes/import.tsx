@@ -92,7 +92,7 @@ function ImportPage() {
 						onDrop={handleDrop}
 					>
 						<p className="text-base font-semibold text-[var(--ink)]">
-							Drop EPUBs or folders here
+							Drop EPUBs, .txt rips, or folders here
 						</p>
 						<p className="mt-1.5 text-sm text-[var(--muted-2)]">
 							{files.length > 0
@@ -106,7 +106,7 @@ function ImportPage() {
 									className="upload-input"
 									type="file"
 									multiple
-									accept=".epub,application/epub+zip"
+									accept=".epub,.txt,.md,.markdown,application/epub+zip,text/plain,text/markdown"
 									onChange={(event) => {
 										if (event.target.files) {
 											addFiles(event.target.files);

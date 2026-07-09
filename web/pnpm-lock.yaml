@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@abfcode/spine':
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: ^0.9.0
+        version: 0.9.0
       '@convex-dev/better-auth':
         specifier: ^0.12.5
         version: 0.12.5(@standard-schema/spec@1.1.0)(better-auth@1.6.23(@tanstack/react-start@1.168.27(crossws@0.4.9(srvx@0.11.20))(esbuild@0.27.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rolldown@1.1.4)(rollup@4.62.2)(vite@8.1.3(@types/node@26.1.0)(esbuild@0.27.0)(jiti@2.7.0)(terser@5.48.0)))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(solid-js@1.9.14)(vitest@4.1.9))(convex@1.42.1(react@19.2.7))(react@19.2.7)(typescript@6.0.3)
@@ -138,8 +138,8 @@ importers:
 
 packages:
 
-  '@abfcode/spine@0.8.0':
-    resolution: {integrity: sha512-nDikpLmdGnVqzutPKHW0miy1ANWhm4tEn/8Stohcr1z1yv/mMizH11A5QkcoatpsLTg/Xkg8AWQnGfMKMwJF4g==}
+  '@abfcode/spine@0.9.0':
+    resolution: {integrity: sha512-6KuMfRmWLev1gsL4pbutKi8EcaomAZ9voko0Y1shcM1wZiYqMVTxFq1QSXY+Re7czAUo28Q8l3d4V33N4Y19eA==}
 
   '@apideck/better-ajv-errors@0.3.7':
     resolution: {integrity: sha512-TajUJwGWbDwkCx/CZi7tRE8PVB7simCvKJfHUsSdvps+aTM/PDPP4gkLmKnc+x3CE//y9i/nj74GqdL/hwk7Iw==}
@@ -3772,7 +3772,7 @@ packages:
 
 snapshots:
 
-  '@abfcode/spine@0.8.0':
+  '@abfcode/spine@0.9.0':
     dependencies:
       fflate: 0.8.3
 

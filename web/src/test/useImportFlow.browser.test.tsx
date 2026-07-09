@@ -11,16 +11,37 @@ vi.mock("convex/react", () => ({
 }));
 
 describe("useImportFlow", () => {
-	it("filters non-epub files and reports an error", async () => {
+	it("filters unsupported files and reports an error", async () => {
 		const { result, act } = await renderHook(() => useImportFlow());
-		const txt = new File(["hello"], "notes.txt", { type: "text/plain" });
+		const image = new File(["not a book"], "cover.jpg", {
+			type: "image/jpeg",
+		});
 
 		await act(() => {
-			result.current.addFiles([txt]);
+			result.current.addFiles([image]);
 		});
 
 		expect(result.current.files).toHaveLength(0);
-		expect(result.current.error).toBe("Only EPUB files are supported.");
+		expect(result.current.error).toBe(
+			"Only EPUB, .txt, and .md files are supported.",
+		);
+	});
+
+	it("accepts .txt and .md webnovel rips", async () => {
+		const { result, act } = await renderHook(() => useImportFlow());
+		const txt = new File(["Chapter 1\n\nOnce upon a time."], "rip.txt", {
+			type: "text/plain",
+		});
+		const md = new File(["# Title\n\nProse."], "notes.md", {
+			type: "text/markdown",
+		});
+
+		await act(() => {
+			result.current.addFiles([txt, md]);
+		});
+
+		expect(result.current.files).toHaveLength(2);
+		expect(result.current.error).toBeNull();
 	});
 
 	it("deduplicates files by name, size, and lastModified", async () => {

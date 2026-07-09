@@ -1,6 +1,10 @@
 import { useConvex, useConvexAuth, useMutation } from "convex/react";
 import { useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
+import {
+	convertTextOffThread,
+	isTextImport,
+} from "../lib/convertTextOffThread";
 import { db, saveImportedBook } from "../lib/db";
 import { payloadToLocalBookInput } from "../lib/localBook";
 import { parseEpubOffThread } from "../lib/parseEpubOffThread";
@@ -44,7 +48,14 @@ export const useImportFlow = () => {
 		uploadBookAsset(convex, bookId, kind, blob);
 
 	const importOne = async (file: File) => {
-		const bytes = new Uint8Array(await file.arrayBuffer());
+		let bytes: Uint8Array = new Uint8Array(await file.arrayBuffer());
+
+		// .txt/.md webnovel rips become real EPUBs first (spine text ingestion,
+		// off-thread) and then ride the exact same pipeline — R2 gets a proper
+		// EPUB, so seeding/export/metadata all work identically.
+		if (isTextImport(file.name)) {
+			bytes = await convertTextOffThread(bytes, file.name);
+		}
 
 		// Parse entirely in the browser, off the main thread — a 2,000-chapter
 		// webnovel no longer freezes the import UI.
@@ -149,10 +160,10 @@ export const useImportFlow = () => {
 
 	const addFiles = (incoming: FileList | File[]) => {
 		const next = Array.from(incoming).filter((file) =>
-			file.name.toLowerCase().endsWith(".epub"),
+			/\.(epub|txt|md|markdown)$/i.test(file.name),
 		);
 		if (next.length === 0) {
-			setError("Only EPUB files are supported.");
+			setError("Only EPUB, .txt, and .md files are supported.");
 			return;
 		}
 		setError(null);
