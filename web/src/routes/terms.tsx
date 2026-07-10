@@ -41,10 +41,16 @@ function TermsPage() {
 						The free plan includes a cloud-storage allowance for backup and
 						sync; the Supporter subscription raises it. Payments are processed
 						by Polar (polar.sh) as merchant of record — they are the seller, and
-						handle checkout, receipts, taxes, and refunds. If a subscription
-						ends, nothing is deleted and nothing is locked: every book you have
-						stays readable, syncable, and exportable on every device — the
-						smaller allowance only applies to adding new books to cloud storage.
+						handle checkout, receipts, taxes, and refunds.
+					</p>
+					<p>
+						If a subscription ends, nothing is locked: every book you have stays
+						readable, syncable, and exportable on every device. The smaller
+						allowance only applies to adding new books. Books stored above the
+						free allowance are kept for at least two years after a subscription
+						ends; after that, Librium may ask you to export or trim the excess,
+						by email and with at least three months to act before anything is
+						removed.
 					</p>
 
 					<h2 className="mt-2 text-lg text-[var(--ink)]">

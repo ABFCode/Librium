@@ -168,7 +168,7 @@ export const AccountStorageDialog = ({
 							</CustomerPortalLink>
 							<p className="mt-2 text-xs text-[var(--muted-2)]">
 								Billing and cancellation are handled by Polar. Cancelling
-								never removes your books.
+								doesn't remove your books.
 							</p>
 						</>
 					) : checkoutReady && billing?.supporterProductId ? (
