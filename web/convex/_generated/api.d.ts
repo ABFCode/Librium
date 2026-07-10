@@ -18,6 +18,7 @@ import type * as books from "../books.js";
 import type * as collections from "../collections.js";
 import type * as config from "../config.js";
 import type * as crons from "../crons.js";
+import type * as email from "../email.js";
 import type * as http from "../http.js";
 import type * as maintenance from "../maintenance.js";
 import type * as metadata from "../metadata.js";
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   collections: typeof collections;
   config: typeof config;
   crons: typeof crons;
+  email: typeof email;
   http: typeof http;
   maintenance: typeof maintenance;
   metadata: typeof metadata;
@@ -88,4 +90,5 @@ export declare const components: {
   betterAuth: import("@convex-dev/better-auth/_generated/component.js").ComponentApi<"betterAuth">;
   r2: import("@convex-dev/r2/_generated/component.js").ComponentApi<"r2">;
   polar: import("@convex-dev/polar/_generated/component.js").ComponentApi<"polar">;
+  resend: import("@convex-dev/resend/_generated/component.js").ComponentApi<"resend">;
 };

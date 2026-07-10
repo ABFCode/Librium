@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- **Password reset, at last.** "Forgot password?" on the sign-in page emails a reset link (new `/forgot-password` and `/reset-password` pages, anti-enumeration confirmation copy, expired-link recovery). Mail goes out as `hello@librium.dev` through Resend via the official `@convex-dev/resend` Convex component (durable queue, exactly-once), wired into Better Auth's `sendResetPassword` — plus email verification plumbing behind `REQUIRE_EMAIL_VERIFICATION` for when public signups open. Everything is env-gated on `RESEND_API_KEY` (absent = skipped with a logged warning, auth flows unaffected), and the reset endpoint gets its own rate limit (5/min) so it can't flood a victim's inbox. Live-verified end to end: request → emailed token → new password works, old refused.
 - **Account deletion is one command.** `npx convex run admin:deleteUserAccount '{"email":"...","confirm":"DELETE"}' --prod` fulfills the privacy-page promise as a single operator-run action: every app row across all seven tables, the R2 objects (derived keys, so mid-import books can't strand blobs), and the Better Auth records (sessions, credentials, verifications, user) — with accounts that signed up but never imported handled too. The Polar customer is deliberately left to Polar (merchant-of-record retention obligations). Cross-contamination pinned by tests (a second user's rows survive untouched) and smoke-tested live: sign up → import → delete → the same email can immediately register fresh.
 
 ## 0.15.1 - 2026-07-09

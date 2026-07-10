@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { authClient } from "../lib/auth-client";
 
@@ -78,6 +78,11 @@ function SignIn() {
 					{error ? (
 						<p className="text-sm text-[var(--danger)]">{error}</p>
 					) : null}
+					<p className="text-xs text-[var(--muted-2)]">
+						<Link className="underline" to="/forgot-password">
+							Forgot password?
+						</Link>
+					</p>
 				</div>
 			</div>
 		</div>
