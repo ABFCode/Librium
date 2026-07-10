@@ -27,20 +27,20 @@ function PrivacyPage() {
 					<h2 className="mt-2 text-lg text-[var(--ink)]">What is stored</h2>
 					<p>
 						<strong>Account:</strong> your email address and a password hash
-						(authentication runs on Convex; passwords are never stored in
+						(authentication runs on Convex, and passwords are never stored in
 						plaintext). <strong>Library:</strong> your book files and covers
 						(Cloudflare R2), book metadata, reading progress, bookmarks,
-						collections, and settings (Convex) — all keyed to your account and
-						readable by no other user. <strong>On your device:</strong> the
-						parsed books live in your browser's local storage (IndexedDB) so
-						reading works offline; deleting them there never deletes your cloud
-						copy.
+						collections, and settings (Convex). All of it is keyed to your
+						account and readable by no other user.{" "}
+						<strong>On your device:</strong> the parsed books live in your
+						browser's local storage (IndexedDB) so reading works offline.
+						Deleting them there never deletes your cloud copy.
 					</p>
 
 					<h2 className="mt-2 text-lg text-[var(--ink)]">Payments</h2>
 					<p>
 						If you subscribe, checkout happens on Polar (polar.sh), the merchant
-						of record. Card details go to Polar and its payment processors —
+						of record. Card details go to Polar and its payment processors.
 						Librium never sees or stores them. Librium keeps only your
 						subscription status.
 					</p>
@@ -60,8 +60,8 @@ function PrivacyPage() {
 					<p>
 						Librium runs on Cloudflare Pages and R2 (static hosting and file
 						storage) and Convex (database and sync). These providers process
-						data on Librium's behalf under their own privacy terms; none of them
-						are given access beyond hosting the service.
+						data on Librium's behalf under their own privacy terms. None of them
+						get access beyond hosting the service.
 					</p>
 				</section>
 			</div>

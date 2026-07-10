@@ -180,7 +180,7 @@ export const AccountStorageDialog = ({
 								className="btn btn-primary h-9 text-xs"
 							>
 								{priceLabel
-									? `Become a supporter — ${priceLabel}`
+									? `Become a supporter · ${priceLabel}`
 									: "Become a supporter"}
 							</CheckoutLink>
 							<p className="mt-2 text-xs text-[var(--muted-2)]">

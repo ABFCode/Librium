@@ -82,7 +82,7 @@ describe("AccountStorageDialog", () => {
 		// Plan cards: free allowance and supporter allowance both visible.
 		await expect.element(screen.getByText("Your plan")).toBeVisible();
 		await expect
-			.element(screen.getByText(/Become a supporter — \$12\/year/))
+			.element(screen.getByText(/Become a supporter · \$12\/year/))
 			.toBeVisible();
 	});
 
