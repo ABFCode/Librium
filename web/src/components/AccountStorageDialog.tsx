@@ -143,7 +143,7 @@ export const AccountStorageDialog = ({
 					) : null}
 					{storage && !storage.enforced ? (
 						<p className="mt-1.5 text-xs text-[var(--muted-2)]">
-							Storage limits aren't enforced yet — this shows what your plan
+							Storage limits aren't enforced yet. This shows what your plan
 							includes.
 						</p>
 					) : null}
@@ -167,10 +167,8 @@ export const AccountStorageDialog = ({
 								Manage subscription
 							</CustomerPortalLink>
 							<p className="mt-2 text-xs text-[var(--muted-2)]">
-								Thank you for keeping a one-person project running. Billing,
-								receipts, and cancellation are handled by Polar; cancelling
-								keeps everything you have — it only lowers the ceiling for new
-								uploads.
+								Billing and cancellation are handled by Polar. Cancelling
+								never removes your books.
 							</p>
 						</>
 					) : checkoutReady && billing?.supporterProductId ? (
@@ -186,11 +184,7 @@ export const AccountStorageDialog = ({
 									: "Become a supporter"}
 							</CheckoutLink>
 							<p className="mt-2 text-xs text-[var(--muted-2)]">
-								{storage
-									? `${formatStorage(storage.supporterLimitBytes)} of cloud storage instead of ${formatStorage(storage.freeLimitBytes)}, and you keep a one-person project running. `
-									: ""}
-								Checkout and receipts are handled by Polar, our payment
-								provider.
+								Checkout and receipts are handled by Polar. Cancel anytime.
 							</p>
 						</>
 					) : (
