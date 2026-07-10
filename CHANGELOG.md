@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+- **Account deletion is one command.** `npx convex run admin:deleteUserAccount '{"email":"...","confirm":"DELETE"}' --prod` fulfills the privacy-page promise as a single operator-run action: every app row across all seven tables, the R2 objects (derived keys, so mid-import books can't strand blobs), and the Better Auth records (sessions, credentials, verifications, user) — with accounts that signed up but never imported handled too. The Polar customer is deliberately left to Polar (merchant-of-record retention obligations). Cross-contamination pinned by tests (a second user's rows survive untouched) and smoke-tested live: sign up → import → delete → the same email can immediately register fresh.
+
 ## 0.15.1 - 2026-07-09
 - **Menus stopped being finicky.** Every popover menu (library ⋯, collection filter, card menus, Mark as…) dismissed on hover-out — drift a pixel past the edge and it closed. All of them now dismiss the way native menus do: click outside or Escape (`useDismissable`, one shared hook — also retiring the review's deferred dialog-dismiss item for menus).
 - **Account & storage is findable and explains itself.** A person icon in the library toolbar opens it directly (the ⋯ entry stays). The dialog now shows your usage against your plan's actual allowance (with a "not enforced yet" note while that's true), side-by-side Free/Supporter plan cards with each plan's storage, and the real price on the checkout button — read live from Polar's synced catalog, so the UI can never advertise a number checkout doesn't charge. Backing that: `getStorage` reports both plans' allowances regardless of enforcement and `getConfig` includes the product's price.

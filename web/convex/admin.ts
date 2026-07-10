@@ -1,6 +1,12 @@
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
-import { internalMutation, mutation } from "./_generated/server";
+import { components, internal } from "./_generated/api";
+import {
+	internalAction,
+	internalMutation,
+	mutation,
+} from "./_generated/server";
+import { bookAssetKey } from "./books";
+import { r2 } from "./r2";
 
 const deploymentName = process.env.CONVEX_DEPLOYMENT ?? "";
 const convexUrl = process.env.CONVEX_URL ?? process.env.CONVEX_SITE_URL ?? "";
@@ -80,6 +86,159 @@ export const resetAllDataInternal = internalMutation({
 		}
 
 		return { ok: true };
+	},
+});
+
+// ── Account deletion ─────────────────────────────────────────────────────
+// Fulfills the privacy-page promise ("email hello@librium.dev and it will
+// be done within 30 days") as ONE operator-run action instead of a hand
+// checklist across seven tables, a bucket, and the auth component:
+//
+//   npx convex run admin:deleteUserAccount \
+//     '{"email":"person@example.com","confirm":"DELETE"}' --prod
+//
+// Deliberately NOT touched: the Polar customer. Polar is the merchant of
+// record and retains billing records for tax/legal compliance — cancel any
+// active subscription in the Polar dashboard first; their records are their
+// obligation. Internal-only (not callable from clients) plus a typed
+// confirm string against fat-fingered emails.
+
+/**
+ * Delete every app-table row belonging to the user. Runs WITHOUT ownership
+ * checks (there's no viewer identity in an admin context) — the caller is
+ * the internal action below, keyed by exact email. Returns what the action
+ * needs for the non-transactional cleanup (R2 objects, auth records).
+ */
+export const deleteUserRowsInternal = internalMutation({
+	args: { email: v.string() },
+	handler: async (ctx, args) => {
+		// users has no email index; the table is operator-scale, a scan is fine.
+		// A missing row is NOT an error: the app row is only created on the
+		// first mutation, so a signed-up-but-never-imported account has auth
+		// records and nothing else — the action still cleans those.
+		const users = await ctx.db.query("users").collect();
+		const user = users.find((u) => u.email === args.email);
+		if (!user) {
+			return { bookIds: [] as string[], authUserId: null };
+		}
+		const userId = user._id;
+
+		const books = await ctx.db
+			.query("books")
+			.withIndex("by_owner", (q) => q.eq("ownerId", userId))
+			.collect();
+		const bookIds = books.map((b) => b._id);
+		for (const book of books) {
+			await ctx.db.delete(book._id);
+		}
+		// by_user_book's prefix is userId, so eq(userId) ranges the whole user.
+		for (const table of ["userBooks", "bookmarks"] as const) {
+			const rows = await ctx.db
+				.query(table)
+				.withIndex("by_user_book", (q) => q.eq("userId", userId))
+				.collect();
+			for (const row of rows) {
+				await ctx.db.delete(row._id);
+			}
+		}
+		for (const table of ["collections", "collectionBooks"] as const) {
+			const rows = await ctx.db
+				.query(table)
+				.withIndex("by_user", (q) => q.eq("userId", userId))
+				.collect();
+			for (const row of rows) {
+				await ctx.db.delete(row._id);
+			}
+		}
+		const settings = await ctx.db
+			.query("userSettings")
+			.withIndex("by_user", (q) => q.eq("userId", userId))
+			.collect();
+		for (const row of settings) {
+			await ctx.db.delete(row._id);
+		}
+		await ctx.db.delete(userId);
+
+		return {
+			bookIds: bookIds as string[],
+			// Better Auth's user id — our externalId — keys its session/account
+			// rows; email keys its verification rows.
+			authUserId: user.externalId as string | null,
+		};
+	},
+});
+
+export const deleteUserAccount = internalAction({
+	args: { email: v.string(), confirm: v.string() },
+	// Explicit annotations break the internal.admin self-reference cycle
+	// (same pattern as resetAllData below).
+	handler: async (
+		ctx,
+		args,
+	): Promise<{ deletedBooks: number; email: string }> => {
+		if (args.confirm !== "DELETE") {
+			throw new Error('Pass confirm: "DELETE" to delete an account.');
+		}
+		const {
+			bookIds,
+			authUserId: appAuthUserId,
+		}: { bookIds: string[]; authUserId: string | null } = await ctx.runMutation(
+			internal.admin.deleteUserRowsInternal,
+			{ email: args.email },
+		);
+		// The auth user can exist without an app row (signed up, never ran a
+		// mutation) — resolve it by email so those accounts are deletable too.
+		const authUser: { _id?: string } | null = await ctx.runQuery(
+			components.betterAuth.adapter.findOne,
+			{
+				model: "user",
+				where: [{ field: "email", value: args.email }],
+			} as never,
+		);
+		if (bookIds.length === 0 && !appAuthUserId && !authUser) {
+			throw new Error(`No user with email ${args.email}.`);
+		}
+		const authUserId = appAuthUserId ?? (authUser?._id as string | undefined);
+		// Blobs: derived keys, unconditionally — same rationale as deleteBook
+		// (a mid-import book may hold objects its row never recorded).
+		for (const bookId of bookIds) {
+			await r2.deleteObject(ctx, bookAssetKey(bookId, "epub"));
+			await r2.deleteObject(ctx, bookAssetKey(bookId, "cover"));
+		}
+		// Auth records: sessions/accounts key on userId, verification on the
+		// email, then the user row itself. deleteMany paginates; loop to done.
+		const deleteAuthRows = async (
+			model: string,
+			field: string,
+			value: string,
+		) => {
+			let cursor: string | null = null;
+			for (;;) {
+				// The adapter's arg types are generic over the component's own data
+				// model; the cross-component call site can't express that, so the
+				// args are cast (the shapes are validated server-side regardless).
+				const result: { isDone: boolean; continueCursor: string } =
+					await ctx.runMutation(components.betterAuth.adapter.deleteMany, {
+						input: {
+							model,
+							where: [{ field, value }],
+						},
+						paginationOpts: { cursor, numItems: 100 },
+					} as never);
+				if (result.isDone) {
+					return;
+				}
+				cursor = result.continueCursor;
+			}
+		};
+		if (authUserId) {
+			await deleteAuthRows("session", "userId", authUserId);
+			await deleteAuthRows("account", "userId", authUserId);
+		}
+		await deleteAuthRows("verification", "identifier", args.email);
+		await deleteAuthRows("user", "email", args.email);
+
+		return { deletedBooks: bookIds.length, email: args.email };
 	},
 });
 
