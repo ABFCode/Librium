@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
+import { useDismissable } from "../hooks/useDismissable";
 import type { LocalCollection } from "../lib/db";
 import {
 	canPromptInstall,
@@ -92,6 +93,14 @@ export function LibraryToolbar({
 		() => false,
 	);
 	const [isCollectionMenuOpen, setIsCollectionMenuOpen] = useState(false);
+	// Menus dismiss on outside-click/Escape — hover-out closed them the
+	// moment the pointer dipped past an edge.
+	const bulkMenuRef = useRef<HTMLDivElement>(null);
+	const collectionMenuRef = useRef<HTMLDivElement>(null);
+	useDismissable(bulkMenuRef, isBulkMenuOpen, () => setIsBulkMenuOpen(false));
+	useDismissable(collectionMenuRef, isCollectionMenuOpen, () =>
+		setIsCollectionMenuOpen(false),
+	);
 
 	return (
 		<>
@@ -134,11 +143,16 @@ export function LibraryToolbar({
 							{isSelecting ? "Done" : "Select"}
 						</button>
 					) : null}
-					{/* biome-ignore lint/a11y/noStaticElementInteractions: hover-out dismiss is a pointer nicety; the menu itself is keyboard-operable via its buttons */}
-					<div
-						className="relative"
-						onMouseLeave={() => setIsBulkMenuOpen(false)}
+					<button
+						type="button"
+						className="icon-btn"
+						title="Account & storage"
+						onClick={onOpenAccount}
 					>
+						<span className="sr-only">Account & storage</span>
+						<Icon name="user" />
+					</button>
+					<div className="relative" ref={bulkMenuRef}>
 						<button
 							type="button"
 							className={`icon-btn ${isBulkMenuOpen ? "is-active" : ""}`}
@@ -264,11 +278,7 @@ export function LibraryToolbar({
 				>
 					On this device
 				</button>
-				{/* biome-ignore lint/a11y/noStaticElementInteractions: hover-out dismiss is a pointer nicety; the menu itself is keyboard-operable via its buttons */}
-				<div
-					className="relative"
-					onMouseLeave={() => setIsCollectionMenuOpen(false)}
-				>
+				<div className="relative" ref={collectionMenuRef}>
 					<button
 						type="button"
 						className={`chip ${collectionFilter !== null ? "is-active" : ""}`}

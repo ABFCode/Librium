@@ -148,6 +148,10 @@ export const getStorage = query({
 			plan,
 			enforced,
 			billingConfigured: isBillingConfigured(),
+			// Both plans' allowances, independent of enforcement — the account
+			// dialog shows what each plan includes, not just the active ceiling.
+			freeLimitBytes: limitBytesForPlan("free"),
+			supporterLimitBytes: limitBytesForPlan("supporter"),
 		};
 	},
 });

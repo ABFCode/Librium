@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { memo } from "react";
+import { memo, useRef } from "react";
+import { useDismissable } from "../hooks/useDismissable";
 import { type ReadingStatus, STATUS_OPTIONS } from "../lib/status";
 import { Icon } from "./Icon";
 
@@ -60,6 +61,9 @@ function BookCardImpl({
 	onAddToCollection,
 	onEditDetails,
 }: BookCardProps) {
+	const menuShellRef = useRef<HTMLDivElement>(null);
+	// Only the open card attaches the document listeners (open gates the hook).
+	useDismissable(menuShellRef, isMenuOpen, () => onMenuOpenChange(null));
 	const showProgressBadge = progressPercent !== null && progressPercent > 0;
 
 	const guardSelect = (event: { preventDefault: () => void }) => {
@@ -115,8 +119,7 @@ function BookCardImpl({
 					) : null}
 				</div>
 			</Link>
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: hover-out dismiss is a pointer nicety; the menu is keyboard-operable via its buttons */}
-			<div className="book-meta" onMouseLeave={() => onMenuOpenChange(null)}>
+			<div className="book-meta">
 				<div className="book-text">
 					<Link
 						className="book-title truncate text-sm font-semibold"
@@ -130,11 +133,13 @@ function BookCardImpl({
 						{book.author ?? "Unknown author"}
 					</div>
 				</div>
-				<div className="book-menu-shell">
+				<div className="book-menu-shell" ref={menuShellRef}>
 					{/* Click-to-open only. Hover-open + click-toggle raced: the
 					    pointer's own hover opened the menu and the click closed it
 					    again — every touch tap (synthetic mouseenter precedes click)
-					    and the occasional CI run hit it. Hover-out still dismisses. */}
+					    and the occasional CI run hit it. Dismissal is outside-click
+					    or Escape (useDismissable) — hover-out closed the menu the
+					    moment the pointer dipped past its edge. */}
 					<button
 						type="button"
 						className="icon-btn"
@@ -151,7 +156,6 @@ function BookCardImpl({
 						// biome-ignore lint/a11y/useKeyWithClickEvents: see above
 						<div
 							className="menu book-menu"
-							onMouseLeave={() => onMenuOpenChange(null)}
 							onClick={(event) => event.stopPropagation()}
 						>
 							{isDownloaded ? (

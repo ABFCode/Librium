@@ -1,8 +1,9 @@
 import { useAction, useConvex, useConvexAuth, useQuery } from "convex/react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { useCollectionSync } from "../hooks/useCollectionSync";
+import { useDismissable } from "../hooks/useDismissable";
 import { useStatusSync } from "../hooks/useStatusSync";
 import {
 	db,
@@ -131,6 +132,8 @@ export function Library() {
 	// Bulk operations (global; per-book actions live in each card's menu).
 	const [bulkStatus, setBulkStatus] = useState<string | null>(null);
 	const [isMarkMenuOpen, setIsMarkMenuOpen] = useState(false);
+	const markMenuRef = useRef<HTMLDivElement>(null);
+	useDismissable(markMenuRef, isMarkMenuOpen, () => setIsMarkMenuOpen(false));
 
 	// In-app confirmation dialog (replaces native window.confirm/prompt).
 	type ConfirmRequest = {
@@ -1019,11 +1022,7 @@ export function Library() {
 								Select all
 							</button>
 							<div className="ml-auto flex flex-wrap items-center gap-2">
-								{/* biome-ignore lint/a11y/noStaticElementInteractions: hover-out dismiss is a pointer nicety; the menu itself is keyboard-operable via its buttons */}
-								<div
-									className="relative"
-									onMouseLeave={() => setIsMarkMenuOpen(false)}
-								>
+								<div className="relative" ref={markMenuRef}>
 									<button
 										type="button"
 										className="btn btn-ghost text-xs"

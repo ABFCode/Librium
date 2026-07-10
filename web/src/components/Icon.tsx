@@ -21,7 +21,8 @@ export type IconName =
 	| "folder"
 	| "pencil"
 	| "trash"
-	| "external-link";
+	| "external-link"
+	| "user";
 
 const GLYPHS: Record<IconName, React.ReactNode> = {
 	close: (
@@ -107,6 +108,12 @@ const GLYPHS: Record<IconName, React.ReactNode> = {
 			<path d="M3 6h18" />
 			<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
 			<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+		</>
+	),
+	user: (
+		<>
+			<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+			<circle cx="12" cy="7" r="4" />
 		</>
 	),
 	"external-link": (

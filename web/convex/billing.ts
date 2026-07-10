@@ -94,10 +94,38 @@ export const getPlan = async (
 /** Frontend billing config: whether checkout is possible and for what. */
 export const getConfig = query({
 	args: {},
-	handler: async () => ({
-		configured: isBillingConfigured(),
-		supporterProductId: supporterProductId() ?? null,
-	}),
+	handler: async (ctx) => {
+		const configured = isBillingConfigured();
+		const productId = supporterProductId() ?? null;
+		// Real price from the synced product catalog (billing:syncProducts /
+		// product webhooks) so the UI never hardcodes an amount that could
+		// drift from what checkout actually charges. Absent price is fine —
+		// the dialog just omits it.
+		let price: {
+			amountCents: number;
+			currency: string;
+			interval: string | null;
+		} | null = null;
+		if (configured && productId) {
+			try {
+				const products = await polar.listProducts(ctx);
+				const product = products.find((p) => p.id === productId);
+				const withAmount = product?.prices?.find(
+					(p) => typeof p.priceAmount === "number",
+				);
+				if (product && typeof withAmount?.priceAmount === "number") {
+					price = {
+						amountCents: withAmount.priceAmount,
+						currency: withAmount.priceCurrency ?? "usd",
+						interval: product.recurringInterval ?? null,
+					};
+				}
+			} catch {
+				// Catalog not synced yet — price stays null, checkout still works.
+			}
+		}
+		return { configured, supporterProductId: productId, price };
+	},
 });
 
 // Checkout + customer-portal actions consumed by the CheckoutLink /

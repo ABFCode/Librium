@@ -38,6 +38,17 @@ vi.mock("@convex-dev/polar/react", () => ({
 }));
 
 const MB = 1024 * 1024;
+const GB = 1024 ** 3;
+
+const baseStorage = {
+	usedBytes: 120 * MB,
+	limitBytes: null as number | null,
+	plan: "free" as string,
+	enforced: false,
+	billingConfigured: false,
+	freeLimitBytes: 250 * MB,
+	supporterLimitBytes: 10 * GB,
+};
 
 describe("AccountStorageDialog", () => {
 	beforeEach(() => {
@@ -45,53 +56,56 @@ describe("AccountStorageDialog", () => {
 		state.billing = null;
 	});
 
-	it("shows usage without a limit while enforcement is off", async () => {
-		state.storage = {
-			usedBytes: 120 * MB,
-			limitBytes: null,
-			plan: "free",
-			enforced: false,
-			billingConfigured: false,
+	it("shows usage against the plan allowance even before enforcement", async () => {
+		state.storage = { ...baseStorage };
+		state.billing = {
+			configured: false,
+			supporterProductId: null,
+			price: null,
 		};
-		state.billing = { configured: false, supporterProductId: null };
 		const screen = await render(<AccountStorageDialog onClose={vi.fn()} />);
-		await expect.element(screen.getByText("120 MB used")).toBeVisible();
+		await expect.element(screen.getByText("120 MB of 250 MB")).toBeVisible();
+		await expect.element(screen.getByText(/aren't enforced yet/)).toBeVisible();
 		await expect
 			.element(screen.getByText(/aren't available yet/))
 			.toBeVisible();
 	});
 
-	it("offers checkout to a free user when billing is live", async () => {
-		state.storage = {
-			usedBytes: 200 * MB,
-			limitBytes: 250 * MB,
-			plan: "free",
-			enforced: true,
-			billingConfigured: true,
+	it("shows both plan allowances and the real price on the checkout button", async () => {
+		state.storage = { ...baseStorage, enforced: true, limitBytes: 250 * MB };
+		state.billing = {
+			configured: true,
+			supporterProductId: "prod_123",
+			price: { amountCents: 1200, currency: "usd", interval: "year" },
 		};
-		state.billing = { configured: true, supporterProductId: "prod_123" };
 		const screen = await render(<AccountStorageDialog onClose={vi.fn()} />);
-		await expect.element(screen.getByText("200 MB of 250 MB")).toBeVisible();
-		await expect.element(screen.getByText("Become a supporter")).toBeVisible();
+		// Plan cards: free allowance and supporter allowance both visible.
+		await expect.element(screen.getByText("Your plan")).toBeVisible();
+		await expect
+			.element(screen.getByText(/Become a supporter — \$12\/year/))
+			.toBeVisible();
 	});
 
 	it("offers the customer portal to a supporter", async () => {
 		state.storage = {
-			usedBytes: 1 * 1024 ** 3,
-			limitBytes: 10 * 1024 ** 3,
+			...baseStorage,
+			usedBytes: 1 * GB,
 			plan: "supporter",
 			enforced: true,
+			limitBytes: 10 * GB,
 			billingConfigured: true,
 		};
-		state.billing = { configured: true, supporterProductId: "prod_123" };
+		state.billing = {
+			configured: true,
+			supporterProductId: "prod_123",
+			price: { amountCents: 1200, currency: "usd", interval: "year" },
+		};
 		const screen = await render(<AccountStorageDialog onClose={vi.fn()} />);
-		await expect.element(screen.getByText("Supporter")).toBeVisible();
 		await expect.element(screen.getByText("Manage subscription")).toBeVisible();
+		await expect.element(screen.getByText("1.0 GB of 10.0 GB")).toBeVisible();
 	});
 
 	it("closes on Escape", async () => {
-		state.storage = null;
-		state.billing = null;
 		const onClose = vi.fn();
 		await render(<AccountStorageDialog onClose={onClose} />);
 		window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
