@@ -156,6 +156,39 @@ reading from local storage; total Convex storage usage is near-zero.
 **Exit:** Librium usable from any device via a real URL; total infra cost $0/mo
 at current library size.
 
+## Phase 8 — Sustainability (SHIPPED 0.15.x–0.16.0, 2026-07)
+
+Freemium storage quota + Supporter subscription, built to never hold books
+hostage. All of it env-gated and currently in the sandbox era.
+
+- **Quota plane:** free allowance (default 250 MB) / Supporter (default
+  10 GB) of R2-verified attached bytes. Gates NEW uploads only. Reading,
+  sync, seeding, export, and deletes are never quota-checked. Enforcement
+  is one flag: `QUOTA_ENFORCED=1` on the prod deployment.
+- **Billing:** Polar as merchant of record (they handle tax, receipts,
+  refunds) via @convex-dev/polar. Runbook: web/docs/billing-setup.md.
+  Family comps are 100% discount codes in the Polar dashboard, no code.
+- **Trust surface:** /terms (bounded retention: two years post-lapse, then
+  export-or-trim with three months emailed notice, wind-down clause) and
+  /privacy (full data inventory, deletion within 30 days).
+- **Ops:** hello@librium.dev receives via Cloudflare Email Routing
+  catch-all. Password reset + verification email via Resend
+  (web/docs/email-setup.md). Account deletion is one command:
+  admin:deleteUserAccount. Daily crons: tombstone compaction + orphaned
+  R2 object sweep.
+
+### Remaining before ALLOW_SIGNUP=true (public launch)
+
+1. Production Polar org (KYC + payout account) and the env swap:
+   POLAR_ORGANIZATION_TOKEN / POLAR_WEBHOOK_SECRET / POLAR_PRODUCT_SUPPORTER
+   / POLAR_SERVER=production on prod, then `billing:syncProducts --prod`
+   (MANDATORY: without it a paying supporter resolves to free), then one
+   real-card self-purchase as the smoke test.
+2. `REQUIRE_EMAIL_VERIFICATION=true`.
+3. The one bad combination to never ship: sandbox Polar + enforced quota +
+   open signups (a stranger's real card bounces off a fake store). Any two
+   of the three are safe.
+
 ## Deferred / future
 
 - iOS PWA polish (install prompt, persistent-storage request, Safari eviction
@@ -167,5 +200,13 @@ at current library size.
   upgrade).
 - More formats (MOBI/AZW3/FB2) in `@abfcode/spine` — grows the OSS library and
   the reader together.
+- "Send as" hello@librium.dev (Gmail send-as + SMTP relay) once real mail
+  volume exists — receiving already works.
+- Shared `runInWorkerWithFallback` helper (three hand-rolled copies: parse,
+  export rewrite, text convert; the parse fallback logs an e2e-asserted
+  marker — mind it when unifying) and a shared dialog-dismiss hook (six
+  copied scaffolds; menus already share `useDismissable`).
+- Denormalized per-user storage counter if libraries reach thousands of
+  books (today's per-check summation is deliberate: it can't drift).
 - ~~`@abfcode/spine` OSS hygiene~~ — done upstream (LICENSE, CI matrix incl.
   epubcheck, golden corpus shipped in spine 0.2–0.8).
