@@ -309,9 +309,9 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 	const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
 	const restoredFromUserBookRef = useRef(false);
 	// Where the initial restore put the view, and when we mounted — used to
-	// allow a one-time cross-device hand-off correction (never a later yank).
+	// allow cross-device hand-off correction while the reader is still showing
+	// that restored location (explicit navigation changes it).
 	const initialRestoreTargetRef = useRef<string | null>(null);
-	const mountedAtRef = useRef(Date.now());
 	const initialProgressRef = useRef(false);
 	const scrollRestoredRef = useRef<string | null>(null);
 	// Restore is applied synchronously, then silently re-anchored while fonts
@@ -527,10 +527,11 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		}
 	}, [sections, activeSectionId, effectiveProgress]);
 
-	// Cross-device hand-off: if a newer remote position arrives moments after
-	// opening the book, and the user has not navigated away from where the
-	// initial restore put them, correct the view once. An engaged reader
-	// (navigated, or local edits pending) is never yanked.
+	// Cross-device hand-off: whenever a newer remote position arrives and this
+	// reader is still showing the location it originally restored, follow it.
+	// This cannot be time-limited: an overnight/suspended tab may reconnect many
+	// hours later. Explicit navigation changes activeSectionId first, so a reader
+	// who deliberately moved elsewhere is not yanked back by this effect.
 	useEffect(() => {
 		if (!sections || sections.length === 0 || !effectiveProgress) {
 			return;
@@ -539,9 +540,6 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 			return;
 		}
 		if (effectiveProgress.source !== "remote") {
-			return;
-		}
-		if (Date.now() - mountedAtRef.current > 4000) {
 			return;
 		}
 		if (
@@ -611,6 +609,18 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 			return;
 		}
 		if (effectiveProgress && !restoredFromUserBookRef.current) {
+			return;
+		}
+		// A newer cross-device chapter can arrive one render before the handoff
+		// effect switches activeSectionId. Never let pagehide, a layout scroll, or
+		// another incidental event save the still-visible stale chapter using the
+		// newly adopted server version; that turns a harmless stale tab into a
+		// destructive "new" write.
+		if (
+			effectiveProgress?.source === "remote" &&
+			effectiveProgress.sectionIndex !== activeIndex &&
+			activeSectionId === initialRestoreTargetRef.current
+		) {
 			return;
 		}
 		const anchor = findAnchor(parentRef.current);

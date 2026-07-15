@@ -83,6 +83,36 @@ describe("server-versioned status conflicts", () => {
 	});
 });
 
+describe("server-versioned progress conflicts", () => {
+	test("rejects a stale chapter without rolling back newer reading progress", async () => {
+		const { as, bookId } = await seed();
+		const chapterOne = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 0,
+			baseServerTime: 0,
+		});
+		expect(chapterOne.accepted).toBe(true);
+
+		const chapterSixteen = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 15,
+			baseServerTime: chapterOne.serverTime,
+		});
+		expect(chapterSixteen.accepted).toBe(true);
+
+		const staleComputer = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 0,
+			baseServerTime: chapterOne.serverTime,
+		});
+		expect(staleComputer.accepted).toBe(false);
+
+		const row = await as.query(api.userBooks.getUserBook, { bookId });
+		expect(row?.lastSectionIndex).toBe(15);
+		expect(row?.progressUpdatedAt).toBe(chapterSixteen.serverTime);
+	});
+});
+
 describe("bookmark tombstones never resurrect", () => {
 	test("a key ever deleted ends tombstoned; others live; no duplicates", async () => {
 		await fc.assert(
