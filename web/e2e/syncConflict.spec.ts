@@ -20,6 +20,36 @@ const setStatus = async (page: Page, status: string) => {
 		.click();
 };
 
+const statusSyncState = async (page: Page) =>
+	page.evaluate(async () => {
+		const userId = localStorage.getItem("librium:activeLocalUser");
+		if (!userId) return null;
+		const request = indexedDB.open(
+			`librium:user:${encodeURIComponent(userId)}`,
+		);
+		const database: IDBDatabase = await new Promise((resolve, reject) => {
+			request.onsuccess = () => resolve(request.result);
+			request.onerror = () => reject(request.error);
+		});
+		const transaction = database.transaction("bookStatus", "readonly");
+		const all = transaction.objectStore("bookStatus").getAll();
+		const rows = await new Promise<
+			Array<{ status: string | null; dirty: number; syncedServerTime?: number }>
+		>((resolve, reject) => {
+			all.onsuccess = () => resolve(all.result);
+			all.onerror = () => reject(all.error);
+		});
+		database.close();
+		const row = rows[0];
+		return row
+			? {
+					status: row.status,
+					dirty: row.dirty,
+					serverTime: row.syncedServerTime ?? 0,
+				}
+			: null;
+	});
+
 test("stale offline status loses to newer server state", async ({
 	page: deviceA,
 	browser,
@@ -65,6 +95,18 @@ test("stale offline status loses to newer server state", async ({
 	await setStatus(deviceA, "Finished");
 	await deviceA.getByRole("button", { name: "Finished" }).click();
 	await expect(cardFor(deviceA)).toBeVisible();
+	// The filtered card is optimistic local UI. Establish the causal order this
+	// test claims by waiting until A's write is actually acknowledged before B
+	// is allowed back online; otherwise a slow CI runner can let B win first.
+	await expect
+		.poll(() => statusSyncState(deviceA))
+		.toEqual(
+			expect.objectContaining({
+				status: "finished",
+				dirty: 0,
+				serverTime: expect.any(Number),
+			}),
+		);
 
 	// Reconnecting B flushes its stale queue. The server rejects it and the
 	// reactive pull replaces B's optimistic value with A's accepted value.
