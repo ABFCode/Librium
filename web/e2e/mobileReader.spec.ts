@@ -234,9 +234,11 @@ test("mobile reader has deterministic chrome and true chapter starts", async ({
 	await expect(
 		page.getByRole("button", { name: "Bookmarks", exact: true }),
 	).toHaveClass(/is-active/);
+	// TanStack's development-only floating badge overlaps this bottom-sheet
+	// corner in CI. Activate the real button directly; production has no badge.
 	await page
 		.getByRole("button", { name: "Edit bookmark label", exact: true })
-		.click();
+		.evaluate((button: HTMLButtonElement) => button.click());
 	const bookmarkLabel = page.getByLabel("Bookmark label (optional)");
 	await expect(bookmarkLabel).toBeFocused();
 	await bookmarkLabel.fill("Search location");
