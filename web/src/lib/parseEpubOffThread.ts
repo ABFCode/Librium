@@ -11,7 +11,13 @@ type WorkerResult =
  * the worker is an optimization, never a point of failure. A parse error
  * *inside* the worker rejects: the same bytes would fail on any thread.
  */
-export function parseEpubOffThread(bytes: Uint8Array): Promise<EpubPayload> {
+export function parseEpubOffThread(
+	bytes: Uint8Array,
+	opts?: {
+		transfer?: boolean;
+		fallbackBytes?: () => Promise<Uint8Array>;
+	},
+): Promise<EpubPayload> {
 	let worker: Worker;
 	try {
 		worker = new Worker(new URL("./parseEpub.worker.ts", import.meta.url), {
@@ -31,9 +37,18 @@ export function parseEpubOffThread(bytes: Uint8Array): Promise<EpubPayload> {
 		};
 		worker.onerror = (event) => {
 			worker.terminate();
-			mainThreadFallback(bytes, event).then(resolve, reject);
+			const fallback = opts?.fallbackBytes
+				? opts.fallbackBytes()
+				: Promise.resolve(bytes);
+			fallback
+				.then((fallbackInput) => mainThreadFallback(fallbackInput, event))
+				.then(resolve, reject);
 		};
-		worker.postMessage(bytes);
+		if (opts?.transfer) {
+			worker.postMessage(bytes, [bytes.buffer]);
+		} else {
+			worker.postMessage(bytes);
+		}
 	});
 }
 

@@ -48,9 +48,13 @@ const books = defineTable({
 	coverUpdatedAt: v.optional(v.number()),
 	fileName: v.optional(v.string()),
 	fileSize: v.optional(v.number()),
+	// SHA-256 of the final EPUB bytes. Per-owner idempotency key for imports.
+	contentHash: v.optional(v.string()),
 	createdAt: v.number(),
 	updatedAt: v.number(),
-}).index("by_owner", ["ownerId", "updatedAt"]);
+})
+	.index("by_owner", ["ownerId", "updatedAt"])
+	.index("by_owner_hash", ["ownerId", "contentHash"]);
 
 const userBooks = defineTable({
 	userId: v.id("users"),
@@ -68,9 +72,12 @@ const userBooks = defineTable({
 	// bump updatedAt (the sync clock the status merge orders on) but must NOT
 	// reorder Recent, so recency reads from this field instead.
 	lastActivityAt: v.optional(v.number()),
-	// Client edit time of the progress fields (device clock, same-user devices).
-	// Used to reject stale offline pushes; pull ordering uses updatedAt (server).
+	// Legacy client-clock fields retained for existing rows during the rolling
+	// migration. New clients never compare or write them.
 	progressEditedAt: v.optional(v.number()),
+	// Server-issued version for progress only. Offline writes carry the last
+	// version they observed; a write based on older state is rejected.
+	progressUpdatedAt: v.optional(v.number()),
 	// Explicit reading status; absent = derived from progress on the client.
 	// Own LWW clock, disjoint from progressEditedAt — status and progress are
 	// edited independently and must never clobber each other.
@@ -83,6 +90,8 @@ const userBooks = defineTable({
 		),
 	),
 	statusEditedAt: v.optional(v.number()),
+	// Server-issued version for explicit status only (independent of progress).
+	statusUpdatedAt: v.optional(v.number()),
 })
 	.index("by_user_book", ["userId", "bookId"])
 	.index("by_user_updated", ["userId", "updatedAt"])
@@ -112,6 +121,8 @@ const collections = defineTable({
 	deletedAt: v.optional(v.number()),
 	// LWW clock for offline renames (device clock, same-user devices).
 	nameEditedAt: v.optional(v.number()),
+	// Server-issued version for collection names. nameEditedAt is legacy.
+	nameUpdatedAt: v.optional(v.number()),
 })
 	.index("by_user", ["userId", "updatedAt"])
 	.index("by_deleted", ["deletedAt"]);

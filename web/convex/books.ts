@@ -52,10 +52,26 @@ export const registerImport = mutation({
 		fileName: v.string(),
 		fileSize: v.number(),
 		sectionCount: v.number(),
+		contentHash: v.string(),
 		metadata: metadataSchema,
 	},
 	handler: async (ctx, args) => {
 		const userId = await requireViewerUserId(ctx);
+		if (!/^[a-f0-9]{64}$/.test(args.contentHash)) {
+			throw new Error("Invalid content hash.");
+		}
+		const existing = await ctx.db
+			.query("books")
+			.withIndex("by_owner_hash", (q) =>
+				q.eq("ownerId", userId).eq("contentHash", args.contentHash),
+			)
+			.first();
+		if (existing) {
+			return {
+				bookId: existing._id,
+				alreadyAttached: Boolean(existing.epubKey),
+			};
+		}
 		// Declared size is client input — sanity it before it can poison the
 		// usage accounting (finalizeUpload later replaces it with the size R2
 		// actually reports).
@@ -82,6 +98,7 @@ export const registerImport = mutation({
 			sectionCount: args.sectionCount,
 			fileName: args.fileName,
 			fileSize: args.fileSize,
+			contentHash: args.contentHash,
 			createdAt: now,
 			updatedAt: now,
 		});
@@ -93,7 +110,7 @@ export const registerImport = mutation({
 			// A freshly imported book is recent.
 			lastActivityAt: now,
 		});
-		return bookId;
+		return { bookId, alreadyAttached: false };
 	},
 });
 

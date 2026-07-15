@@ -1,6 +1,7 @@
 import { useConvex, useConvexAuth, useMutation } from "convex/react";
 import { useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
+import { sha256Hex } from "../lib/contentHash";
 import {
 	convertTextOffThread,
 	isTextImport,
@@ -51,21 +52,39 @@ export const useImportFlow = () => {
 
 	const importOne = async (file: File) => {
 		let bytes: Uint8Array = new Uint8Array(await file.arrayBuffer());
+		const textImport = isTextImport(file.name);
 
 		// .txt/.md webnovel rips become real EPUBs first (spine text ingestion,
 		// off-thread) and then ride the exact same pipeline — R2 gets a proper
 		// EPUB, so seeding/export/metadata all work identically.
-		if (isTextImport(file.name)) {
+		if (textImport) {
 			bytes = await convertTextOffThread(bytes, file.name);
 		}
 		// fileName keeps the source's name (provenance); fileSize describes the
 		// bytes actually stored in R2 — for text imports that's the converted
 		// EPUB, not the original rip.
 		const storedSize = bytes.byteLength;
+		const contentHash = await sha256Hex(bytes);
+		// Blob construction snapshots the bytes before the EPUB buffer is
+		// transferred to the parser worker. That avoids a second full in-memory
+		// structured-clone while retaining an immutable upload/retry source.
+		const epubBlob = new Blob([bytes as BlobPart], {
+			type: "application/epub+zip",
+		});
 
 		// Parse entirely in the browser, off the main thread — a 2,000-chapter
-		// webnovel no longer freezes the import UI.
-		const payload = await parseEpubOffThread(bytes);
+		// webnovel no longer freezes the import UI. Original EPUBs can be re-read
+		// from File if the worker chunk fails; generated text EPUBs retain the
+		// existing non-transfer fallback to avoid converting twice.
+		const payload = await parseEpubOffThread(
+			bytes,
+			textImport
+				? undefined
+				: {
+						transfer: true,
+						fallbackBytes: async () => new Uint8Array(await file.arrayBuffer()),
+					},
+		);
 		const m = payload.metadata;
 
 		// Register metadata first — the book exists (and is readable locally,
@@ -73,11 +92,13 @@ export const useImportFlow = () => {
 		// here (nothing created yet); map it with the file's size so "this
 		// book can never fit" reads differently from "storage is full".
 		let bookId: string;
+		let alreadyAttached = false;
 		try {
-			bookId = (await registerImport({
+			const registration = await registerImport({
 				fileName: file.name,
 				fileSize: storedSize,
 				sectionCount: payload.sections.length,
+				contentHash,
 				metadata: {
 					title: m.title,
 					author:
@@ -92,7 +113,9 @@ export const useImportFlow = () => {
 					subjects: m.subjects,
 					identifiers: m.identifiers,
 				},
-			})) as unknown as string;
+			});
+			bookId = registration.bookId as unknown as string;
+			alreadyAttached = registration.alreadyAttached;
 		} catch (err) {
 			const mapped = quotaErrorMessage(err, storedSize);
 			throw mapped ? new Error(mapped) : err;
@@ -101,6 +124,18 @@ export const useImportFlow = () => {
 		// Local-first: the parsed book lands in IndexedDB immediately.
 		try {
 			await saveImportedBook(payloadToLocalBookInput(bookId, payload));
+			if (!alreadyAttached) {
+				await db.pendingUploads.put({
+					bookId,
+					fileName: file.name,
+					blob: epubBlob,
+					updatedAt: Date.now(),
+				});
+			} else {
+				// A previous attempt may have finalized remotely and crashed before
+				// deleting its local staging row. Registration is the confirmation.
+				await db.pendingUploads.delete(bookId);
+			}
 			// Content now lives on this device — ask to keep it (the browser's
 			// prompt reads clearly here, unlike at login).
 			ensurePersistentStorage();
@@ -112,11 +147,10 @@ export const useImportFlow = () => {
 		// verified and attached server-side (finalizeUpload) — quota is
 		// enforced on the size R2 actually reports.
 		try {
-			await uploadToR2(
-				bookId,
-				"epub",
-				new Blob([bytes as BlobPart], { type: "application/epub+zip" }),
-			);
+			if (!alreadyAttached) {
+				await uploadToR2(bookId, "epub", epubBlob);
+				await db.pendingUploads.delete(bookId).catch(() => {});
+			}
 		} catch (err) {
 			if (isQuotaExceededError(err)) {
 				// A quota rejection is deterministic (retrying won't help), so a
@@ -131,16 +165,21 @@ export const useImportFlow = () => {
 					quotaErrorMessage(err, storedSize) ?? "Cloud storage is full.",
 				);
 			}
-			// Non-quota failures (network, etc.) keep the old semantics: the
-			// book stays local + registered, and the R2 backup can be retried
-			// by a future download/seed cycle.
+			// Non-quota failures keep the local book and its staged raw EPUB. The
+			// library's pending-upload sync retries this exact book ID later.
+			await db.pendingUploads
+				.update(bookId, {
+					lastError: err instanceof Error ? err.message : "Cloud backup failed",
+					updatedAt: Date.now(),
+				})
+				.catch(() => {});
 			throw err;
 		}
 		// Cover problems must never fail an import whose EPUB is already
 		// attached — the book is fully usable, and marking it "failed" invites
 		// a retry that would create a duplicate. Surface a warning instead.
 		let warning: string | undefined;
-		if (payload.cover) {
+		if (!alreadyAttached && payload.cover) {
 			try {
 				const coverType = payload.cover.contentType || "image/jpeg";
 				const { coverStamp } = await uploadToR2(

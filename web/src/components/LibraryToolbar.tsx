@@ -162,7 +162,7 @@ export function LibraryToolbar({
 							<Icon name="dots-horizontal" />
 						</button>
 						{isBulkMenuOpen ? (
-							<div className="menu absolute right-0 top-9 z-20">
+							<div className="menu library-actions-menu">
 								<button
 									type="button"
 									className="menu-item"
@@ -291,7 +291,7 @@ export function LibraryToolbar({
 							: "Collection"}
 					</button>
 					{isCollectionMenuOpen ? (
-						<div className="menu absolute left-0 top-8 z-20">
+						<div className="menu library-collection-menu">
 							<button
 								type="button"
 								className="menu-item is-checkable"

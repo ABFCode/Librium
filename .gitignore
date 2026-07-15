@@ -28,3 +28,4 @@ jwt-secret.txt
 uploads/
 testbooks/
 web/src/test/__screenshots__/
+web/.vitest-attachments/

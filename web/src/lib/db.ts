@@ -96,7 +96,8 @@ export type LocalBookStatus = {
 	// 1 = not yet accepted by the server (offline or pending push).
 	dirty: 0 | 1;
 	// Server updatedAt of the last remote state merged into this record.
-	syncedServerTime: number;
+	// Undefined means this device has not observed any server status version yet.
+	syncedServerTime?: number;
 };
 
 export type LocalCollection = {
@@ -107,6 +108,8 @@ export type LocalCollection = {
 	createdAt: number;
 	// Device wall-clock time of the last rename (LWW).
 	nameEditedAt: number;
+	// Server-issued version of the last collection name merged here.
+	syncedServerTime?: number;
 	// Tombstone: set on delete; the row is removed once the server confirms.
 	deletedAt?: number;
 	// 1 = create/rename/delete not yet acknowledged by the server.
@@ -127,6 +130,14 @@ export type LocalCollectionBook = {
 	convexId?: string;
 };
 
+export type LocalPendingUpload = {
+	bookId: string;
+	fileName: string;
+	blob: Blob;
+	updatedAt: number;
+	lastError?: string;
+};
+
 // ── Database ─────────────────────────────────────────────────────────────────
 
 class LibriumDB extends Dexie {
@@ -138,9 +149,10 @@ class LibriumDB extends Dexie {
 	bookStatus!: Table<LocalBookStatus, string>;
 	collections!: Table<LocalCollection, string>;
 	collectionBooks!: Table<LocalCollectionBook, string>;
+	pendingUploads!: Table<LocalPendingUpload, string>;
 
-	constructor() {
-		super("librium");
+	constructor(name = "librium") {
+		super(name);
 		this.version(1).stores({
 			books: "bookId",
 			sections: "[bookId+orderIndex], bookId",
@@ -157,10 +169,118 @@ class LibriumDB extends Dexie {
 			collections: "clientKey",
 			collectionBooks: "clientKey, collectionKey, bookId",
 		});
+		this.version(5).stores({
+			pendingUploads: "bookId",
+		});
 	}
 }
 
-export const db = new LibriumDB();
+const ACTIVE_USER_KEY = "librium:activeLocalUser";
+const databaseNameForUser = (userId: string) =>
+	`librium:user:${encodeURIComponent(userId)}`;
+
+const storedUserId =
+	typeof window !== "undefined"
+		? window.localStorage.getItem(ACTIVE_USER_KEY)
+		: null;
+
+// A live exported binding: switching accounts replaces the Dexie instance,
+// and the keyed app boundary remounts every consumer against the new one.
+export let db = new LibriumDB(
+	storedUserId ? databaseNameForUser(storedUserId) : "librium",
+);
+
+export const activeLocalUserId = () =>
+	typeof window !== "undefined"
+		? window.localStorage.getItem(ACTIVE_USER_KEY)
+		: null;
+
+export function activateUserDatabase(userId: string) {
+	const name = databaseNameForUser(userId);
+	if (db.name !== name) {
+		db.close();
+		db = new LibriumDB(name);
+	}
+	window.localStorage.setItem(ACTIVE_USER_KEY, userId);
+}
+
+export function forgetActiveUserDatabase() {
+	window.localStorage.removeItem(ACTIVE_USER_KEY);
+	db.close();
+	db = new LibriumDB("librium:signed-out");
+}
+
+// Copy only rows whose server book IDs are confirmed to belong to this user.
+// The legacy DB remains intact so another account that previously shared the
+// origin can migrate its own rows later; the per-user marker makes this one-shot.
+export async function migrateLegacyDataForUser(
+	userId: string,
+	ownedBookIds: string[],
+) {
+	const marker = `librium:legacyMigrated:${userId}`;
+	if (
+		typeof window === "undefined" ||
+		window.localStorage.getItem(marker) === "true" ||
+		db.name === "librium"
+	) {
+		return;
+	}
+	const owned = new Set(ownedBookIds);
+	const legacy = new LibriumDB("librium");
+	try {
+		const [
+			books,
+			sections,
+			images,
+			progress,
+			bookmarks,
+			bookStatus,
+			memberships,
+			pendingUploads,
+		] = await Promise.all([
+			legacy.books.filter((row) => owned.has(row.bookId)).toArray(),
+			legacy.sections.filter((row) => owned.has(row.bookId)).toArray(),
+			legacy.images.filter((row) => owned.has(row.bookId)).toArray(),
+			legacy.progress.filter((row) => owned.has(row.bookId)).toArray(),
+			legacy.bookmarks.filter((row) => owned.has(row.bookId)).toArray(),
+			legacy.bookStatus.filter((row) => owned.has(row.bookId)).toArray(),
+			legacy.collectionBooks.filter((row) => owned.has(row.bookId)).toArray(),
+			legacy.pendingUploads.filter((row) => owned.has(row.bookId)).toArray(),
+		]);
+		const collectionKeys = new Set(memberships.map((row) => row.collectionKey));
+		const collections = await legacy.collections
+			.filter((row) => collectionKeys.has(row.clientKey))
+			.toArray();
+		await db.transaction(
+			"rw",
+			[
+				db.books,
+				db.sections,
+				db.images,
+				db.progress,
+				db.bookmarks,
+				db.bookStatus,
+				db.collections,
+				db.collectionBooks,
+				db.pendingUploads,
+			],
+			async () => {
+				await db.books.bulkPut(books);
+				await db.sections.bulkPut(sections);
+				await db.images.bulkPut(images);
+				await db.progress.bulkPut(progress);
+				await db.bookmarks.bulkPut(bookmarks);
+				await db.bookStatus.bulkPut(bookStatus);
+				await db.collections.bulkPut(collections);
+				await db.collectionBooks.bulkPut(memberships);
+				await db.pendingUploads.bulkPut(pendingUploads);
+			},
+		);
+		window.localStorage.setItem(marker, "true");
+	} finally {
+		legacy.close();
+	}
+}
 
 // Section key used when a section exists locally but its Convex id is not
 // known yet (e.g. ingest backfill failed). Never sent to Convex functions.
@@ -261,6 +381,7 @@ export async function deleteLocalBook(bookId: string) {
 			db.bookmarks,
 			db.bookStatus,
 			db.collectionBooks,
+			db.pendingUploads,
 		],
 		async () => {
 			await db.books.delete(bookId);
@@ -270,6 +391,7 @@ export async function deleteLocalBook(bookId: string) {
 			await db.bookmarks.where("bookId").equals(bookId).delete();
 			await db.bookStatus.delete(bookId);
 			await db.collectionBooks.where("bookId").equals(bookId).delete();
+			await db.pendingUploads.delete(bookId);
 		},
 	);
 }

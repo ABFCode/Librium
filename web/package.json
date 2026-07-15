@@ -2,6 +2,7 @@
 	"name": "web",
 	"private": true,
 	"type": "module",
+	"packageManager": "pnpm@10.28.2",
 	"scripts": {
 		"dev": "vite dev --port 3000",
 		"build": "vite build",
@@ -14,10 +15,11 @@
 		"test:node": "vitest --run --project node",
 		"test:convex": "vitest --run --project convex",
 		"test:e2e": "playwright test",
+		"test:e2e:offline": "playwright test --config playwright.offline.config.ts",
 		"test:e2e:ui": "playwright test --ui"
 	},
 	"dependencies": {
-		"@abfcode/spine": "^0.11.0",
+		"@abfcode/spine": "^0.13.0",
 		"@convex-dev/better-auth": "^0.12.5",
 		"@convex-dev/polar": "^0.9.2",
 		"@convex-dev/r2": "^0.10.2",
@@ -36,7 +38,6 @@
 		"fflate": "^0.8.3",
 		"react": "^19.2.3",
 		"react-dom": "^19.2.3",
-		"vite-tsconfig-paths": "^6.0.5",
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {

@@ -190,6 +190,12 @@
 		color: var(--ink);
 	}
 
+	@media (pointer: coarse) {
+		.chip {
+			min-height: 44px;
+		}
+	}
+
 	.chip.is-active {
 		color: var(--accent);
 		background: color-mix(in srgb, var(--accent) 12%, transparent);

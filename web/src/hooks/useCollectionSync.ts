@@ -80,6 +80,7 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 							name: r.name,
 							createdAt: r.createdAt,
 							nameEditedAt: r.nameEditedAt ?? 0,
+							syncedServerTime: r.nameUpdatedAt ?? r.updatedAt,
 							dirty: 0,
 							convexId: r._id as string,
 						});
@@ -94,13 +95,18 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 							.equals(local.clientKey)
 							.modify((row) => {
 								row.convexId = r._id as string;
+								row.syncedServerTime = r.nameUpdatedAt ?? r.updatedAt;
 								if (!row.deletedAt && row.nameEditedAt <= local.nameEditedAt) {
 									row.dirty = 0;
 								}
 							});
 						continue;
 					}
-					if (!local.dirty && r.name !== local.name) {
+					const remoteNameUpdatedAt = r.nameUpdatedAt ?? r.updatedAt;
+					if (
+						!local.dirty &&
+						remoteNameUpdatedAt > (local.syncedServerTime ?? 0)
+					) {
 						// Rename made elsewhere; adopt it — but re-check the live row so a
 						// local rename that raced in after the snapshot (LWW: newer) wins.
 						const remoteName = r.name;
@@ -109,11 +115,15 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 							.where("clientKey")
 							.equals(local.clientKey)
 							.modify((row) => {
-								if (row.dirty || row.nameEditedAt > remoteNameEditedAt) {
+								if (
+									row.dirty ||
+									remoteNameUpdatedAt <= (row.syncedServerTime ?? 0)
+								) {
 									return;
 								}
 								row.name = remoteName;
 								row.nameEditedAt = remoteNameEditedAt;
+								row.syncedServerTime = remoteNameUpdatedAt;
 							});
 					}
 				} catch {
@@ -281,37 +291,42 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 						continue;
 					}
 					if (!l.convexId) {
-						const id = await createRemote({
+						const created = await createRemote({
 							name: l.name,
 							clientKey: l.clientKey,
 							createdAt: l.createdAt,
 						});
 						// An idempotent-match returns the existing row without renaming;
 						// follow up when a rename happened after the create.
+						let acceptedServerTime = created.serverTime;
 						if (l.nameEditedAt > l.createdAt) {
-							await renameRemote({
-								collectionId: id as never,
+							const renamed = await renameRemote({
+								collectionId: created.id as never,
 								name: l.name,
-								editedAt: l.nameEditedAt,
+								baseServerTime: created.serverTime,
 							});
+							if (renamed?.accepted) {
+								acceptedServerTime = renamed.serverTime;
+							}
 						}
-						freshConvexIds.set(l.clientKey, id as unknown as string);
+						freshConvexIds.set(l.clientKey, created.id as unknown as string);
 						await db.collections
 							.where("clientKey")
 							.equals(l.clientKey)
 							.modify((row) => {
-								row.convexId = id as unknown as string;
+								row.convexId = created.id as unknown as string;
 								if (row.nameEditedAt <= l.nameEditedAt && !row.deletedAt) {
 									row.dirty = 0;
+									row.syncedServerTime = acceptedServerTime;
 								}
 							});
 						continue;
 					}
 					const editedAt = l.nameEditedAt;
-					await renameRemote({
+					const renamed = await renameRemote({
 						collectionId: l.convexId as never,
 						name: l.name,
-						editedAt,
+						baseServerTime: l.syncedServerTime ?? 0,
 					});
 					await db.collections
 						.where("clientKey")
@@ -320,6 +335,9 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 							// Only clear dirty if no newer local edit happened meanwhile.
 							if (row.nameEditedAt <= editedAt && !row.deletedAt) {
 								row.dirty = 0;
+								if (renamed?.accepted) {
+									row.syncedServerTime = renamed.serverTime;
+								}
 							}
 						});
 				} catch {
@@ -422,6 +440,7 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 				name: name.trim(),
 				createdAt: now,
 				nameEditedAt: now,
+				syncedServerTime: 0,
 				dirty: 1,
 			});
 		} catch {

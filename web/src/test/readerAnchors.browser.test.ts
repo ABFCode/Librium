@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { anchorScrollTop, findAnchor } from "../lib/readerAnchors";
+import {
+	anchorScrollTop,
+	findAnchor,
+	visibleAnchorScrollTop,
+} from "../lib/readerAnchors";
 
 // Real-layout tests for the anchor math behind progress saves, restore,
 // bookmarks, and search jumps. Regression history: pixel offsets didn't
@@ -35,6 +39,30 @@ describe("findAnchor / anchorScrollTop", () => {
 		expect(anchor.blockIndex).toBe(0);
 		expect(anchor.fraction).toBe(0);
 		expect(anchor.sectionFraction).toBe(0);
+	});
+
+	it("round-trips a padded chapter start to the true scroll origin", () => {
+		container.style.paddingTop = "40px";
+		container.scrollTop = 0;
+		const first = container.querySelector("[data-chunk-index='0']");
+		expect((first as HTMLElement).offsetTop).toBe(40);
+
+		const anchor = findAnchor(container);
+		expect(anchor).toEqual({
+			blockIndex: 0,
+			fraction: 0,
+			sectionFraction: 0,
+		});
+		expect(anchorScrollTop(container, anchor.blockIndex, anchor.fraction)).toBe(
+			0,
+		);
+	});
+
+	it("restores section start when a duplicate heading removes block zero", () => {
+		container.firstElementChild?.remove();
+		container.style.paddingTop = "40px";
+		expect(container.querySelector("[data-chunk-index='0']")).toBeNull();
+		expect(anchorScrollTop(container, 0, 0)).toBe(0);
 	});
 
 	it("identifies the block and fraction under the viewport top", () => {
@@ -86,5 +114,11 @@ describe("findAnchor / anchorScrollTop", () => {
 	it("clamps out-of-range fractions instead of overshooting", () => {
 		const top = anchorScrollTop(container, 5, 7);
 		expect(top).toBe(5 * 100 + 100);
+	});
+
+	it("places explicit navigation targets below the visible reader chrome", () => {
+		container.style.scrollPaddingTop = "40px";
+		expect(visibleAnchorScrollTop(container, 5, 0)).toBe(5 * 100 - 40);
+		expect(visibleAnchorScrollTop(container, 0, 0)).toBe(0);
 	});
 });

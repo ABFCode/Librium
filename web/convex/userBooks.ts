@@ -71,9 +71,8 @@ export const updateProgress = mutation({
 		lastBlockIndex: v.optional(v.number()),
 		lastBlockOffset: v.optional(v.number()),
 		lastSectionFraction: v.optional(v.number()),
-		// Client edit time — lets a reconnecting device push offline progress
-		// without a stale queued write clobbering newer progress from elsewhere.
-		editedAt: v.optional(v.number()),
+		// Last server version this device actually merged before editing.
+		baseServerTime: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
 		const userId = await requireViewerUserId(ctx);
@@ -85,13 +84,21 @@ export const updateProgress = mutation({
 			)
 			.first();
 
-		// LWW: reject writes older than what is already recorded.
+		const currentServerTime =
+			existing?.progressUpdatedAt ??
+			(existing?.progressEditedAt !== undefined ? existing.updatedAt : 0);
+		// Optimistic concurrency: a stale offline write must not overwrite a
+		// server value it never observed. Device wall clocks are irrelevant.
 		if (
-			existing?.progressEditedAt !== undefined &&
-			args.editedAt !== undefined &&
-			args.editedAt < existing.progressEditedAt
+			existing &&
+			args.baseServerTime !== undefined &&
+			args.baseServerTime < currentServerTime
 		) {
-			return existing._id;
+			return {
+				id: existing._id,
+				accepted: false,
+				serverTime: currentServerTime,
+			};
 		}
 
 		const now = Date.now();
@@ -107,19 +114,20 @@ export const updateProgress = mutation({
 			updatedAt: now,
 			// Reading is activity → drives Recent recency.
 			lastActivityAt: now,
-			progressEditedAt: args.editedAt ?? now,
+			progressUpdatedAt: now,
 		};
 
 		if (existing) {
 			await ctx.db.patch(existing._id, patch);
-			return existing._id;
+			return { id: existing._id, accepted: true, serverTime: now };
 		}
 
-		return await ctx.db.insert("userBooks", {
+		const id = await ctx.db.insert("userBooks", {
 			userId,
 			bookId: args.bookId,
 			...patch,
 		});
+		return { id, accepted: true, serverTime: now };
 	},
 });
 
@@ -134,10 +142,9 @@ export const updateStatus = mutation({
 			v.literal("abandoned"),
 			v.null(),
 		),
-		// Client edit time — same LWW convention as updateProgress, but on its
-		// own clock (statusEditedAt): status and progress are edited
-		// independently and must never reject each other's writes.
-		editedAt: v.optional(v.number()),
+		// Status has its own server version so progress activity cannot make an
+		// otherwise-current offline status change stale.
+		baseServerTime: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
 		const userId = await requireViewerUserId(ctx);
@@ -149,17 +156,22 @@ export const updateStatus = mutation({
 			)
 			.first();
 
-		// LWW: reject writes older than what is already recorded. Bump updatedAt
-		// so the subscription re-emits and the losing device's merge re-adopts
-		// the winning value (otherwise its local mirror keeps the rejected edit
-		// with dirty cleared, and — being gated on updatedAt — never converges).
+		const currentServerTime =
+			existing?.statusUpdatedAt ??
+			(existing?.statusEditedAt !== undefined ? existing.updatedAt : 0);
+		// Reject a write based on older server state. Bump updatedAt so the
+		// subscription re-emits and the losing device promptly re-adopts.
 		if (
-			existing?.statusEditedAt !== undefined &&
-			args.editedAt !== undefined &&
-			args.editedAt < existing.statusEditedAt
+			existing &&
+			args.baseServerTime !== undefined &&
+			args.baseServerTime < currentServerTime
 		) {
 			await ctx.db.patch(existing._id, { updatedAt: Date.now() });
-			return existing._id;
+			return {
+				id: existing._id,
+				accepted: false,
+				serverTime: currentServerTime,
+			};
 		}
 
 		const now = Date.now();
@@ -169,21 +181,22 @@ export const updateStatus = mutation({
 		// sorts last in Recent (behind everything actually read).
 		const patch = {
 			status: args.status ?? undefined,
-			statusEditedAt: args.editedAt ?? now,
+			statusUpdatedAt: now,
 			updatedAt: now,
 		};
 
 		if (existing) {
 			await ctx.db.patch(existing._id, patch);
-			return existing._id;
+			return { id: existing._id, accepted: true, serverTime: now };
 		}
 
-		return await ctx.db.insert("userBooks", {
+		const id = await ctx.db.insert("userBooks", {
 			userId,
 			bookId: args.bookId,
 			lastSectionIndex: 0,
 			...patch,
 		});
+		return { id, accepted: true, serverTime: now };
 	},
 });
 
@@ -259,7 +272,9 @@ export const listByUser = query({
 				totalSections,
 				progress,
 				status: entry.status ?? null,
-				statusEditedAt: entry.statusEditedAt ?? null,
+				statusUpdatedAt:
+					entry.statusUpdatedAt ??
+					(entry.statusEditedAt !== undefined ? entry.updatedAt : 0),
 				updatedAt: entry.updatedAt,
 			});
 		}

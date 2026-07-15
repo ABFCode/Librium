@@ -49,11 +49,15 @@ beforeEach(async () => {
 	for (const mock of Object.values(mocks)) {
 		mock.mockReset();
 	}
+	mocks.renameCollection.mockResolvedValue({
+		accepted: true,
+		serverTime: 2,
+	});
 });
 
 describe("useCollectionSync push ordering", () => {
 	it("writes dirty local rows and pushes collection before membership", async () => {
-		mocks.createCollection.mockResolvedValue("col_1");
+		mocks.createCollection.mockResolvedValue({ id: "col_1", serverTime: 1 });
 		mocks.addBookToCollection.mockResolvedValue("mem_1");
 
 		const { result } = await renderHook(() =>
@@ -108,7 +112,7 @@ describe("useCollectionSync push ordering", () => {
 
 		// Server reachable again: the next pass creates the collection and the
 		// membership follows in the same pass.
-		mocks.createCollection.mockResolvedValue("col_2");
+		mocks.createCollection.mockResolvedValue({ id: "col_2", serverTime: 1 });
 		await result.current.renameCollection(key, "Science fiction");
 		await expect
 			.poll(async () => (await db.collectionBooks.toArray())[0]?.convexId)
@@ -119,7 +123,7 @@ describe("useCollectionSync push ordering", () => {
 	});
 
 	it("does not lose a remove that lands during the add's round-trip", async () => {
-		mocks.createCollection.mockResolvedValue("col_r");
+		mocks.createCollection.mockResolvedValue({ id: "col_r", serverTime: 1 });
 		// Hold addRemote open so a remove can land mid-round-trip.
 		let resolveAdd: (id: string) => void = () => {};
 		mocks.addBookToCollection.mockImplementation(
@@ -156,7 +160,7 @@ describe("useCollectionSync push ordering", () => {
 	});
 
 	it("purges local rows when the server reports the collection tombstoned", async () => {
-		mocks.createCollection.mockResolvedValue("col_3");
+		mocks.createCollection.mockResolvedValue({ id: "col_3", serverTime: 1 });
 		// Collection deleted on another device while this add was queued.
 		mocks.addBookToCollection.mockResolvedValue(null);
 

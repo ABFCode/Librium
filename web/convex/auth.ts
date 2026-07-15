@@ -8,15 +8,29 @@ import authConfig from "./auth.config";
 import { allowSignUp, isDeployedInstance } from "./authPolicy";
 import { resetPasswordEmail, sendAuthEmail, verifyEmailEmail } from "./email";
 
-// May be unset until `convex env set SITE_URL` runs (fresh deployments push
-// functions first) — auth just won't trust any origin until it's configured.
-const siteUrl = process.env.SITE_URL ?? "";
+// Public frontend origin (cross-domain trust) and auth HTTP origin (callback /
+// token URL) are different. Convex supplies CONVEX_SITE_URL in deployments;
+// VITE_* fallbacks keep the local backend aligned with .env.local. Passing an
+// explicit auth base also prevents Better Auth from deriving it independently
+// on every request (and warning for every token/JWKS call).
+const siteUrl =
+	process.env.SITE_URL ?? process.env.VITE_SITE_URL ?? "http://localhost:3000";
+const authBaseUrl =
+	process.env.BETTER_AUTH_URL ??
+	process.env.CONVEX_SITE_URL ??
+	process.env.VITE_CONVEX_SITE_URL;
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
 export const createAuth = (ctx: GenericCtx<DataModel>) => {
 	return betterAuth({
-		trustedOrigins: [siteUrl],
+		...(authBaseUrl ? { baseURL: authBaseUrl } : {}),
+		trustedOrigins: [
+			siteUrl,
+			// Production-offline Playwright serves the built PWA here. Never add
+			// test origins to a deployed instance's trust surface.
+			...(!isDeployedInstance ? ["http://localhost:4173"] : []),
+		],
 		database: authComponent.adapter(ctx),
 		emailAndPassword: {
 			enabled: true,

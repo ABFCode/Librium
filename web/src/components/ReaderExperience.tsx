@@ -28,7 +28,11 @@ import {
 	PARSER_VERSION,
 } from "../lib/db";
 import { bookProgress } from "../lib/progress";
-import { anchorScrollTop, findAnchor } from "../lib/readerAnchors";
+import {
+	anchorScrollTop,
+	findAnchor,
+	visibleAnchorScrollTop,
+} from "../lib/readerAnchors";
 import { normalizeAnchor, normalizeHref } from "../lib/readerLinks";
 import { scanSections } from "../lib/searchScan";
 import { seedBookFromR2 } from "../lib/seedBook";
@@ -69,6 +73,12 @@ type ReaderChunk = {
 type ReaderExperienceProps = {
 	bookId: string;
 };
+
+// Keep the interaction and layout breakpoints identical. Narrow windows use
+// the phone reader regardless of pointer type; coarse-pointer devices keep it
+// through common landscape-phone widths.
+const PHONE_READER_MEDIA =
+	"(max-width: 599px), (pointer: coarse) and (max-width: 899px)";
 
 export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 	const { isAuthenticated } = useConvexAuth();
@@ -175,6 +185,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		bookId,
 		canQuery,
 	});
+	const isProgressReady = effectiveProgress !== undefined;
 
 	// Local-first bookmarks: create/delete work offline; tombstones propagate
 	// deletes across devices.
@@ -187,23 +198,54 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 	const [blocks, setBlocks] = useState<BlockPayload[] | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [isTocOpen, setIsTocOpen] = useState(false);
+	const parentRef = useRef<HTMLDivElement | null>(null);
 	// Immersive chrome (phone): the top bar and a bottom control bar hide while
 	// you read and return when you scroll to the top or tap the page. Desktop
 	// keeps its always-on top bar (CSS gates the hide to phone widths; the tap
 	// toggle is touch-only), so this state is inert there.
 	const [chromeHidden, setChromeHidden] = useState(false);
-	const lastChromeScrollRef = useRef(0);
+	const [isPhoneReader, setIsPhoneReader] = useState(() =>
+		typeof window === "undefined"
+			? false
+			: window.matchMedia(PHONE_READER_MEDIA).matches,
+	);
+	const chromeScrollRef = useRef({ lastTop: 0, downwardStartTop: 0 });
+
+	useEffect(() => {
+		const media = window.matchMedia(PHONE_READER_MEDIA);
+		const sync = () => {
+			setIsPhoneReader(media.matches);
+			if (!media.matches) {
+				setChromeHidden(false);
+			}
+		};
+		sync();
+		media.addEventListener("change", sync);
+		return () => media.removeEventListener("change", sync);
+	}, []);
 
 	// A clean touch tap on the page (not a scroll, long-press, selection, or
 	// link/image) toggles the chrome. On CLICK, not pointerup: toggling on
 	// pointerup let the tap's own synthetic click land on freshly-rendered
 	// chrome and immediately re-toggle it (verified). pointerdown captures the
 	// touch context; the single following click does the toggle.
-	const touchTapRef = useRef<{ x: number; y: number; at: number } | null>(null);
+	const touchTapRef = useRef<{
+		x: number;
+		y: number;
+		at: number;
+		scrollTop: number;
+		didScroll: boolean;
+	} | null>(null);
 	const handleContentPointerDown = (event: React.PointerEvent) => {
 		touchTapRef.current =
-			event.pointerType === "touch"
-				? { x: event.clientX, y: event.clientY, at: Date.now() }
+			event.pointerType === "touch" && isPhoneReader
+				? {
+						x: event.clientX,
+						y: event.clientY,
+						at: Date.now(),
+						scrollTop: parentRef.current?.scrollTop ?? 0,
+						didScroll: false,
+					}
 				: null;
 	};
 	const handleContentClick = (event: React.MouseEvent) => {
@@ -215,7 +257,13 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		if (Date.now() - start.at > 400) {
 			return; // long press — selection, not a tap
 		}
-		if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 12) {
+		if (
+			start.didScroll ||
+			Math.abs(
+				(parentRef.current?.scrollTop ?? start.scrollTop) - start.scrollTop,
+			) > 6 ||
+			Math.hypot(event.clientX - start.x, event.clientY - start.y) > 12
+		) {
 			return; // moved between down and up — a scroll, not a tap
 		}
 		const target = event.target as HTMLElement;
@@ -225,6 +273,19 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		if (window.getSelection()?.toString()) {
 			return; // finishing a selection
 		}
+		const rect = event.currentTarget.getBoundingClientRect();
+		const horizontal = (event.clientX - rect.left) / rect.width;
+		const vertical = (event.clientY - rect.top) / rect.height;
+		if (
+			horizontal < 0.3 ||
+			horizontal > 0.7 ||
+			vertical < 0.2 ||
+			vertical > 0.8
+		) {
+			return;
+		}
+		const top = parentRef.current?.scrollTop ?? 0;
+		chromeScrollRef.current = { lastTop: top, downwardStartTop: top };
 		setChromeHidden((hidden) => !hidden);
 	};
 	const [activeSideTab, setActiveSideTab] = useState<
@@ -236,7 +297,6 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 	// effects must not touch the DOM until it matches sectionId — otherwise a
 	// cross-section jump anchors against the previous chapter's content.
 	const [loadedSectionId, setLoadedSectionId] = useState<string | null>(null);
-	const parentRef = useRef<HTMLDivElement | null>(null);
 	const activeSectionRef = useRef<string | null>(null);
 	const lastProgressAtRef = useRef<number>(0);
 	const trailingEmitRef = useRef<number | null>(null);
@@ -402,14 +462,30 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		};
 	}, [imageHrefs, bookId]);
 
+	const goToSectionStart = useCallback((targetId: string) => {
+		if (targetId === activeSectionRef.current) {
+			const container = parentRef.current;
+			if (container) {
+				container.scrollTop = 0;
+				lastAppliedScrollTopRef.current = container.scrollTop;
+				chromeScrollRef.current = { lastTop: 0, downwardStartTop: 0 };
+			}
+			return;
+		}
+		// An explicit chapter choice always means section start. Opening a book
+		// restores progress; search and bookmarks install their own pending anchor.
+		pendingChunkRef.current = { blockIndex: 0, fraction: 0 };
+		setActiveSectionId(targetId);
+	}, []);
+
 	const goToSection = useCallback(
 		(index: number) => {
 			if (!sections || index < 0 || index >= sections.length) {
 				return;
 			}
-			setActiveSectionId(sections[index]._id);
+			goToSectionStart(sections[index]._id);
 		},
-		[sections],
+		[sections, goToSectionStart],
 	);
 
 	const goNext = useCallback(() => {
@@ -561,22 +637,41 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		return fontsReadyRef.current;
 	};
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: the scroll listener rebinds per section only; emitProgress is deliberately the bind-time closure (its guards read refs), and the cleanup must cancel trailing emits on section change
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the scroll listener rebinds when the scroller can mount, per section, or when the phone layout changes; emitProgress is deliberately the bind-time closure (its guards read refs), and cleanup must cancel trailing emits on section change
 	useEffect(() => {
 		const container = parentRef.current;
 		if (!container) {
 			return;
 		}
+		chromeScrollRef.current = {
+			lastTop: container.scrollTop,
+			downwardStartTop: container.scrollTop,
+		};
 		const handleScroll = () => {
-			// Immersive chrome: hide when scrolling down into the text, show at
-			// the top. Scroll-up mid-page is left to the tap toggle (per design).
 			const cur = container.scrollTop;
-			if (cur < 48) {
-				setChromeHidden(false);
-			} else if (cur - lastChromeScrollRef.current > 8) {
-				setChromeHidden(true);
+			const touch = touchTapRef.current;
+			if (touch && Math.abs(cur - touch.scrollTop) > 6) {
+				touch.didScroll = true;
 			}
-			lastChromeScrollRef.current = cur;
+			if (isPhoneReader) {
+				// Accumulate a deliberate downward gesture across small scroll events.
+				// Phone momentum cadence varies wildly, so no individual event decides
+				// chrome visibility. Scrolling upward mid-page remains tap-controlled.
+				const tracking = chromeScrollRef.current;
+				if (cur < 48) {
+					setChromeHidden(false);
+					tracking.downwardStartTop = cur;
+				} else if (cur < tracking.lastTop) {
+					tracking.downwardStartTop = cur;
+				} else if (
+					cur > tracking.lastTop &&
+					cur - tracking.downwardStartTop >= 24
+				) {
+					setChromeHidden(true);
+					tracking.downwardStartTop = cur;
+				}
+				tracking.lastTop = cur;
+			}
 			// Programmatic restores land exactly on lastAppliedScrollTop; anything
 			// else is the user, which cancels pending silent re-anchors.
 			if (Math.abs(container.scrollTop - lastAppliedScrollTopRef.current) > 4) {
@@ -608,7 +703,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 				trailingEmitRef.current = null;
 			}
 		};
-	}, [sectionId]);
+	}, [sectionId, isPhoneReader, isProgressReady]);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: listeners rebind when the save-relevant inputs change so emitProgress's closure stays fresh; emitProgress itself is a new identity every render
 	useEffect(() => {
@@ -652,6 +747,10 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		}
 		container.scrollTop = top;
 		lastAppliedScrollTopRef.current = container.scrollTop;
+		chromeScrollRef.current = {
+			lastTop: container.scrollTop,
+			downwardStartTop: container.scrollTop,
+		};
 	}, [fontSize, lineHeight, contentWidth, fontFamily]);
 
 	// Persist position on arrival at a section — a chapter switch with no
@@ -705,13 +804,21 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		const applyScroll = (top: number) => {
 			container.scrollTop = top;
 			lastAppliedScrollTopRef.current = container.scrollTop;
+			chromeScrollRef.current = {
+				lastTop: container.scrollTop,
+				downwardStartTop: container.scrollTop,
+			};
 		};
 		if (pendingChunkRef.current !== null) {
 			const pending = pendingChunkRef.current;
 			pendingChunkRef.current = null;
 			anchorTokenRef.current++;
 			applyScroll(
-				anchorScrollTop(container, pending.blockIndex, pending.fraction) ?? 0,
+				visibleAnchorScrollTop(
+					container,
+					pending.blockIndex,
+					pending.fraction,
+				) ?? 0,
 			);
 			scrollRestoredRef.current = sectionId;
 			return;
@@ -916,11 +1023,9 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		if (!container) {
 			return;
 		}
-		const target = container.querySelector(
-			`[data-chunk-index="${index}"]`,
-		) as HTMLElement | null;
-		if (target) {
-			target.scrollIntoView({ behavior: "smooth", block: "start" });
+		const top = visibleAnchorScrollTop(container, index, 0);
+		if (top !== null) {
+			container.scrollTo({ top, behavior: "smooth" });
 		}
 	};
 
@@ -1047,7 +1152,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 										ref={tocVirtualizer.measureElement}
 										className={`reader-row ${isActive ? "is-active" : ""}`}
 										onClick={() => {
-											setActiveSectionId(section._id);
+											goToSection(vi.index);
 											setIsTocOpen(false);
 										}}
 										disabled={isActive}
@@ -1127,10 +1232,14 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 								const label = bookmark.label?.trim();
 								const title = label || sectionTitle;
 								const jumpToBookmark = () => {
+									if (!targetSectionId) {
+										return;
+									}
+									setIsTocOpen(false);
 									// Legacy rows stored absolute pixels; treat >1 as "top of
 									// the anchor block" instead of a bogus fraction.
 									const fraction = bookmark.offset <= 1 ? bookmark.offset : 0;
-									if (targetSectionId && targetSectionId !== sectionId) {
+									if (targetSectionId !== sectionId) {
 										pendingChunkRef.current = {
 											blockIndex: bookmark.blockIndex,
 											fraction,
@@ -1140,7 +1249,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 									}
 									const container = parentRef.current;
 									if (container) {
-										const top = anchorScrollTop(
+										const top = visibleAnchorScrollTop(
 											container,
 											bookmark.blockIndex,
 											fraction,
@@ -1148,6 +1257,10 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 										if (top !== null) {
 											container.scrollTop = top;
 											lastAppliedScrollTopRef.current = container.scrollTop;
+											chromeScrollRef.current = {
+												lastTop: container.scrollTop,
+												downwardStartTop: container.scrollTop,
+											};
 										}
 									}
 								};
@@ -1252,7 +1365,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 					</div>
 					{sections && sections.length > 0 && activeIndex >= 0 ? (
 						<div
-							className="hidden shrink-0 text-xs text-[var(--muted-2)] sm:block"
+							className="reader-top-progress shrink-0 text-xs text-[var(--muted-2)]"
 							title={`Chapter ${activeIndex + 1} of ${sections.length}`}
 						>
 							{`${activeIndex + 1} / ${sections.length} · ${Math.round(
@@ -1280,7 +1393,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 						</button>
 						<button
 							type="button"
-							className="icon-btn tooltip"
+							className="icon-btn tooltip reader-top-mobile-secondary"
 							data-tooltip="Previous chapter"
 							data-tooltip-position="bottom"
 							onClick={goPrev}
@@ -1291,7 +1404,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 						</button>
 						<button
 							type="button"
-							className="icon-btn tooltip"
+							className="icon-btn tooltip reader-top-mobile-secondary"
 							data-tooltip="Next chapter"
 							data-tooltip-position="bottom"
 							onClick={goNext}
@@ -1306,7 +1419,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 						</button>
 						<button
 							type="button"
-							className={`icon-btn tooltip ${isTocOpen ? "is-active" : ""}`}
+							className={`icon-btn tooltip reader-top-mobile-secondary ${isTocOpen ? "is-active" : ""}`}
 							data-tooltip="Chapters"
 							data-tooltip-position="bottom"
 							onClick={() => setIsTocOpen((prev) => !prev)}
@@ -1316,7 +1429,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 						</button>
 						<button
 							type="button"
-							className="icon-btn tooltip"
+							className="icon-btn tooltip reader-top-mobile-secondary"
 							data-tooltip="Reader preferences"
 							data-tooltip-position="bottom"
 							onClick={() => setIsPrefsOpen(true)}
@@ -1420,7 +1533,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 							ref={parentRef}
 							onPointerDown={handleContentPointerDown}
 							onClick={handleContentClick}
-							className="reader-scroll h-full overflow-auto px-6 py-10 text-left"
+							className="reader-scroll reader-main-scroll h-full overflow-auto text-left"
 							style={{
 								fontSize: `${fontSize}px`,
 								lineHeight: lineHeight,
@@ -1489,7 +1602,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 										activeSectionTitle={activeSection?.title}
 										activeSectionHref={activeSection?.href}
 										sectionLinkIndex={sectionLinkIndex}
-										onNavigateToSection={setActiveSectionId}
+										onNavigateToSection={goToSectionStart}
 									/>
 								) : (
 									chunks.map((chunk, index) => (
@@ -1550,24 +1663,18 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 					)}
 				</div>
 
-				{/* Thumb-zone control bar (phone only, CSS-gated) — the reachable
-				    mirror of the top bar's reading controls. Contents opens the
-				    chapter sheet. Hidden with the rest of the chrome. */}
+				{/* Thumb-zone control bar (phone only, CSS-gated): Contents/progress
+				    and appearance settings. Chapter turns stay in the contents sheet
+				    and at the natural end-of-chapter decision point. */}
 				{sections && sections.length > 0 && activeIndex >= 0 ? (
 					<div className={`reader-botbar ${chromeHidden ? "is-hidden" : ""}`}>
 						<button
 							type="button"
-							className="reader-botbar-nav"
-							onClick={goPrev}
-							disabled={activeIndex <= 0}
-						>
-							<span className="sr-only">Previous chapter</span>
-							<Icon name="chevron-left" />
-						</button>
-						<button
-							type="button"
 							className="reader-botbar-center"
-							onClick={() => setIsTocOpen(true)}
+							onClick={() => {
+								setActiveSideTab("toc");
+								setIsTocOpen(true);
+							}}
 						>
 							<Icon name="menu" size={16} />
 							<span>
@@ -1584,12 +1691,11 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 						</button>
 						<button
 							type="button"
-							className="reader-botbar-nav"
-							onClick={goNext}
-							disabled={activeIndex >= sections.length - 1}
+							className="reader-botbar-settings"
+							onClick={() => setIsPrefsOpen(true)}
 						>
-							<span className="sr-only">Next chapter</span>
-							<Icon name="chevron-right" />
+							<span className="sr-only">Reader preferences</span>
+							<Icon name="settings" />
 						</button>
 					</div>
 				) : null}

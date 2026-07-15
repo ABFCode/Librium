@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
 	testDir: "./e2e",
+	testIgnore: "offlinePwa.spec.ts",
 	timeout: 30_000,
 	expect: {
 		timeout: 10_000,

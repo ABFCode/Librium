@@ -79,7 +79,9 @@ test("edit details updates the shelf and survives a re-download", async ({
 		// (src/test/seedBook.test.ts). Here we assert the local Dexie row too,
 		// before the reconcile pass can repair it from the server.
 		const localTitle = await page.evaluate(async () => {
-			const req = indexedDB.open("librium");
+			const userId = localStorage.getItem("librium:activeLocalUser");
+			if (!userId) return null;
+			const req = indexedDB.open(`librium:user:${encodeURIComponent(userId)}`);
 			const dbConn: IDBDatabase = await new Promise((resolve, reject) => {
 				req.onsuccess = () => resolve(req.result);
 				req.onerror = () => reject(req.error);

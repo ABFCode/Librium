@@ -9,9 +9,8 @@ import { db, type LocalProgress } from "../lib/db";
 // Rules (see ROADMAP.md "Sync design"):
 // - Every edit is written to IndexedDB first (instant, offline-capable) and
 //   marked dirty.
-// - Dirty records push to Convex when a connection exists. The server rejects
-//   pushes older (by editedAt) than what it already has, so a reconnecting
-//   device cannot clobber newer progress with a stale queued write.
+// - Dirty records push with the last server version this device merged. The
+//   server rejects a write based on older state, without consulting clocks.
 // - Pull ordering never compares device clocks against the server clock: a
 //   remote record is adopted only if its server updatedAt is newer than the
 //   last server state this device merged (syncedServerTime) — and never over
@@ -53,9 +52,13 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
 			blockIndex: remote.lastBlockIndex ?? 0,
 			blockOffset: remote.lastBlockOffset ?? 0,
 			sectionFraction: remote.lastSectionFraction ?? 0,
-			editedAt: remote.progressEditedAt ?? remote.updatedAt ?? 0,
+			editedAt:
+				remote.progressUpdatedAt ??
+				(remote.progressEditedAt !== undefined ? remote.updatedAt : 0),
 			dirty: 0,
-			syncedServerTime: remote.updatedAt ?? 0,
+			syncedServerTime:
+				remote.progressUpdatedAt ??
+				(remote.progressEditedAt !== undefined ? remote.updatedAt : 0),
 		};
 	}, [remote, bookId]);
 
@@ -128,9 +131,9 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
 			lastBlockIndex: local.blockIndex,
 			lastBlockOffset: local.blockOffset,
 			lastSectionFraction: local.sectionFraction ?? 0,
-			editedAt,
+			baseServerTime: local.syncedServerTime,
 		})
-			.then(async () => {
+			.then(async (result) => {
 				await db.progress
 					.where("bookId")
 					.equals(bookId)
@@ -138,6 +141,9 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
 						// Only clear dirty if no newer local edit happened meanwhile.
 						if (p.editedAt <= editedAt) {
 							p.dirty = 0;
+							if (result.accepted) {
+								p.syncedServerTime = result.serverTime;
+							}
 						}
 					});
 			})

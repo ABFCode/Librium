@@ -38,6 +38,8 @@ afterAll(() => {
 });
 
 const META = { title: "T" };
+let hashCounter = 0;
+const nextHash = () => (++hashCounter).toString(16).padStart(64, "0");
 
 async function seed() {
 	const t = convexTest(schema, modules);
@@ -51,16 +53,19 @@ async function seed() {
 	return { t, as: t.withIdentity({ subject: SUBJECT }) };
 }
 
-const register = (
+const register = async (
 	as: Awaited<ReturnType<typeof seed>>["as"],
 	fileSize: number,
-) =>
-	as.mutation(api.books.registerImport, {
+) => {
+	const result = await as.mutation(api.books.registerImport, {
 		fileName: "b.epub",
 		fileSize,
 		sectionCount: 1,
+		contentHash: nextHash(),
 		metadata: META,
 	});
+	return result.bookId;
+};
 
 const attach = (
 	as: Awaited<ReturnType<typeof seed>>["as"],
@@ -95,6 +100,36 @@ describe("config", () => {
 		process.env.FREE_QUOTA_MB = "-5";
 		expect(limitBytesForPlan("free")).toBe(250 * MB);
 		process.env.FREE_QUOTA_MB = "1";
+	});
+});
+
+describe("content idempotency", () => {
+	test("identical bytes resume one book instead of registering a duplicate", async () => {
+		const { t, as } = await seed();
+		const contentHash = nextHash();
+		const args = {
+			fileName: "same.epub",
+			fileSize: 100,
+			sectionCount: 1,
+			contentHash,
+			metadata: META,
+		};
+		const first = await as.mutation(api.books.registerImport, args);
+		const resumed = await as.mutation(api.books.registerImport, args);
+		expect(resumed).toEqual({
+			bookId: first.bookId,
+			alreadyAttached: false,
+		});
+		expect(await t.run((ctx) => ctx.db.query("books").collect())).toHaveLength(
+			1,
+		);
+
+		await attach(as, first.bookId, 100);
+		const attached = await as.mutation(api.books.registerImport, args);
+		expect(attached).toEqual({
+			bookId: first.bookId,
+			alreadyAttached: true,
+		});
 	});
 });
 
@@ -325,12 +360,13 @@ describe("existing data is never harmed", () => {
 			fileName: "b.epub",
 			fileSize: 1 * MB,
 			sectionCount: 1,
+			contentHash: nextHash(),
 			metadata: META,
 		});
 		expect(
 			(
 				await asB.mutation(internal.books.attachVerified, {
-					bookId: b,
+					bookId: b.bookId,
 					kind: "epub" as const,
 					verifiedSize: 1 * MB,
 				})

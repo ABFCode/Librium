@@ -35,58 +35,51 @@ async function seed() {
 	return { as: t.withIdentity({ subject: SUBJECT }), bookId };
 }
 
-const STATUSES = ["reading", "finished", "want", "abandoned"] as const;
+describe("server-versioned status conflicts", () => {
+	test("rejects a stale device without consulting its wall clock", async () => {
+		const { as, bookId } = await seed();
+		const first = await as.mutation(api.userBooks.updateStatus, {
+			bookId,
+			status: "reading",
+			baseServerTime: 0,
+		});
+		expect(first.accepted).toBe(true);
+		const second = await as.mutation(api.userBooks.updateStatus, {
+			bookId,
+			status: "finished",
+			baseServerTime: first.serverTime,
+		});
+		expect(second.accepted).toBe(true);
+		const stale = await as.mutation(api.userBooks.updateStatus, {
+			bookId,
+			status: "abandoned",
+			baseServerTime: first.serverTime,
+		});
+		expect(stale.accepted).toBe(false);
+		const row = await as.query(api.userBooks.getUserBook, { bookId });
+		expect(row?.status).toBe("finished");
+		expect(row?.statusUpdatedAt).toBe(second.serverTime);
+	});
 
-describe("status LWW converges regardless of apply order", () => {
-	test("final status is the write with the highest editedAt", async () => {
-		await fc.assert(
-			fc.asyncProperty(
-				// Writes with DISTINCT edit times (distinct → an unambiguous winner)
-				// and any permutation of their application order.
-				fc
-					.uniqueArray(fc.integer({ min: 1, max: 10_000 }), {
-						minLength: 1,
-						maxLength: 8,
-					})
-					.chain((times) =>
-						fc.record({
-							writes: fc.constant(times).chain((ts) =>
-								fc.tuple(
-									...ts.map((editedAt) =>
-										fc.record({
-											editedAt: fc.constant(editedAt),
-											status: fc.constantFrom(...STATUSES, null),
-										}),
-									),
-								),
-							),
-							order: fc.constant(times).chain((ts) =>
-								fc.shuffledSubarray([...ts.keys()], {
-									minLength: ts.length,
-									maxLength: ts.length,
-								}),
-							),
-						}),
-					),
-				async ({ writes, order }) => {
-					const { as, bookId } = await seed();
-					for (const i of order) {
-						await as.mutation(api.userBooks.updateStatus, {
-							bookId,
-							status: writes[i].status,
-							editedAt: writes[i].editedAt,
-						});
-					}
-					const winner = writes.reduce((a, b) =>
-						b.editedAt > a.editedAt ? b : a,
-					);
-					const row = await as.query(api.userBooks.getUserBook, { bookId });
-					// null status is stored as an absent field.
-					expect(row?.status ?? null).toBe(winner.status);
-				},
-			),
-			{ numRuns: 200 },
-		);
+	test("progress and status versions do not invalidate each other", async () => {
+		const { as, bookId } = await seed();
+		const status = await as.mutation(api.userBooks.updateStatus, {
+			bookId,
+			status: "want",
+			baseServerTime: 0,
+		});
+		const progress = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 2,
+			baseServerTime: 0,
+		});
+		expect(progress.accepted).toBe(true);
+		const nextStatus = await as.mutation(api.userBooks.updateStatus, {
+			bookId,
+			status: "reading",
+			baseServerTime: status.serverTime,
+		});
+		expect(nextStatus.accepted).toBe(true);
 	});
 });
 

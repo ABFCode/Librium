@@ -14,6 +14,7 @@ import { quotaErrorMessage } from "../lib/quotaErrors";
 import { uploadBookAsset } from "../lib/uploadBookAsset";
 import { Icon } from "./Icon";
 import { MetadataFetchPanel } from "./MetadataFetchPanel";
+import { Modal } from "./Modal";
 
 // The full server doc drives the form — editing is online-only (the books
 // table is server-authoritative); accepted edits are mirrored into the local
@@ -134,16 +135,6 @@ export const EditBookDialog = ({
 			setIsNuFetching(false);
 		}
 	};
-
-	useEffect(() => {
-		const handleKey = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				onClose();
-			}
-		};
-		window.addEventListener("keydown", handleKey);
-		return () => window.removeEventListener("keydown", handleKey);
-	}, [onClose]);
 
 	// Revoke file-based preview URLs when they change or on unmount (url-kind
 	// previews are plain remote URLs, nothing to revoke).
@@ -402,181 +393,174 @@ export const EditBookDialog = ({
 	);
 
 	return (
-		// biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-close is a pointer nicety; Escape and the Cancel button cover keyboard users
-		// biome-ignore lint/a11y/useKeyWithClickEvents: see above
-		<div
-			className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 px-6 py-8"
-			onClick={onClose}
+		<Modal
+			label="Edit details"
+			onClose={onClose}
+			backdropClassName="px-6 py-8"
+			panelClassName="surface flex max-h-full w-full max-w-lg flex-col p-6"
 		>
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: the click handler only stops backdrop-close propagation */}
-			{/* biome-ignore lint/a11y/useKeyWithClickEvents: see above */}
-			<div
-				className="surface flex max-h-full w-full max-w-lg flex-col p-6"
-				onClick={(event) => event.stopPropagation()}
-			>
-				<h2 className="text-xl">Edit details</h2>
-				<div className="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-auto pr-1">
-					<div className="flex gap-4">
-						<div className="w-24 shrink-0">
-							<div className="book-cover-frame has-cover overflow-hidden">
-								{pendingCover ? (
-									<img
-										src={pendingCover.previewUrl}
-										alt=""
-										className="h-full w-full object-cover"
-									/>
-								) : coverUrl ? (
-									<img
-										src={coverUrl}
-										alt=""
-										className="h-full w-full object-cover"
-									/>
-								) : (
-									<div className="flex h-full items-center justify-center p-2 text-center text-xs text-[var(--muted-2)]">
-										No cover
-									</div>
-								)}
-							</div>
-							<input
-								ref={fileInputRef}
-								type="file"
-								accept="image/*"
-								className="hidden"
-								onChange={(event) => pickCover(event.target.files?.[0])}
-							/>
-							<button
-								type="button"
-								className="btn btn-ghost mt-2 w-full text-xs"
-								onClick={() => fileInputRef.current?.click()}
-							>
-								Replace…
-							</button>
-							<p className="mt-1 text-center text-[10px] text-[var(--muted-2)]">
-								or paste an image
-							</p>
+			<h2 className="text-xl">Edit details</h2>
+			<div className="mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-auto pr-1">
+				<div className="flex gap-4">
+					<div className="w-24 shrink-0">
+						<div className="book-cover-frame has-cover overflow-hidden">
+							{pendingCover ? (
+								<img
+									src={pendingCover.previewUrl}
+									alt=""
+									className="h-full w-full object-cover"
+								/>
+							) : coverUrl ? (
+								<img
+									src={coverUrl}
+									alt=""
+									className="h-full w-full object-cover"
+								/>
+							) : (
+								<div className="flex h-full items-center justify-center p-2 text-center text-xs text-[var(--muted-2)]">
+									No cover
+								</div>
+							)}
 						</div>
-						<div className="flex min-w-0 flex-1 flex-col gap-2">
-							{field("Title", "title")}
-							{field("Author", "author", "Unknown")}
-							<div className="grid grid-cols-[1fr_72px] gap-2">
-								{field("Series", "series", "None")}
-								{field("#", "seriesIndex", "1")}
-							</div>
-						</div>
-					</div>
-					<label className="flex flex-col gap-1 text-xs text-[var(--muted)]">
-						Description
-						<textarea
-							className="input min-h-24 py-2 text-sm"
-							value={form.description}
-							onChange={(event) => set("description")(event.target.value)}
+						<input
+							ref={fileInputRef}
+							type="file"
+							accept="image/*"
+							className="hidden"
+							onChange={(event) => pickCover(event.target.files?.[0])}
 						/>
-					</label>
-					<div className="grid grid-cols-2 gap-2">
-						{field("Language", "language", "en")}
-						{field("Source page URL", "sourceUrl", "https://…")}
-					</div>
-					{form.sourceUrl.trim() ? (
-						<div className="flex flex-wrap items-center gap-3">
-							<a
-								className="inline-flex items-center gap-1.5 text-xs text-[var(--accent)] hover:underline"
-								href={form.sourceUrl.trim()}
-								target="_blank"
-								rel="noreferrer"
-							>
-								<Icon name="external-link" size={12} />
-								Open source page
-							</a>
-							{sourceIsNovelUpdates ? (
-								<button
-									type="button"
-									className="chip"
-									disabled={isNuFetching}
-									onClick={() => void fetchFromLinkedPage()}
-								>
-									{isNuFetching ? "Fetching…" : "Fetch from linked page"}
-								</button>
-							) : null}
-						</div>
-					) : null}
-					{nuNotice ? (
-						<p className="text-xs text-[var(--muted)]">{nuNotice}</p>
-					) : null}
-					{showPasteFallback ? (
-						<div className="flex flex-col gap-2">
-							<textarea
-								className="input min-h-20 py-2 font-mono text-xs"
-								placeholder="Paste the NovelUpdates page HTML here…"
-								value={pastedHtml}
-								onChange={(event) => setPastedHtml(event.target.value)}
-							/>
-							<button
-								type="button"
-								className="btn btn-ghost self-start text-xs"
-								disabled={pastedHtml.trim().length === 0}
-								onClick={() => adoptNuHtml(pastedHtml, form.sourceUrl.trim())}
-							>
-								Parse pasted page
-							</button>
-						</div>
-					) : null}
-					<div className="border-t border-[color-mix(in_srgb,var(--outline)_60%,transparent)] pt-3">
 						<button
 							type="button"
-							className={`chip ${isFetchOpen ? "is-active" : ""}`}
-							onClick={() => setIsFetchOpen((prev) => !prev)}
+							className="btn btn-ghost mt-2 w-full text-xs"
+							onClick={() => fileInputRef.current?.click()}
 						>
-							Fetch metadata
+							Replace…
 						</button>
-						{isFetchOpen ? (
-							<div className="mt-3">
-								<MetadataFetchPanel
-									bookId={book._id}
-									current={{
-										title: form.title,
-										author: form.author,
-										series: form.series,
-										description: form.description,
-										subjects: pendingSubjects ?? undefined,
-									}}
-									extraCandidate={nuCandidate}
-									onApply={applyFetched}
-								/>
-							</div>
-						) : null}
+						<p className="mt-1 text-center text-[10px] text-[var(--muted-2)]">
+							or paste an image
+						</p>
+					</div>
+					<div className="flex min-w-0 flex-1 flex-col gap-2">
+						{field("Title", "title")}
+						{field("Author", "author", "Unknown")}
+						<div className="grid grid-cols-[1fr_72px] gap-2">
+							{field("Series", "series", "None")}
+							{field("#", "seriesIndex", "1")}
+						</div>
 					</div>
 				</div>
-				{titleInvalid ? (
-					<p className="mt-3 text-xs text-[var(--danger)]">
-						Title cannot be empty.
-					</p>
+				<label className="flex flex-col gap-1 text-xs text-[var(--muted)]">
+					Description
+					<textarea
+						className="input min-h-24 py-2 text-sm"
+						value={form.description}
+						onChange={(event) => set("description")(event.target.value)}
+					/>
+				</label>
+				<div className="grid grid-cols-2 gap-2">
+					{field("Language", "language", "en")}
+					{field("Source page URL", "sourceUrl", "https://…")}
+				</div>
+				{form.sourceUrl.trim() ? (
+					<div className="flex flex-wrap items-center gap-3">
+						<a
+							className="inline-flex items-center gap-1.5 text-xs text-[var(--accent)] hover:underline"
+							href={form.sourceUrl.trim()}
+							target="_blank"
+							rel="noreferrer"
+						>
+							<Icon name="external-link" size={12} />
+							Open source page
+						</a>
+						{sourceIsNovelUpdates ? (
+							<button
+								type="button"
+								className="chip"
+								disabled={isNuFetching}
+								onClick={() => void fetchFromLinkedPage()}
+							>
+								{isNuFetching ? "Fetching…" : "Fetch from linked page"}
+							</button>
+						) : null}
+					</div>
 				) : null}
-				{error ? (
-					<p className="mt-3 text-xs text-[var(--danger)]">{error}</p>
+				{nuNotice ? (
+					<p className="text-xs text-[var(--muted)]">{nuNotice}</p>
 				) : null}
-				{!isAuthenticated ? (
-					<p className="mt-3 text-xs text-[var(--muted-2)]">
-						Editing needs a connection — metadata lives on the server.
-					</p>
+				{showPasteFallback ? (
+					<div className="flex flex-col gap-2">
+						<textarea
+							className="input min-h-20 py-2 font-mono text-xs"
+							placeholder="Paste the NovelUpdates page HTML here…"
+							value={pastedHtml}
+							onChange={(event) => setPastedHtml(event.target.value)}
+						/>
+						<button
+							type="button"
+							className="btn btn-ghost self-start text-xs"
+							disabled={pastedHtml.trim().length === 0}
+							onClick={() => adoptNuHtml(pastedHtml, form.sourceUrl.trim())}
+						>
+							Parse pasted page
+						</button>
+					</div>
 				) : null}
-				<div className="mt-5 flex justify-end gap-2">
+				<div className="border-t border-[color-mix(in_srgb,var(--outline)_60%,transparent)] pt-3">
 					<button
 						type="button"
-						className="btn btn-ghost text-xs"
-						onClick={onClose}
+						className={`chip ${isFetchOpen ? "is-active" : ""}`}
+						onClick={() => setIsFetchOpen((prev) => !prev)}
 					>
-						Cancel
+						Fetch metadata
 					</button>
-					<button
-						type="button"
-						className="btn btn-primary text-xs"
-						disabled={!canSave}
-						onClick={() => void save()}
-					>
-						{isSaving ? "Saving…" : "Save"}
-					</button>
+					{isFetchOpen ? (
+						<div className="mt-3">
+							<MetadataFetchPanel
+								bookId={book._id}
+								current={{
+									title: form.title,
+									author: form.author,
+									series: form.series,
+									description: form.description,
+									subjects: pendingSubjects ?? undefined,
+								}}
+								extraCandidate={nuCandidate}
+								onApply={applyFetched}
+							/>
+						</div>
+					) : null}
 				</div>
 			</div>
-		</div>
+			{titleInvalid ? (
+				<p className="mt-3 text-xs text-[var(--danger)]">
+					Title cannot be empty.
+				</p>
+			) : null}
+			{error ? (
+				<p className="mt-3 text-xs text-[var(--danger)]">{error}</p>
+			) : null}
+			{!isAuthenticated ? (
+				<p className="mt-3 text-xs text-[var(--muted-2)]">
+					Editing needs a connection — metadata lives on the server.
+				</p>
+			) : null}
+			<div className="mt-5 flex justify-end gap-2">
+				<button
+					type="button"
+					className="btn btn-ghost text-xs"
+					onClick={onClose}
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					className="btn btn-primary text-xs"
+					disabled={!canSave}
+					onClick={() => void save()}
+				>
+					{isSaving ? "Saving…" : "Save"}
+				</button>
+			</div>
+		</Modal>
 	);
 };

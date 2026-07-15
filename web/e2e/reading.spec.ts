@@ -98,7 +98,16 @@ test("sign up, import, read, restore, search", async ({ page }) => {
 				const match = [...el.querySelectorAll("[data-chunk-index]")].find((b) =>
 					b.textContent?.includes("xylophone-harvest"),
 				) as HTMLElement | undefined;
-				return match ? Math.abs(el.scrollTop - match.offsetTop) : -1;
+				const visibleInset = Number.parseFloat(
+					getComputedStyle(el).scrollPaddingTop,
+				);
+				return match
+					? Math.abs(
+							match.offsetTop -
+								el.scrollTop -
+								(Number.isFinite(visibleInset) ? visibleInset : 0),
+						)
+					: -1;
 			}),
 		)
 		.toBeLessThan(8);

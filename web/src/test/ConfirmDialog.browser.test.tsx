@@ -22,6 +22,34 @@ const renderDialog = async (
 };
 
 describe("ConfirmDialog", () => {
+	it("exposes modal semantics and traps keyboard focus", async () => {
+		const { screen } = await renderDialog();
+		const dialog = screen.container.querySelector(
+			'[role="dialog"]',
+		) as HTMLElement;
+		expect(dialog).toBeTruthy();
+		expect(dialog.getAttribute("aria-modal")).toBe("true");
+		expect(dialog.getAttribute("aria-label")).toBe("Delete book");
+
+		const buttons = [...dialog.querySelectorAll("button")];
+		buttons.at(-1)?.focus();
+		buttons
+			.at(-1)
+			?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Tab", bubbles: true }),
+			);
+		expect(document.activeElement).toBe(buttons[0]);
+
+		buttons[0]?.dispatchEvent(
+			new KeyboardEvent("keydown", {
+				key: "Tab",
+				shiftKey: true,
+				bubbles: true,
+			}),
+		);
+		expect(document.activeElement).toBe(buttons.at(-1));
+	});
+
 	it("does NOT confirm on a window-level Enter (Enter on Cancel regression)", async () => {
 		// Regression: a global Enter-to-confirm handler executed the destructive
 		// action even with focus on the Cancel button.

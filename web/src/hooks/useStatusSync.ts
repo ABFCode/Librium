@@ -6,11 +6,10 @@ import { db } from "../lib/db";
 import type { ReadingStatus } from "../lib/status";
 
 // Local-first reading status with LWW sync — the batched, library-wide
-// sibling of useProgressSync (same rules, own clock):
+// sibling of useProgressSync (same rules, own server version):
 // - setStatus writes IndexedDB first (instant, offline-capable), marked dirty.
-// - Dirty rows push when a connection exists; the server rejects pushes older
-//   (by statusEditedAt) than what it holds, so a reconnecting device cannot
-//   clobber a newer choice made elsewhere.
+// - Dirty rows push with the last status version this device merged; stale
+//   offline writes are rejected without comparing device clocks.
 // - Pull ordering compares server clocks only: a remote value is adopted when
 //   its updatedAt is newer than the last server state merged here
 //   (syncedServerTime) — and never over an unpushed local edit.
@@ -40,8 +39,7 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 		const entries = remote.map((entry) => ({
 			bookId: entry.bookId,
 			status: entry.status,
-			statusEditedAt: entry.statusEditedAt ?? 0,
-			updatedAt: entry.updatedAt,
+			statusUpdatedAt: entry.statusUpdatedAt,
 		}));
 		const mergePass = async () => {
 			for (const entry of entries) {
@@ -51,7 +49,7 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 					if (live?.dirty) {
 						return;
 					}
-					if (live && entry.updatedAt <= live.syncedServerTime) {
+					if (live && entry.statusUpdatedAt <= (live.syncedServerTime ?? 0)) {
 						return;
 					}
 					// No row + no explicit status = nothing to record; keeps the table
@@ -63,9 +61,9 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 					await db.bookStatus.put({
 						bookId: entry.bookId,
 						status: entry.status,
-						editedAt: entry.statusEditedAt,
+						editedAt: entry.statusUpdatedAt,
 						dirty: 0,
-						syncedServerTime: entry.updatedAt,
+						syncedServerTime: entry.statusUpdatedAt,
 					});
 				});
 			}
@@ -91,10 +89,10 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 			for (const row of dirtyRows) {
 				const editedAt = row.editedAt;
 				try {
-					await updateStatus({
+					const result = await updateStatus({
 						bookId: row.bookId as never,
 						status: row.status,
-						editedAt,
+						baseServerTime: row.syncedServerTime,
 					});
 					await db.bookStatus
 						.where("bookId")
@@ -103,6 +101,9 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 							// Only clear dirty if no newer local edit happened meanwhile.
 							if (r.editedAt <= editedAt) {
 								r.dirty = 0;
+								if (result.accepted) {
+									r.syncedServerTime = result.serverTime;
+								}
 							}
 						});
 				} catch {
@@ -138,18 +139,25 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 		async (bookId: string, status: ReadingStatus | null) => {
 			try {
 				const existing = await db.bookStatus.get(bookId);
+				const remoteVersion = remote?.find(
+					(entry) => entry.bookId === bookId,
+				)?.statusUpdatedAt;
 				await db.bookStatus.put({
 					bookId,
 					status,
 					editedAt: Date.now(),
 					dirty: 1,
-					syncedServerTime: existing?.syncedServerTime ?? 0,
+					// Concrete floor of 0 when nothing is known: an undefined base
+					// bypasses the server's stale-write guard and would clobber a
+					// newer status set on another device. remoteVersion still seeds
+					// the base when this device has observed the server's version.
+					syncedServerTime: existing?.syncedServerTime ?? remoteVersion ?? 0,
 				});
 			} catch {
 				// IndexedDB unavailable — nothing durable to write.
 			}
 		},
-		[],
+		[remote],
 	);
 
 	return { statusByBookId, setStatus };

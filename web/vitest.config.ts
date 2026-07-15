@@ -1,11 +1,11 @@
 import { fileURLToPath, URL } from "node:url";
 import viteReact from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
-import viteTsConfigPaths from "vite-tsconfig-paths";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
 	resolve: {
+		tsconfigPaths: true,
 		alias: [
 			{
 				find: /^@\//,
@@ -25,12 +25,7 @@ export default defineConfig({
 			"convex/server",
 		],
 	},
-	plugins: [
-		viteTsConfigPaths({
-			projects: ["./tsconfig.json"],
-		}),
-		viteReact(),
-	],
+	plugins: [viteReact()],
 	test: {
 		testTimeout: 10_000,
 		projects: [

@@ -4,11 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { useCollectionSync } from "../hooks/useCollectionSync";
 import { useDismissable } from "../hooks/useDismissable";
+import { usePendingUploadSync } from "../hooks/usePendingUploadSync";
 import { useStatusSync } from "../hooks/useStatusSync";
+import { authClient } from "../lib/auth-client";
 import {
 	db,
 	deleteLocalBook,
 	type LocalBook,
+	migrateLegacyDataForUser,
 	purgeOrphanedContent,
 	removeLocalContent,
 } from "../lib/db";
@@ -38,7 +41,9 @@ const PURGE_GRACE_MS = 60_000;
 export function Library() {
 	const convex = useConvex();
 	const { isAuthenticated } = useConvexAuth();
+	const { data: authSession } = authClient.useSession();
 	const canQuery = isAuthenticated;
+	const pendingUploadSync = usePendingUploadSync(isAuthenticated);
 	const deleteBook = useAction(api.books.deleteBook);
 
 	// Local-first: the shelf renders from IndexedDB when the server list is
@@ -46,6 +51,19 @@ export function Library() {
 	const remoteBooks = useQuery(api.books.listByOwner, canQuery ? {} : "skip");
 	const localBooks = useLiveQuery(() => db.books.toArray(), []);
 	const localProgress = useLiveQuery(() => db.progress.toArray(), []);
+
+	useEffect(() => {
+		const userId = authSession?.user.id;
+		if (!userId || !remoteBooks) {
+			return;
+		}
+		void migrateLegacyDataForUser(
+			userId,
+			remoteBooks.map((book) => book._id as string),
+		).catch(() => {
+			// Leave the migration marker unset; the next library visit retries.
+		});
+	}, [authSession?.user.id, remoteBooks]);
 
 	const books: LibraryBook[] | undefined = useMemo(() => {
 		if (remoteBooks) {
@@ -1004,6 +1022,30 @@ export function Library() {
 						onManageCollections={() => setIsManageOpen(true)}
 						onOpenAccount={() => setIsAccountOpen(true)}
 					/>
+					{pendingUploadSync.pendingCount > 0 ? (
+						<div className="surface-soft flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+							<div className="min-w-0 flex-1">
+								<div className="font-medium text-[var(--ink)]">
+									{pendingUploadSync.isRetrying
+										? "Backing up your library…"
+										: `${pendingUploadSync.pendingCount} book${pendingUploadSync.pendingCount === 1 ? "" : "s"} readable here — cloud backup pending`}
+								</div>
+								{pendingUploadSync.lastError ? (
+									<div className="mt-0.5 truncate text-xs text-[var(--danger)]">
+										{pendingUploadSync.lastError}
+									</div>
+								) : null}
+							</div>
+							<button
+								type="button"
+								className="btn btn-ghost text-xs"
+								disabled={pendingUploadSync.isRetrying}
+								onClick={() => void pendingUploadSync.retryAll()}
+							>
+								Retry backup
+							</button>
+						</div>
+					) : null}
 					{isSelecting ? (
 						<div className="surface-soft flex flex-wrap items-center gap-2 px-3 py-2">
 							<span className="text-sm text-[var(--muted)]">

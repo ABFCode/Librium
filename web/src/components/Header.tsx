@@ -75,7 +75,11 @@ export default function Header() {
 							<button
 								type="button"
 								className="btn btn-ghost text-xs"
-								onClick={() => authClient.signOut()}
+								onClick={() => {
+									// LocalDatabaseBoundary tears the account database down
+									// when the session ends — every sign-out path, not just here.
+									void authClient.signOut();
+								}}
 							>
 								Sign out
 							</button>

@@ -79,15 +79,52 @@
 	.book-menu-shell {
 		position: absolute;
 		right: 0;
-		top: 50%;
-		transform: translateY(-50%);
+		top: 0;
+		bottom: 0;
+		display: flex;
+		align-items: center;
 	}
 
 	.book-menu {
 		position: absolute;
 		right: 0;
-		top: 36px;
+		top: calc(50% + 18px);
 		z-index: 20;
+	}
+
+	.library-actions-menu {
+		position: absolute;
+		right: 0;
+		top: 2.25rem;
+		z-index: 20;
+	}
+
+	.library-collection-menu {
+		position: absolute;
+		left: 0;
+		top: 2rem;
+		z-index: 20;
+	}
+
+	/* Phone menus are sheets: every action remains inside the viewport even
+	   when its trigger is near an edge or at the bottom of a long card grid. */
+	@media (max-width: 599px) {
+		.book-menu,
+		.library-actions-menu,
+		.library-collection-menu {
+			position: fixed;
+			top: auto;
+			right: 0.75rem;
+			bottom: 0;
+			left: 0.75rem;
+			z-index: 50;
+			width: auto;
+			max-height: min(72dvh, calc(100dvh - 5rem));
+			overflow-y: auto;
+			overscroll-behavior: contain;
+			padding-bottom: calc(5px + env(safe-area-inset-bottom));
+			border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+		}
 	}
 
 	.progress-badge {

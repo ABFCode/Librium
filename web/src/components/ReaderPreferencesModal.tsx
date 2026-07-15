@@ -1,5 +1,5 @@
-import { useEffect } from "react";
 import { Icon } from "./Icon";
+import { Modal } from "./Modal";
 
 type ReaderPreferencesModalProps = {
 	isOpen: boolean;
@@ -30,152 +30,129 @@ export const ReaderPreferencesModal = ({
 	fontFamily,
 	setFontFamily,
 }: ReaderPreferencesModalProps) => {
-	useEffect(() => {
-		if (!isOpen) {
-			return;
-		}
-		const handleKey = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				onClose();
-			}
-		};
-		window.addEventListener("keydown", handleKey);
-		return () => window.removeEventListener("keydown", handleKey);
-	}, [isOpen, onClose]);
-
 	if (!isOpen) {
 		return null;
 	}
 
 	return (
-		// Light dim + click-outside close: changes preview live on the page
-		// behind the panel.
-		// biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-close is a pointer nicety; Escape and the close button cover keyboard users
-		// biome-ignore lint/a11y/useKeyWithClickEvents: see above
-		<div
-			className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 px-6"
-			onClick={onClose}
+		<Modal
+			label="Reader preferences"
+			onClose={onClose}
+			panelClassName="reader-preferences-panel surface w-full max-w-md p-6"
 		>
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: the click handler only stops backdrop-close propagation */}
-			{/* biome-ignore lint/a11y/useKeyWithClickEvents: see above */}
-			<div
-				className="surface w-full max-w-md p-6"
-				onClick={(event) => event.stopPropagation()}
-			>
-				<div className="flex items-center justify-between">
-					<h2 className="text-xl">Reader preferences</h2>
-					<button type="button" className="icon-btn -mr-1" onClick={onClose}>
-						<span className="sr-only">Close</span>
-						<Icon name="close" />
-					</button>
-				</div>
-				<div className="mt-5 space-y-5 text-sm">
-					<div className="flex items-center justify-between gap-4">
-						<div className="text-[var(--muted)]">Font size</div>
-						<div className="flex items-center gap-3">
-							<input
-								className="slider"
-								type="range"
-								min={12}
-								max={36}
-								step={1}
-								value={fontSize}
-								aria-label="Font size"
-								onChange={(event) =>
-									// fontSize = 16 + 2 * fontScale → scale in half-steps.
-									setFontScale((Number(event.target.value) - 16) / 2)
+			<div className="flex items-center justify-between">
+				<h2 className="text-xl">Reader preferences</h2>
+				<button type="button" className="icon-btn -mr-1" onClick={onClose}>
+					<span className="sr-only">Close</span>
+					<Icon name="close" />
+				</button>
+			</div>
+			<div className="mt-5 space-y-5 text-sm">
+				<div className="reader-pref-row flex items-center justify-between gap-4">
+					<div className="text-[var(--muted)]">Font size</div>
+					<div className="reader-pref-size-controls flex items-center gap-3">
+						<input
+							className="slider"
+							type="range"
+							min={12}
+							max={36}
+							step={1}
+							value={fontSize}
+							aria-label="Font size"
+							onChange={(event) =>
+								// fontSize = 16 + 2 * fontScale → scale in half-steps.
+								setFontScale((Number(event.target.value) - 16) / 2)
+							}
+						/>
+						<input
+							className="input w-16 px-2 py-1 text-center text-sm"
+							type="number"
+							min={12}
+							max={36}
+							value={fontSize}
+							aria-label="Font size in pixels"
+							onChange={(event) => {
+								const value = Number(event.target.value);
+								if (!Number.isFinite(value)) {
+									return;
 								}
-							/>
-							<input
-								className="input w-16 px-2 py-1 text-center text-sm"
-								type="number"
-								min={12}
-								max={36}
-								value={fontSize}
-								aria-label="Font size in pixels"
-								onChange={(event) => {
-									const value = Number(event.target.value);
-									if (!Number.isFinite(value)) {
-										return;
-									}
-									setFontScale((Math.min(Math.max(value, 12), 36) - 16) / 2);
-								}}
-							/>
-						</div>
+								setFontScale((Math.min(Math.max(value, 12), 36) - 16) / 2);
+							}}
+						/>
 					</div>
-					<div className="flex items-center justify-between gap-4">
-						<div className="text-[var(--muted)]">Font</div>
-						<div className="flex gap-1">
-							{[
-								{ key: "sans", label: "Sans" },
-								{ key: "serif", label: "Serif" },
-							].map((option) => (
-								<button
-									type="button"
-									key={option.key}
-									className={`chip ${fontFamily === option.key ? "is-active" : ""}`}
-									onClick={() => setFontFamily(option.key)}
-								>
-									{option.label}
-								</button>
-							))}
-						</div>
+				</div>
+				<div className="reader-pref-row flex items-center justify-between gap-4">
+					<div className="text-[var(--muted)]">Font</div>
+					<div className="reader-pref-options flex gap-1">
+						{[
+							{ key: "sans", label: "Sans" },
+							{ key: "serif", label: "Serif" },
+						].map((option) => (
+							<button
+								type="button"
+								key={option.key}
+								className={`chip ${fontFamily === option.key ? "is-active" : ""}`}
+								onClick={() => setFontFamily(option.key)}
+							>
+								{option.label}
+							</button>
+						))}
 					</div>
-					<div className="flex items-center justify-between gap-4">
-						<div className="text-[var(--muted)]">Line height</div>
-						<div className="flex gap-1">
-							{[1.5, 1.7, 1.9, 2.1].map((value) => (
-								<button
-									type="button"
-									key={value}
-									className={`chip ${lineHeight === value ? "is-active" : ""}`}
-									onClick={() => setLineHeight(value)}
-								>
-									{value.toFixed(1)}
-								</button>
-							))}
-						</div>
+				</div>
+				<div className="reader-pref-row flex items-center justify-between gap-4">
+					<div className="text-[var(--muted)]">Line height</div>
+					<div className="reader-pref-options flex gap-1">
+						{[1.5, 1.7, 1.9, 2.1].map((value) => (
+							<button
+								type="button"
+								key={value}
+								className={`chip ${lineHeight === value ? "is-active" : ""}`}
+								onClick={() => setLineHeight(value)}
+							>
+								{value.toFixed(1)}
+							</button>
+						))}
 					</div>
-					<div className="flex items-center justify-between gap-4">
-						<div className="text-[var(--muted)]">Width</div>
-						<div className="flex gap-1">
-							{[
-								{ label: "Narrow", value: 560 },
-								{ label: "Comfort", value: 720 },
-								{ label: "Wide", value: 880 },
-							].map((option) => (
-								<button
-									type="button"
-									key={option.label}
-									className={`chip ${contentWidth === option.value ? "is-active" : ""}`}
-									onClick={() => setContentWidth(option.value)}
-								>
-									{option.label}
-								</button>
-							))}
-						</div>
+				</div>
+				<div className="reader-pref-row flex items-center justify-between gap-4">
+					<div className="text-[var(--muted)]">Width</div>
+					<div className="reader-pref-options flex gap-1">
+						{[
+							{ label: "Narrow", value: 560 },
+							{ label: "Comfort", value: 720 },
+							{ label: "Wide", value: 880 },
+						].map((option) => (
+							<button
+								type="button"
+								key={option.label}
+								className={`chip ${contentWidth === option.value ? "is-active" : ""}`}
+								onClick={() => setContentWidth(option.value)}
+							>
+								{option.label}
+							</button>
+						))}
 					</div>
-					<div className="flex items-center justify-between gap-4">
-						<div className="text-[var(--muted)]">Theme</div>
-						<div className="flex gap-1">
-							{[
-								{ key: "night", label: "Night" },
-								{ key: "sepia", label: "Sepia" },
-								{ key: "paper", label: "Paper" },
-							].map((option) => (
-								<button
-									type="button"
-									key={option.key}
-									className={`chip ${theme === option.key ? "is-active" : ""}`}
-									onClick={() => setTheme(option.key)}
-								>
-									{option.label}
-								</button>
-							))}
-						</div>
+				</div>
+				<div className="reader-pref-row flex items-center justify-between gap-4">
+					<div className="text-[var(--muted)]">Theme</div>
+					<div className="reader-pref-options flex gap-1">
+						{[
+							{ key: "night", label: "Night" },
+							{ key: "sepia", label: "Sepia" },
+							{ key: "paper", label: "Paper" },
+						].map((option) => (
+							<button
+								type="button"
+								key={option.key}
+								className={`chip ${theme === option.key ? "is-active" : ""}`}
+								onClick={() => setTheme(option.key)}
+							>
+								{option.label}
+							</button>
+						))}
 					</div>
 				</div>
 			</div>
-		</div>
+		</Modal>
 	);
 };

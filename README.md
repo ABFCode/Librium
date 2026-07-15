@@ -7,7 +7,7 @@ Librium is a performance‑focused web app for uploading, managing, and reading 
 * **Web app:** React 19 + TanStack Router + Vite + Tailwind, static SPA (`/web`)
 * **Data/Auth:** Convex (with Better Auth) (`/web/convex`)
 * **EPUB parsing:** in-browser, via [`@abfcode/spine`](https://www.npmjs.com/package/@abfcode/spine) (TypeScript port of Spine)
-* **Storage:** Convex Storage (EPUBs, section content blocks, and assets)
+* **Storage:** Cloudflare R2 for durable EPUB/cover backups; IndexedDB for parsed books, reader content, and offline state
 
 ## Features (current)
 
@@ -87,11 +87,11 @@ cd web
 pnpm test:e2e
 ```
 
-## Known limitations (0.1.0)
+## Known limitations
 
 - EPUB only (additional formats planned).
-- Auth is basic email/password (reset/2FA planned).
-- Offline reading is not supported yet.
+- Auth is email/password; account recovery and 2FA are not yet available.
+- A device must download a book once before that book is available offline on that device.
 
 ## Status
 

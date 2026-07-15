@@ -58,16 +58,21 @@ export const createCollection = mutation({
 			.collect();
 		const match = existing.find((c) => c.clientKey === args.clientKey);
 		if (match) {
-			return match._id;
+			return {
+				id: match._id,
+				serverTime: match.nameUpdatedAt ?? match.updatedAt,
+			};
 		}
 		const now = Date.now();
-		return await ctx.db.insert("collections", {
+		const id = await ctx.db.insert("collections", {
 			userId,
 			name,
 			clientKey: args.clientKey,
 			createdAt: args.createdAt ?? now,
 			updatedAt: now,
+			nameUpdatedAt: now,
 		});
+		return { id, serverTime: now };
 	},
 });
 
@@ -75,9 +80,7 @@ export const renameCollection = mutation({
 	args: {
 		collectionId: v.id("collections"),
 		name: v.string(),
-		// Client edit time (LWW) — a reconnecting device's stale queued rename
-		// must not clobber a newer one made elsewhere.
-		editedAt: v.optional(v.number()),
+		baseServerTime: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
 		const userId = await requireViewerUserId(ctx);
@@ -85,26 +88,27 @@ export const renameCollection = mutation({
 		if (!collection || collection.userId !== userId) {
 			throw new Error("Collection not found.");
 		}
+		const currentServerTime = collection.nameUpdatedAt ?? collection.updatedAt;
 		if (collection.deletedAt !== undefined) {
-			return;
+			return { accepted: false, serverTime: currentServerTime };
 		}
 		const name = args.name.trim();
 		if (!name) {
 			throw new Error("Collection name cannot be empty.");
 		}
 		if (
-			collection.nameEditedAt !== undefined &&
-			args.editedAt !== undefined &&
-			args.editedAt < collection.nameEditedAt
+			args.baseServerTime !== undefined &&
+			args.baseServerTime < currentServerTime
 		) {
-			return;
+			return { accepted: false, serverTime: currentServerTime };
 		}
 		const now = Date.now();
 		await ctx.db.patch(args.collectionId, {
 			name,
-			nameEditedAt: args.editedAt ?? now,
+			nameUpdatedAt: now,
 			updatedAt: now,
 		});
+		return { accepted: true, serverTime: now };
 	},
 });
 

@@ -20,6 +20,14 @@ export function findAnchor(container: HTMLElement): Anchor {
 	let fraction = 0;
 	let sectionFraction = 0;
 	const nodes = Array.from(container.querySelectorAll("[data-chunk-index]"));
+	const first = nodes[0] as HTMLElement | undefined;
+	// The leading content inset belongs to the section, not to block zero.
+	// Preserve a true section-start anchor while the viewport is above (or
+	// exactly at) the first rendered block so restoring it does not turn the
+	// block's padding-derived offsetTop into an unwanted scroll offset.
+	if (!first || scrollTop <= first.offsetTop) {
+		return { blockIndex: 0, fraction: 0, sectionFraction: 0 };
+	}
 	for (let i = 0; i < nodes.length; i++) {
 		const element = nodes[i] as HTMLElement;
 		if (element.offsetTop + element.clientHeight > scrollTop) {
@@ -48,6 +56,11 @@ export function anchorScrollTop(
 	blockIndex: number,
 	fraction: number,
 ): number | null {
+	// (0, 0) is the canonical section-start anchor, including chapters whose
+	// duplicate first heading is omitted and therefore have no rendered block 0.
+	if (blockIndex === 0 && fraction === 0) {
+		return 0;
+	}
 	const target = container.querySelector(
 		`[data-chunk-index="${blockIndex}"]`,
 	) as HTMLElement | null;
@@ -55,4 +68,24 @@ export function anchorScrollTop(
 		return null;
 	}
 	return target.offsetTop + clamp01(fraction) * target.clientHeight;
+}
+
+/**
+ * Places an explicitly selected search/bookmark anchor below the reader's
+ * visible content inset. Progress restoration intentionally uses the raw
+ * anchor above; navigation destinations must be visible beneath fixed chrome.
+ */
+export function visibleAnchorScrollTop(
+	container: HTMLElement,
+	blockIndex: number,
+	fraction: number,
+): number | null {
+	const top = anchorScrollTop(container, blockIndex, fraction);
+	if (top === null || top === 0) {
+		return top;
+	}
+	const inset = Number.parseFloat(
+		window.getComputedStyle(container).scrollPaddingTop,
+	);
+	return Math.max(0, top - (Number.isFinite(inset) ? inset : 0));
 }

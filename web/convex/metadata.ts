@@ -296,6 +296,12 @@ export const fetchPageHtml = action({
 });
 
 const COVER_MAX_BYTES = 4 * 1024 * 1024;
+const COVER_HOST_ALLOWLIST = new Set([
+	"covers.openlibrary.org",
+	"books.google.com",
+	"books.googleusercontent.com",
+	"lh3.googleusercontent.com",
+]);
 
 /**
  * Proxy a candidate's cover image to the client — image hosts rarely send
@@ -321,7 +327,8 @@ export const fetchCoverImage = action({
 		} catch {
 			throw new Error("Invalid image URL.");
 		}
-		// https-only, no private hosts, re-validated on every redirect hop.
+		// Provider cover hosts only, https-only, and re-validated on every
+		// redirect hop. This action must never become an authenticated fetch proxy.
 		const res = await guardedFetch(
 			url.toString(),
 			{
@@ -330,7 +337,7 @@ export const fetchCoverImage = action({
 					"User-Agent": "Mozilla/5.0 (compatible; Librium/1.0)",
 				},
 			},
-			{},
+			{ allowlist: COVER_HOST_ALLOWLIST },
 		);
 		if (!res.ok) {
 			throw new Error(`Image fetch failed (${res.status}).`);

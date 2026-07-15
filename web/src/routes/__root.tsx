@@ -9,6 +9,7 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import type { ComponentProps } from "react";
 
 import Header from "../components/Header";
+import { LocalDatabaseBoundary } from "../components/LocalDatabaseBoundary";
 import { convexClient } from "../convexClient";
 import { authClient } from "../lib/auth-client";
 
@@ -42,8 +43,10 @@ function RootLayout() {
 					>["authClient"]
 				}
 			>
-				{hideChrome ? null : <Header />}
-				<Outlet />
+				<LocalDatabaseBoundary>
+					{hideChrome ? null : <Header />}
+					<Outlet />
+				</LocalDatabaseBoundary>
 			</ConvexBetterAuthProvider>
 			<TanStackDevtools
 				config={{

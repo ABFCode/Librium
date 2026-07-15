@@ -5,10 +5,10 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
-import viteTsConfigPaths from "vite-tsconfig-paths";
 
 const config = defineConfig({
 	resolve: {
+		tsconfigPaths: true,
 		alias: {
 			"@": fileURLToPath(new URL("./src", import.meta.url)),
 		},
@@ -16,11 +16,6 @@ const config = defineConfig({
 	plugins: [
 		tailwindcss(),
 		devtools(),
-		// this is the plugin that enables path aliases
-		viteTsConfigPaths({
-			projects: ["./tsconfig.json"],
-		}),
-
 		// File-based routing (must come before the React plugin).
 		tanstackRouter({ target: "react", autoCodeSplitting: true }),
 		viteReact(),

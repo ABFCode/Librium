@@ -1,9 +1,9 @@
 import { CheckoutLink, CustomerPortalLink } from "@convex-dev/polar/react";
 import { useQuery } from "convex/react";
-import { useEffect } from "react";
 import { api } from "../../convex/_generated/api";
 import { formatStorage } from "../lib/quotaErrors";
 import { Icon } from "./Icon";
+import { Modal } from "./Modal";
 
 type AccountStorageDialogProps = {
 	onClose: () => void;
@@ -30,16 +30,6 @@ export const AccountStorageDialog = ({
 }: AccountStorageDialogProps) => {
 	const storage = useQuery(api.quota.getStorage);
 	const billing = useQuery(api.billing.getConfig);
-
-	useEffect(() => {
-		const handleKey = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				onClose();
-			}
-		};
-		window.addEventListener("keydown", handleKey);
-		return () => window.removeEventListener("keydown", handleKey);
-	}, [onClose]);
 
 	const isSupporter = storage?.plan === "supporter";
 	const used = storage?.usedBytes ?? null;
@@ -97,112 +87,104 @@ export const AccountStorageDialog = ({
 	};
 
 	return (
-		// biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-close is a pointer nicety; Escape and the Close button cover keyboard users
-		// biome-ignore lint/a11y/useKeyWithClickEvents: see above
-		<div
-			className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 px-6"
-			onClick={onClose}
+		<Modal
+			label="Account and storage"
+			onClose={onClose}
+			panelClassName="surface w-full max-w-lg p-6"
 		>
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: the click handler only stops backdrop-close propagation */}
-			{/* biome-ignore lint/a11y/useKeyWithClickEvents: see above */}
-			<div
-				className="surface w-full max-w-lg p-6"
-				onClick={(event) => event.stopPropagation()}
-			>
-				<div className="flex items-start justify-between">
-					<div>
-						<h2 className="text-xl">Account & storage</h2>
-						<p className="mt-1 text-sm text-[var(--muted-2)]">
-							Cloud storage backs up your books and syncs them between devices.
-							Books already on a device always stay readable, and you can export
-							your EPUBs at any time.
-						</p>
-					</div>
-					<button type="button" className="icon-btn shrink-0" onClick={onClose}>
-						<span className="sr-only">Close</span>
-						<Icon name="close" />
-					</button>
+			<div className="flex items-start justify-between">
+				<div>
+					<h2 className="text-xl">Account & storage</h2>
+					<p className="mt-1 text-sm text-[var(--muted-2)]">
+						Cloud storage backs up your books and syncs them between devices.
+						Books already on a device always stay readable, and you can export
+						your EPUBs at any time.
+					</p>
 				</div>
-
-				<div className="mt-5">
-					<div className="flex items-baseline justify-between text-sm">
-						<span className="text-[var(--muted)]">Your cloud library</span>
-						<span>
-							{used === null || allowance === null
-								? "…"
-								: `${formatStorage(used)} of ${formatStorage(allowance)}`}
-						</span>
-					</div>
-					{fraction !== null ? (
-						<div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-[var(--surface-2)]">
-							<div
-								className="h-full rounded bg-[var(--accent)]"
-								style={{ width: `${Math.round(fraction * 100)}%` }}
-							/>
-						</div>
-					) : null}
-					{storage && !storage.enforced ? (
-						<p className="mt-1.5 text-xs text-[var(--muted-2)]">
-							Storage limits aren't enforced yet. This shows what your plan
-							includes.
-						</p>
-					) : null}
-				</div>
-
-				<div className="mt-5 flex flex-col gap-3 sm:flex-row">
-					{planCard("free", storage?.freeLimitBytes)}
-					{planCard("supporter", storage?.supporterLimitBytes)}
-				</div>
-
-				<div className="mt-4">
-					{isSupporter ? (
-						<>
-							<CustomerPortalLink
-								polarApi={{
-									generateCustomerPortalUrl:
-										api.billing.generateCustomerPortalUrl,
-								}}
-								className="btn btn-ghost h-9 text-xs"
-							>
-								Manage subscription
-							</CustomerPortalLink>
-							<p className="mt-2 text-xs text-[var(--muted-2)]">
-								Billing and cancellation are handled by Polar. Cancelling
-								doesn't remove your books.
-							</p>
-						</>
-					) : checkoutReady && billing?.supporterProductId ? (
-						<>
-							<CheckoutLink
-								polarApi={api.billing}
-								productIds={[billing.supporterProductId]}
-								embed={false}
-								className="btn btn-primary h-9 text-xs"
-							>
-								{priceLabel
-									? `Become a supporter · ${priceLabel}`
-									: "Become a supporter"}
-							</CheckoutLink>
-							<p className="mt-2 text-xs text-[var(--muted-2)]">
-								Checkout and receipts are handled by Polar. Cancel anytime.
-							</p>
-						</>
-					) : (
-						<p className="text-xs text-[var(--muted-2)]">
-							Supporter subscriptions aren't available yet.
-						</p>
-					)}
-				</div>
-
-				<div className="mt-5 flex gap-3 border-t border-[var(--border)] pt-3 text-xs text-[var(--muted-2)]">
-					<a className="hover:underline" href="/terms">
-						Terms
-					</a>
-					<a className="hover:underline" href="/privacy">
-						Privacy
-					</a>
-				</div>
+				<button type="button" className="icon-btn shrink-0" onClick={onClose}>
+					<span className="sr-only">Close</span>
+					<Icon name="close" />
+				</button>
 			</div>
-		</div>
+
+			<div className="mt-5">
+				<div className="flex items-baseline justify-between text-sm">
+					<span className="text-[var(--muted)]">Your cloud library</span>
+					<span>
+						{used === null || allowance === null
+							? "…"
+							: `${formatStorage(used)} of ${formatStorage(allowance)}`}
+					</span>
+				</div>
+				{fraction !== null ? (
+					<div className="mt-2 h-1.5 w-full overflow-hidden rounded bg-[var(--surface-2)]">
+						<div
+							className="h-full rounded bg-[var(--accent)]"
+							style={{ width: `${Math.round(fraction * 100)}%` }}
+						/>
+					</div>
+				) : null}
+				{storage && !storage.enforced ? (
+					<p className="mt-1.5 text-xs text-[var(--muted-2)]">
+						Storage limits aren't enforced yet. This shows what your plan
+						includes.
+					</p>
+				) : null}
+			</div>
+
+			<div className="mt-5 flex flex-col gap-3 sm:flex-row">
+				{planCard("free", storage?.freeLimitBytes)}
+				{planCard("supporter", storage?.supporterLimitBytes)}
+			</div>
+
+			<div className="mt-4">
+				{isSupporter ? (
+					<>
+						<CustomerPortalLink
+							polarApi={{
+								generateCustomerPortalUrl:
+									api.billing.generateCustomerPortalUrl,
+							}}
+							className="btn btn-ghost h-9 text-xs"
+						>
+							Manage subscription
+						</CustomerPortalLink>
+						<p className="mt-2 text-xs text-[var(--muted-2)]">
+							Billing and cancellation are handled by Polar. Cancelling doesn't
+							remove your books.
+						</p>
+					</>
+				) : checkoutReady && billing?.supporterProductId ? (
+					<>
+						<CheckoutLink
+							polarApi={api.billing}
+							productIds={[billing.supporterProductId]}
+							embed={false}
+							className="btn btn-primary h-9 text-xs"
+						>
+							{priceLabel
+								? `Become a supporter · ${priceLabel}`
+								: "Become a supporter"}
+						</CheckoutLink>
+						<p className="mt-2 text-xs text-[var(--muted-2)]">
+							Checkout and receipts are handled by Polar. Cancel anytime.
+						</p>
+					</>
+				) : (
+					<p className="text-xs text-[var(--muted-2)]">
+						Supporter subscriptions aren't available yet.
+					</p>
+				)}
+			</div>
+
+			<div className="mt-5 flex gap-3 border-t border-[var(--border)] pt-3 text-xs text-[var(--muted-2)]">
+				<a className="hover:underline" href="/terms">
+					Terms
+				</a>
+				<a className="hover:underline" href="/privacy">
+					Privacy
+				</a>
+			</div>
+		</Modal>
 	);
 };
