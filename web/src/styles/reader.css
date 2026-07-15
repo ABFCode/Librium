@@ -2,6 +2,11 @@
 	/* The reader owns the whole viewport (the app header is hidden on /reader
      routes): slim top bar + full-height scrolling text column. */
 	.reader-shell {
+		/* Chrome 135+ exposes a dynamic bottom safe area as its Android toolbar
+		   ("chin") retracts. Reserve the maximum once so reading content never
+		   reflows, then move bottom-anchored chrome with the live inset. The 36px
+		   fallback also covers iOS and older browsers without max-inset support. */
+		--reader-safe-bottom-max: env(safe-area-max-inset-bottom, 36px);
 		height: 100dvh;
 		display: flex;
 		flex-direction: column;
@@ -71,11 +76,11 @@
 		.reader-main-scroll {
 			padding-top: calc(4.25rem + env(safe-area-inset-top));
 			padding-right: calc(1.5rem + env(safe-area-inset-right));
-			padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+			padding-bottom: calc(4.25rem + var(--reader-safe-bottom-max));
 			padding-left: calc(1.5rem + env(safe-area-inset-left));
 			scroll-padding-top: calc(4.25rem + env(safe-area-inset-top));
 			scroll-padding-right: calc(1.5rem + env(safe-area-inset-right));
-			scroll-padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+			scroll-padding-bottom: calc(4.25rem + var(--reader-safe-bottom-max));
 			scroll-padding-left: calc(1.5rem + env(safe-area-inset-left));
 		}
 	}
@@ -90,7 +95,10 @@
 	@media (max-width: 599px), (pointer: coarse) and (max-width: 899px) {
 		.reader-botbar {
 			position: fixed;
-			bottom: 0;
+			bottom: calc(
+				env(safe-area-inset-bottom, 0px) -
+				var(--reader-safe-bottom-max)
+			);
 			left: 0;
 			right: 0;
 			z-index: 30;
@@ -98,7 +106,7 @@
 			align-items: center;
 			gap: 0.5rem;
 			padding: 0.4rem calc(0.75rem + env(safe-area-inset-right))
-				calc(0.4rem + env(safe-area-inset-bottom))
+				calc(0.4rem + var(--reader-safe-bottom-max))
 				calc(0.75rem + env(safe-area-inset-left));
 			border-top: 1px solid color-mix(in srgb, var(--outline) 60%, transparent);
 			background: color-mix(in srgb, var(--surface) 80%, transparent);
@@ -213,13 +221,16 @@
 		.reader-drawer {
 			top: auto;
 			right: 0;
-			bottom: 0;
+			bottom: calc(
+				env(safe-area-inset-bottom, 0px) -
+				var(--reader-safe-bottom-max)
+			);
 			left: 0;
 			width: 100%;
 			max-height: 72dvh;
 			border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 			border-bottom: none;
-			padding-bottom: env(safe-area-inset-bottom);
+			padding-bottom: var(--reader-safe-bottom-max);
 			opacity: 1;
 			transform: translateY(100%);
 			transition: transform 220ms ease;

@@ -102,13 +102,30 @@ test("mobile reader has deterministic chrome and true chapter starts", async ({
 		bounds.y + bounds.height / 2,
 	);
 	await expect(page.locator(".reader-topbar")).toHaveClass(/is-hidden/);
+	await expect(page.locator(".reader-botbar")).toHaveClass(/is-hidden/);
 	await page.touchscreen.tap(bounds.x + 8, bounds.y + bounds.height / 2);
 	await expect(page.locator(".reader-topbar")).toHaveClass(/is-hidden/);
+	await expect(page.locator(".reader-botbar")).toHaveClass(/is-hidden/);
 	await page.touchscreen.tap(
 		bounds.x + bounds.width / 2,
 		bounds.y + bounds.height / 2,
 	);
 	await expect(page.locator(".reader-topbar")).not.toHaveClass(/is-hidden/);
+	await expect(page.locator(".reader-botbar")).not.toHaveClass(/is-hidden/);
+	await expect(page.locator(".reader-botbar-settings")).toBeVisible();
+	await expect
+		.poll(() =>
+			page.evaluate(() => {
+				const viewportBottom = window.visualViewport
+					? window.visualViewport.offsetTop + window.visualViewport.height
+					: innerHeight;
+				const bottomControl = document
+					.querySelector(".reader-botbar-settings")
+					?.getBoundingClientRect();
+				return (bottomControl?.bottom ?? 0) - viewportBottom;
+			}),
+		)
+		.toBeLessThanOrEqual(1);
 
 	// A TOC choice and the chapter-end continuation both start at zero.
 	await page.locator(".reader-botbar-center").click();
@@ -215,6 +232,31 @@ test("mobile reader has deterministic chrome and true chapter starts", async ({
 	await reader(page).evaluate((element) => {
 		element.scrollTop = element.scrollHeight;
 	});
+	await expect(page.locator(".reader-botbar")).toHaveClass(/is-hidden/);
+	const endBounds = await reader(page).boundingBox();
+	if (!endBounds) {
+		throw new Error("reader bounds unavailable at chapter end");
+	}
+	await page.touchscreen.tap(
+		endBounds.x + endBounds.width / 2,
+		endBounds.y + endBounds.height / 2,
+	);
+	await expect(page.locator(".reader-topbar")).not.toHaveClass(/is-hidden/);
+	await expect(page.locator(".reader-botbar")).not.toHaveClass(/is-hidden/);
+	await expect
+		.poll(() =>
+			page.evaluate(() => {
+				const turnBottom =
+					document
+						.querySelector(".reader-chapter-end .reader-turn.is-next")
+						?.getBoundingClientRect().bottom ?? 0;
+				const barTop =
+					document.querySelector(".reader-botbar")?.getBoundingClientRect()
+						.top ?? 0;
+				return turnBottom - barTop;
+			}),
+		)
+		.toBeLessThanOrEqual(1);
 	await page.locator(".reader-chapter-end .reader-turn.is-next").click();
 	await expect(page.locator(".reader-topbar-title")).toHaveText(/Chapter III/);
 	await page.waitForTimeout(800);
