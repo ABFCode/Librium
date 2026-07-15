@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import fc from "fast-check";
 import { describe, expect, test } from "vitest";
-import { api } from "../../convex/_generated/api";
+import { api, internal } from "../../convex/_generated/api";
 import schema from "../../convex/schema";
 
 // Property-based tests over the *real* sync merge functions (via convex-test's
@@ -32,7 +32,7 @@ async function seed() {
 			updatedAt: 1,
 		});
 	});
-	return { as: t.withIdentity({ subject: SUBJECT }), bookId };
+	return { t, as: t.withIdentity({ subject: SUBJECT }), bookId };
 }
 
 describe("server-versioned status conflicts", () => {
@@ -159,7 +159,14 @@ describe("server-versioned progress conflicts", () => {
 							const shouldAccept = base >= progressVersion;
 							expect(result.accepted).toBe(shouldAccept);
 							if (shouldAccept) {
-								expect(result.serverTime).toBeGreaterThan(progressVersion);
+								if (
+									progressVersion > 0 &&
+									operation.value === expectedSection
+								) {
+									expect(result.serverTime).toBe(progressVersion);
+								} else {
+									expect(result.serverTime).toBeGreaterThan(progressVersion);
+								}
 								progressVersion = result.serverTime;
 								expectedSection = operation.value;
 							}
@@ -187,6 +194,333 @@ describe("server-versioned progress conflicts", () => {
 			),
 			{ numRuns: 100 },
 		);
+	});
+});
+
+describe("recoverable progress history", () => {
+	test("an identical accepted save is idempotent and preserves provenance", async () => {
+		const { as, bookId } = await seed();
+		const original = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 3,
+			lastBlockIndex: 2,
+			lastBlockOffset: 0.5,
+			lastSectionFraction: 0.4,
+			baseServerTime: 0,
+			deviceId: "phone-installation",
+			deviceKind: "phone",
+		});
+		const duplicate = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 3,
+			lastBlockIndex: 2,
+			lastBlockOffset: 0.5,
+			lastSectionFraction: 0.4,
+			baseServerTime: original.serverTime,
+			deviceId: "computer-installation",
+			deviceKind: "computer",
+		});
+		expect(duplicate.serverTime).toBe(original.serverTime);
+		const recovery = await as.query(api.userBooks.listProgressHistory, {
+			bookId,
+		});
+		expect(recovery.current?.deviceKind).toBe("phone");
+		expect(recovery.history).toHaveLength(0);
+	});
+
+	test("normalizes corrupted local coordinates before they become shared history", async () => {
+		const { t, as, bookId } = await seed();
+		await t.run((ctx) => ctx.db.patch(bookId, { sectionCount: 3 }));
+		const first = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: -8,
+			lastBlockIndex: 2.9,
+			lastBlockOffset: 4,
+			lastSectionFraction: -2,
+			baseServerTime: 0,
+			deviceId: `  ${"x".repeat(100)}  `,
+			deviceKind: "unknown",
+		});
+		expect(first).toEqual(
+			expect.objectContaining({
+				lastSectionIndex: 0,
+				lastBlockIndex: 2,
+				lastBlockOffset: 1,
+				lastSectionFraction: 0,
+			}),
+		);
+		const second = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 99,
+			lastBlockIndex: -4,
+			lastBlockOffset: -1,
+			lastSectionFraction: 5,
+			baseServerTime: first.serverTime,
+		});
+		expect(second).toEqual(
+			expect.objectContaining({
+				lastSectionIndex: 2,
+				lastBlockIndex: 0,
+				lastBlockOffset: 0,
+				lastSectionFraction: 1,
+			}),
+		);
+		const recovery = await as.query(api.userBooks.listProgressHistory, {
+			bookId,
+		});
+		expect(recovery.history[0]).toEqual(
+			expect.objectContaining({
+				sectionIndex: 0,
+				blockIndex: 2,
+				blockOffset: 1,
+				sectionFraction: 0,
+			}),
+		);
+		expect(recovery.history[0]?.deviceId).toHaveLength(64);
+	});
+
+	test("accepted chapter changes preserve the displaced position and stale writes do not", async () => {
+		const { as, bookId } = await seed();
+		const chapterOne = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 0,
+			lastSectionFraction: 0.4,
+			baseServerTime: 0,
+			deviceId: "phone-installation",
+			deviceKind: "phone",
+		});
+		const chapterSixteen = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 15,
+			lastSectionFraction: 0.25,
+			baseServerTime: chapterOne.serverTime,
+			deviceId: "computer-installation",
+			deviceKind: "computer",
+		});
+
+		let recovery = await as.query(api.userBooks.listProgressHistory, {
+			bookId,
+		});
+		expect(recovery.current).toEqual(
+			expect.objectContaining({
+				sectionIndex: 15,
+				deviceKind: "computer",
+				serverTime: chapterSixteen.serverTime,
+			}),
+		);
+		expect(recovery.history).toHaveLength(1);
+		expect(recovery.history[0]).toEqual(
+			expect.objectContaining({
+				sectionIndex: 0,
+				sectionFraction: 0.4,
+				deviceKind: "phone",
+				cause: "reading",
+			}),
+		);
+
+		const stale = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 0,
+			baseServerTime: chapterOne.serverTime,
+			deviceId: "stale-installation",
+			deviceKind: "computer",
+		});
+		expect(stale.accepted).toBe(false);
+		recovery = await as.query(api.userBooks.listProgressHistory, { bookId });
+		expect(recovery.history).toHaveLength(1);
+		expect(recovery.current?.sectionIndex).toBe(15);
+
+		const intentionalBacktrack = await as.mutation(
+			api.userBooks.updateProgress,
+			{
+				bookId,
+				lastSectionIndex: 0,
+				baseServerTime: chapterSixteen.serverTime,
+				deviceId: "phone-installation",
+				deviceKind: "phone",
+			},
+		);
+		expect(intentionalBacktrack.accepted).toBe(true);
+		recovery = await as.query(api.userBooks.listProgressHistory, { bookId });
+		expect(recovery.history[0]).toEqual(
+			expect.objectContaining({
+				sectionIndex: 15,
+				deviceKind: "computer",
+				largeBackwardJump: true,
+			}),
+		);
+	});
+
+	test("long chapters create bounded meaningful checkpoints instead of one row per scroll", async () => {
+		const { as, bookId } = await seed();
+		let result = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 0,
+			lastSectionFraction: 0.05,
+			baseServerTime: 0,
+		});
+		for (const fraction of [0.15, 0.3, 0.35, 0.45]) {
+			result = await as.mutation(api.userBooks.updateProgress, {
+				bookId,
+				lastSectionIndex: 0,
+				lastSectionFraction: fraction,
+				baseServerTime: result.serverTime,
+			});
+		}
+		const recovery = await as.query(api.userBooks.listProgressHistory, {
+			bookId,
+		});
+		expect(recovery.current?.sectionFraction).toBe(0.45);
+		expect(recovery.history.map((row) => row.sectionFraction)).toEqual([
+			0.3, 0.15,
+		]);
+	});
+
+	test("restore is a new causal write and preserves the displaced current position", async () => {
+		const { as, bookId } = await seed();
+		const first = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 0,
+			lastBlockIndex: 3,
+			lastBlockOffset: 0.5,
+			baseServerTime: 0,
+		});
+		const later = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 8,
+			lastBlockIndex: 7,
+			lastBlockOffset: 0.25,
+			baseServerTime: first.serverTime,
+		});
+		const before = await as.query(api.userBooks.listProgressHistory, {
+			bookId,
+		});
+		const chapterOne = before.history[0];
+		if (!chapterOne) throw new Error("checkpoint missing");
+
+		const restored = await as.mutation(api.userBooks.restoreProgress, {
+			bookId,
+			historyId: chapterOne._id,
+			baseServerTime: later.serverTime,
+			deviceId: "restore-device",
+			deviceKind: "tablet",
+		});
+		expect(restored).toEqual(
+			expect.objectContaining({
+				accepted: true,
+				changed: true,
+				lastSectionIndex: 0,
+				lastBlockIndex: 3,
+				lastBlockOffset: 0.5,
+			}),
+		);
+		expect(restored.serverTime).toBeGreaterThan(later.serverTime);
+
+		const after = await as.query(api.userBooks.listProgressHistory, { bookId });
+		expect(after.current).toEqual(
+			expect.objectContaining({
+				sectionIndex: 0,
+				deviceKind: "tablet",
+				serverTime: restored.serverTime,
+			}),
+		);
+		expect(after.history[0]).toEqual(
+			expect.objectContaining({
+				sectionIndex: 8,
+				blockIndex: 7,
+				cause: "restore",
+				largeBackwardJump: true,
+			}),
+		);
+	});
+
+	test("a stale restore cannot overwrite newer reading or create a false checkpoint", async () => {
+		const { as, bookId } = await seed();
+		const first = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 0,
+			baseServerTime: 0,
+		});
+		const second = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 2,
+			baseServerTime: first.serverTime,
+		});
+		const opened = await as.query(api.userBooks.listProgressHistory, {
+			bookId,
+		});
+		const oldPosition = opened.history[0];
+		if (!oldPosition) throw new Error("checkpoint missing");
+		const newest = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 5,
+			baseServerTime: second.serverTime,
+		});
+		const countBefore = (
+			await as.query(api.userBooks.listProgressHistory, { bookId })
+		).history.length;
+
+		const staleRestore = await as.mutation(api.userBooks.restoreProgress, {
+			bookId,
+			historyId: oldPosition._id,
+			baseServerTime: second.serverTime,
+		});
+		expect(staleRestore.accepted).toBe(false);
+		expect(staleRestore.serverTime).toBe(newest.serverTime);
+		const after = await as.query(api.userBooks.listProgressHistory, { bookId });
+		expect(after.current?.sectionIndex).toBe(5);
+		expect(after.history).toHaveLength(countBefore);
+	});
+
+	test("retains only the newest fifty checkpoints per book", async () => {
+		const { as, bookId } = await seed();
+		let version = 0;
+		for (let section = 0; section <= 60; section += 1) {
+			const result = await as.mutation(api.userBooks.updateProgress, {
+				bookId,
+				lastSectionIndex: section,
+				baseServerTime: version,
+			});
+			version = result.serverTime;
+		}
+		const recovery = await as.query(api.userBooks.listProgressHistory, {
+			bookId,
+		});
+		expect(recovery.current?.sectionIndex).toBe(60);
+		expect(recovery.history).toHaveLength(50);
+		expect(recovery.history[0]?.sectionIndex).toBe(59);
+		expect(recovery.history.at(-1)?.sectionIndex).toBe(10);
+	});
+
+	test("history is owner-only and is removed with the book", async () => {
+		const { t, as, bookId } = await seed();
+		const first = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 0,
+			baseServerTime: 0,
+		});
+		await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 1,
+			baseServerTime: first.serverTime,
+		});
+		await t.run(async (ctx) => {
+			await ctx.db.insert("users", {
+				authProvider: "better-auth",
+				externalId: "user-b",
+				createdAt: 1,
+			});
+		});
+		const intruder = t.withIdentity({ subject: "user-b" });
+		await expect(
+			intruder.query(api.userBooks.listProgressHistory, { bookId }),
+		).rejects.toThrow(/Not authorized/);
+
+		await as.mutation(internal.books.deleteBookData, { bookId });
+		const remaining = await t.run((ctx) =>
+			ctx.db.query("progressHistory").collect(),
+		);
+		expect(remaining).toHaveLength(0);
 	});
 });
 

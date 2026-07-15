@@ -31,6 +31,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { type EditableBook, EditBookDialog } from "./EditBookDialog";
 import { type LibrarySort, LibraryToolbar } from "./LibraryToolbar";
 import { ManageCollectionsDialog } from "./ManageCollectionsDialog";
+import { ReadingHistoryDialog } from "./ReadingHistoryDialog";
 import { RequireAuth } from "./RequireAuth";
 
 // Grace period before purging a local book missing from the remote list —
@@ -646,9 +647,21 @@ export function Library() {
 	const [pickerBookIds, setPickerBookIds] = useState<string[] | null>(null);
 	const [isManageOpen, setIsManageOpen] = useState(false);
 	const [isAccountOpen, setIsAccountOpen] = useState(false);
+	const [historyBookId, setHistoryBookId] = useState<string | null>(null);
+	const historyBook = historyBookId
+		? (books?.find((book) => book._id === historyBookId) ?? null)
+		: null;
 	const openPickerForBook = useCallback((bookId: string) => {
 		setPickerBookIds([bookId]);
 	}, []);
+	const openReadingHistory = useCallback((bookId: string) => {
+		setHistoryBookId(bookId);
+	}, []);
+	useEffect(() => {
+		if (historyBookId && books && !historyBook) {
+			setHistoryBookId(null);
+		}
+	}, [historyBookId, historyBook, books]);
 
 	// Edit details: online-only, driven by the full server doc.
 	const [editingBookId, setEditingBookId] = useState<string | null>(null);
@@ -676,7 +689,8 @@ export function Library() {
 				pickerBookIds !== null ||
 				editingBookId !== null ||
 				isManageOpen ||
-				isAccountOpen;
+				isAccountOpen ||
+				historyBookId !== null;
 			if (event.key === "Escape" && !overlayOpen) {
 				exitSelection();
 			}
@@ -690,6 +704,7 @@ export function Library() {
 		editingBookId,
 		isManageOpen,
 		isAccountOpen,
+		historyBookId,
 		exitSelection,
 	]);
 
@@ -919,6 +934,7 @@ export function Library() {
 				onSetStatus={setStatus}
 				onAddToCollection={openPickerForBook}
 				onEditDetails={openEditDetails}
+				onViewHistory={openReadingHistory}
 				onToggleSelect={toggleSelected}
 				onMenuOpenChange={setOpenMenuId}
 				onDeviceDownload={handleDeviceDownload}
@@ -993,6 +1009,14 @@ export function Library() {
 			) : null}
 			{isAccountOpen ? (
 				<AccountStorageDialog onClose={() => setIsAccountOpen(false)} />
+			) : null}
+			{historyBook ? (
+				<ReadingHistoryDialog
+					bookId={historyBook._id}
+					bookTitle={historyBook.title}
+					canQuery={canQuery}
+					onClose={() => setHistoryBookId(null)}
+				/>
 			) : null}
 			<div className="min-h-screen px-6 pb-16 pt-8">
 				<div className="mx-auto flex w-full max-w-6xl flex-col gap-6">

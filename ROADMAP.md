@@ -87,7 +87,11 @@ state is single-user last-write-wins. No CRDTs. But three rules are load-bearing
    when online; pull rides Convex's reactive subscription.
 
 Conflict policy per record type:
-- `progress` (per book): LWW. Worst case you re-read half a page.
+- `progress` (per book): optimistic server versions reject stale devices.
+  Accepted chapter changes and meaningful movement within long chapters retain
+  the displaced position in a bounded server-side recovery history. Restoring
+  first preserves the current position, then creates a new causal write; it
+  never rewinds the sync clock.
 - `bookmarks`: append-mostly; LWW on edits; tombstone on delete.
 - `library` (book add/remove): add is idempotent (keyed by content hash);
   remove is a tombstone.

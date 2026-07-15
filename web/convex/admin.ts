@@ -38,6 +38,11 @@ export const resetAllDataInternal = internalMutation({
 			await ctx.db.delete(entry._id);
 		}
 
+		const progressHistory = await ctx.db.query("progressHistory").collect();
+		for (const checkpoint of progressHistory) {
+			await ctx.db.delete(checkpoint._id);
+		}
+
 		const userSettings = await ctx.db.query("userSettings").collect();
 		for (const setting of userSettings) {
 			await ctx.db.delete(setting._id);
@@ -140,6 +145,13 @@ export const deleteUserRowsInternal = internalMutation({
 			for (const row of rows) {
 				await ctx.db.delete(row._id);
 			}
+		}
+		const progressHistory = await ctx.db
+			.query("progressHistory")
+			.withIndex("by_user_book_recorded", (q) => q.eq("userId", userId))
+			.collect();
+		for (const checkpoint of progressHistory) {
+			await ctx.db.delete(checkpoint._id);
 		}
 		for (const table of ["collections", "collectionBooks"] as const) {
 			const rows = await ctx.db

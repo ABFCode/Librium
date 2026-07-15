@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { api } from "../../convex/_generated/api";
 import { db, type LocalProgress } from "../lib/db";
+import { getSyncDeviceInfo } from "../lib/syncDevice";
 import { useSyncWakeSignal } from "./useSyncWakeSignal";
 
 // Local-first reading progress with LWW sync (ROADMAP Phase 4).
@@ -35,6 +36,7 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
 	// binding changes on account switch; an old in-flight response must never
 	// acknowledge or merge into the next account's database.
 	const syncDb = db;
+	const syncDevice = useMemo(() => getSyncDeviceInfo(), []);
 	const updateProgress = useMutation(api.userBooks.updateProgress);
 	const {
 		signal: syncWakeSignal,
@@ -159,6 +161,8 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
 					lastBlockOffset: row.blockOffset,
 					lastSectionFraction: row.sectionFraction ?? 0,
 					baseServerTime: row.syncedServerTime,
+					deviceId: syncDevice.id,
+					deviceKind: syncDevice.kind,
 				});
 				await syncDb.progress
 					.where("bookId")
@@ -196,6 +200,7 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
 		local,
 		bookId,
 		updateProgress,
+		syncDevice,
 		syncWakeSignal,
 		retrySync,
 		settleSync,
@@ -210,12 +215,23 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
 		}) => {
 			try {
 				const existing = await syncDb.progress.get(bookId);
+				const sectionFraction = args.sectionFraction ?? 0;
+				if (
+					existing &&
+					existing.syncedServerTime > 0 &&
+					existing.sectionIndex === args.sectionIndex &&
+					existing.blockIndex === args.blockIndex &&
+					existing.blockOffset === args.blockOffset &&
+					(existing.sectionFraction ?? 0) === sectionFraction
+				) {
+					return;
+				}
 				await syncDb.progress.put({
 					bookId,
 					sectionIndex: args.sectionIndex,
 					blockIndex: args.blockIndex,
 					blockOffset: args.blockOffset,
-					sectionFraction: args.sectionFraction ?? 0,
+					sectionFraction,
 					editedAt: Math.max(Date.now(), (existing?.editedAt ?? 0) + 1),
 					dirty: 1,
 					syncedServerTime: existing?.syncedServerTime ?? 0,

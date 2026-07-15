@@ -441,6 +441,13 @@ export const deleteBookData = internalMutation({
 		for (const entry of userBooks) {
 			await ctx.db.delete(entry._id);
 		}
+		const progressHistory = await ctx.db
+			.query("progressHistory")
+			.withIndex("by_book", (q) => q.eq("bookId", args.bookId))
+			.collect();
+		for (const checkpoint of progressHistory) {
+			await ctx.db.delete(checkpoint._id);
+		}
 		const bookmarks = await ctx.db
 			.query("bookmarks")
 			.withIndex("by_book", (q) => q.eq("bookId", args.bookId))

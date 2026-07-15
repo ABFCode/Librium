@@ -22,6 +22,32 @@ beforeEach(async () => {
 });
 
 describe("useProgressSync in-flight edits", () => {
+	it("does not dirty or push an identical position again", async () => {
+		mocks.updateProgress.mockResolvedValue({
+			accepted: true,
+			serverTime: 10,
+		});
+		const { result } = await renderHook(() =>
+			useProgressSync({ bookId: "book_idempotent", canQuery: true }),
+		);
+		const position = {
+			sectionIndex: 3,
+			blockIndex: 2,
+			blockOffset: 0.5,
+			sectionFraction: 0.4,
+		};
+		await result.current.saveProgress(position);
+		await expect.poll(() => mocks.updateProgress.mock.calls.length).toBe(1);
+		await expect
+			.poll(async () => (await db.progress.get("book_idempotent"))?.dirty)
+			.toBe(0);
+
+		await result.current.saveProgress(position);
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		expect(mocks.updateProgress).toHaveBeenCalledTimes(1);
+		expect((await db.progress.get("book_idempotent"))?.dirty).toBe(0);
+	});
+
 	it("rebases and flushes a newer position saved during an accepted push", async () => {
 		let resolveFirst: (value: {
 			accepted: boolean;

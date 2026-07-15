@@ -221,6 +221,29 @@ describe("Library", () => {
 		expect(headings).toEqual(["Wonder Saga", "Other books"]);
 	});
 
+	it("opens per-book reading history from the card menu", async () => {
+		const screen = await render(<Library />);
+		const targetCard = Array.from(
+			screen.container.querySelectorAll<HTMLElement>(".book-card"),
+		).find((card) => card.textContent?.includes("Alice in Wonderland"));
+		expect(targetCard).toBeDefined();
+		await targetCard
+			?.querySelector<HTMLButtonElement>(".book-menu-shell > button")
+			?.click();
+		await screen.getByRole("button", { name: "Reading history…" }).click();
+
+		await expect
+			.element(screen.getByRole("dialog", { name: "Reading history" }))
+			.toBeVisible();
+		await expect
+			.element(
+				screen
+					.getByRole("dialog", { name: "Reading history" })
+					.getByText("Alice in Wonderland"),
+			)
+			.toBeVisible();
+	});
+
 	it("filters by collection", async () => {
 		const screen = await render(<Library />);
 

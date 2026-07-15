@@ -37,6 +37,14 @@ async function seedUser(
 			lastSectionIndex: 0,
 			updatedAt: 1,
 		});
+		await ctx.db.insert("progressHistory", {
+			userId,
+			bookId,
+			sectionIndex: 0,
+			progressServerTime: 1,
+			recordedAt: 1,
+			cause: "reading",
+		});
 		await ctx.db.insert("bookmarks", {
 			userId,
 			bookId,
@@ -81,6 +89,8 @@ const rowsFor = (t: ReturnType<typeof convexTest>, userId: Id<"users">) =>
 			user: await ctx.db.get(userId),
 			books: owned(await ctx.db.query("books").collect()).length,
 			userBooks: owned(await ctx.db.query("userBooks").collect()).length,
+			progressHistory: owned(await ctx.db.query("progressHistory").collect())
+				.length,
 			bookmarks: owned(await ctx.db.query("bookmarks").collect()).length,
 			collections: owned(await ctx.db.query("collections").collect()).length,
 			collectionBooks: owned(await ctx.db.query("collectionBooks").collect())
@@ -106,6 +116,7 @@ describe("admin.deleteUserRowsInternal", () => {
 			user: null,
 			books: 0,
 			userBooks: 0,
+			progressHistory: 0,
 			bookmarks: 0,
 			collections: 0,
 			collectionBooks: 0,
@@ -116,6 +127,7 @@ describe("admin.deleteUserRowsInternal", () => {
 		expect(bob.user?.email).toBe("bob@test.local");
 		expect(bob.books).toBe(1);
 		expect(bob.userBooks).toBe(1);
+		expect(bob.progressHistory).toBe(1);
 		expect(bob.bookmarks).toBe(1);
 		expect(bob.collections).toBe(1);
 		expect(bob.collectionBooks).toBe(1);

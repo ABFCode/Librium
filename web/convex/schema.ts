@@ -78,6 +78,18 @@ const userBooks = defineTable({
 	// Server-issued version for progress only. Offline writes carry the last
 	// version they observed; a write based on older state is rejected.
 	progressUpdatedAt: v.optional(v.number()),
+	// Coarse, privacy-friendly origin of the current reading position. The
+	// opaque installation id distinguishes two devices of the same kind without
+	// collecting a user-entered device name or hardware fingerprint.
+	progressDeviceId: v.optional(v.string()),
+	progressDeviceKind: v.optional(
+		v.union(
+			v.literal("phone"),
+			v.literal("tablet"),
+			v.literal("computer"),
+			v.literal("unknown"),
+		),
+	),
 	// Explicit reading status; absent = derived from progress on the client.
 	// Own LWW clock, disjoint from progressEditedAt — status and progress are
 	// edited independently and must never clobber each other.
@@ -96,6 +108,35 @@ const userBooks = defineTable({
 	.index("by_user_book", ["userId", "bookId"])
 	.index("by_user_updated", ["userId", "updatedAt"])
 	.index("by_user_activity", ["userId", "lastActivityAt"])
+	.index("by_book", ["bookId"]);
+
+// Append-only recovery checkpoints for accepted reading positions. These are
+// deliberately separate from userBooks: restoring a checkpoint creates a new
+// current progress version and first snapshots the displaced current value.
+// Rewinding the sync clock itself would let stale devices overwrite the
+// restore, so history is data, never a rollback of server causality.
+const progressHistory = defineTable({
+	userId: v.id("users"),
+	bookId: v.id("books"),
+	sectionIndex: v.number(),
+	blockIndex: v.optional(v.number()),
+	blockOffset: v.optional(v.number()),
+	sectionFraction: v.optional(v.number()),
+	progressServerTime: v.number(),
+	recordedAt: v.number(),
+	deviceId: v.optional(v.string()),
+	deviceKind: v.optional(
+		v.union(
+			v.literal("phone"),
+			v.literal("tablet"),
+			v.literal("computer"),
+			v.literal("unknown"),
+		),
+	),
+	cause: v.union(v.literal("reading"), v.literal("restore")),
+	largeBackwardJump: v.optional(v.boolean()),
+})
+	.index("by_user_book_recorded", ["userId", "bookId", "recordedAt"])
 	.index("by_book", ["bookId"]);
 
 const userSettings = defineTable({
@@ -175,6 +216,7 @@ export default defineSchema({
 	users,
 	books,
 	userBooks,
+	progressHistory,
 	userSettings,
 	bookmarks,
 	collections,

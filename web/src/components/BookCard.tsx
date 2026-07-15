@@ -36,6 +36,7 @@ type BookCardProps = {
 	onDelete: (bookId: string) => void;
 	onAddToCollection: (bookId: string) => void;
 	onEditDetails: (bookId: string) => void;
+	onViewHistory: (bookId: string) => void;
 };
 
 // Memoized so a selection toggle or menu open/close re-renders only the
@@ -60,6 +61,7 @@ function BookCardImpl({
 	onDelete,
 	onAddToCollection,
 	onEditDetails,
+	onViewHistory,
 }: BookCardProps) {
 	const menuShellRef = useRef<HTMLDivElement>(null);
 	// Only the open card attaches the document listeners (open gates the hook).
@@ -206,6 +208,16 @@ function BookCardImpl({
 								</button>
 							))}
 							<div className="menu-heading">Manage</div>
+							<button
+								type="button"
+								className="menu-item"
+								onClick={() => {
+									onMenuOpenChange(null);
+									onViewHistory(book._id);
+								}}
+							>
+								Reading history…
+							</button>
 							<button
 								type="button"
 								className="menu-item"
