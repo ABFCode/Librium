@@ -71,32 +71,49 @@ function SignUp() {
 						<p className="mt-1 text-sm text-[var(--muted-2)]">
 							Sign up with email and password.
 						</p>
-						<div className="mt-6 space-y-3">
+						<form
+							className="mt-6 space-y-3"
+							onSubmit={(event) => {
+								event.preventDefault();
+								void submit();
+							}}
+						>
 							<input
 								className="input"
 								type="text"
+								name="name"
+								autoComplete="name"
+								aria-label="Name"
 								placeholder="Name"
+								required
 								value={name}
 								onChange={(event) => setName(event.target.value)}
 							/>
 							<input
 								className="input"
 								type="email"
+								name="email"
+								autoComplete="email"
+								aria-label="Email"
 								placeholder="Email"
+								required
 								value={email}
 								onChange={(event) => setEmail(event.target.value)}
 							/>
 							<input
 								className="input"
 								type="password"
+								name="password"
+								autoComplete="new-password"
+								aria-label="Password"
 								placeholder="Password"
+								required
 								value={password}
 								onChange={(event) => setPassword(event.target.value)}
 							/>
 							<button
-								type="button"
+								type="submit"
 								className="btn btn-primary w-full"
-								onClick={submit}
 								disabled={isLoading || !name || !email || !password}
 							>
 								{isLoading ? "Creating account…" : "Create account"}
@@ -115,7 +132,7 @@ function SignUp() {
 								</Link>
 								.
 							</p>
-						</div>
+						</form>
 					</>
 				)}
 			</div>

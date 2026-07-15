@@ -47,30 +47,38 @@ function SignIn() {
 				<p className="mt-1 text-sm text-[var(--muted-2)]">
 					Pick up where you left off.
 				</p>
-				<div className="mt-6 space-y-3">
+				<form
+					className="mt-6 space-y-3"
+					onSubmit={(event) => {
+						event.preventDefault();
+						void submit();
+					}}
+				>
 					<input
 						className="input"
 						type="email"
+						name="email"
+						autoComplete="email"
+						aria-label="Email"
 						placeholder="Email"
+						required
 						value={email}
 						onChange={(event) => setEmail(event.target.value)}
 					/>
 					<input
 						className="input"
 						type="password"
+						name="password"
+						autoComplete="current-password"
+						aria-label="Password"
 						placeholder="Password"
+						required
 						value={password}
 						onChange={(event) => setPassword(event.target.value)}
-						onKeyDown={(event) => {
-							if (event.key === "Enter" && email && password && !isLoading) {
-								void submit();
-							}
-						}}
 					/>
 					<button
-						type="button"
+						type="submit"
 						className="btn btn-primary w-full"
-						onClick={submit}
 						disabled={isLoading || !email || !password}
 					>
 						{isLoading ? "Signing in…" : "Sign in"}
@@ -83,7 +91,7 @@ function SignIn() {
 							Forgot password?
 						</Link>
 					</p>
-				</div>
+				</form>
 			</div>
 		</div>
 	);
