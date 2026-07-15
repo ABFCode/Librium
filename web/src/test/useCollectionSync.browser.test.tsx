@@ -32,10 +32,10 @@ vi.mock("convex/react", async () => {
 			if (name === nameOf(api.collections.deleteCollection)) {
 				return mocks.deleteCollection;
 			}
-			if (name === nameOf(api.collections.addBookToCollection)) {
+			if (name === nameOf(api.collections.addBookMembership)) {
 				return mocks.addBookToCollection;
 			}
-			if (name === nameOf(api.collections.removeBookFromCollection)) {
+			if (name === nameOf(api.collections.removeBookMembership)) {
 				return mocks.removeBookFromCollection;
 			}
 			return vi.fn();
@@ -52,13 +52,19 @@ beforeEach(async () => {
 	mocks.renameCollection.mockResolvedValue({
 		accepted: true,
 		serverTime: 2,
+		name: "Remote",
 	});
 });
 
 describe("useCollectionSync push ordering", () => {
 	it("writes dirty local rows and pushes collection before membership", async () => {
 		mocks.createCollection.mockResolvedValue({ id: "col_1", serverTime: 1 });
-		mocks.addBookToCollection.mockResolvedValue("mem_1");
+		mocks.addBookToCollection.mockResolvedValue({
+			id: "mem_1",
+			accepted: true,
+			serverTime: 2,
+			deleted: false,
+		});
 
 		const { result } = await renderHook(() =>
 			useCollectionSync({ canQuery: true }),
@@ -93,7 +99,12 @@ describe("useCollectionSync push ordering", () => {
 
 	it("defers membership pushes while the collection create is unacknowledged", async () => {
 		mocks.createCollection.mockRejectedValue(new Error("offline"));
-		mocks.addBookToCollection.mockResolvedValue("mem_1");
+		mocks.addBookToCollection.mockResolvedValue({
+			id: "mem_1",
+			accepted: true,
+			serverTime: 2,
+			deleted: false,
+		});
 
 		const { result } = await renderHook(() =>
 			useCollectionSync({ canQuery: true }),
@@ -125,14 +136,23 @@ describe("useCollectionSync push ordering", () => {
 	it("does not lose a remove that lands during the add's round-trip", async () => {
 		mocks.createCollection.mockResolvedValue({ id: "col_r", serverTime: 1 });
 		// Hold addRemote open so a remove can land mid-round-trip.
-		let resolveAdd: (id: string) => void = () => {};
+		let resolveAdd: (value: {
+			id: string;
+			accepted: boolean;
+			serverTime: number;
+			deleted: boolean;
+		}) => void = () => {};
 		mocks.addBookToCollection.mockImplementation(
 			() =>
-				new Promise<string>((resolve) => {
+				new Promise((resolve) => {
 					resolveAdd = resolve;
 				}),
 		);
-		mocks.removeBookFromCollection.mockResolvedValue(undefined);
+		mocks.removeBookFromCollection.mockResolvedValue({
+			accepted: true,
+			serverTime: 3,
+			deleted: true,
+		});
 
 		const { result } = await renderHook(() =>
 			useCollectionSync({ canQuery: true }),
@@ -149,14 +169,22 @@ describe("useCollectionSync push ordering", () => {
 		// User un-checks the book before the add resolves → tombstone.
 		await result.current.removeBooks(key, ["book_x"]);
 		// Now let the add resolve; its post-write must not clear the tombstone.
-		resolveAdd("mem_x");
+		resolveAdd({
+			id: "mem_x",
+			accepted: true,
+			serverTime: 2,
+			deleted: false,
+		});
 
-		// The membership must end up removed on the server and gone locally —
-		// not stranded as a live server row (dirty:0, deletedAt set).
+		// The membership must end up removed on the server and retained only as
+		// a clean local tombstone, carrying the version needed for a safe re-add.
 		await expect
 			.poll(() => mocks.removeBookFromCollection.mock.calls.length)
 			.toBe(1);
-		await expect.poll(async () => await db.collectionBooks.count()).toBe(0);
+		await expect
+			.poll(async () => (await db.collectionBooks.toArray())[0]?.dirty)
+			.toBe(0);
+		expect((await db.collectionBooks.toArray())[0]?.deletedAt).toBeDefined();
 	});
 
 	it("purges local rows when the server reports the collection tombstoned", async () => {
@@ -175,5 +203,74 @@ describe("useCollectionSync push ordering", () => {
 			.poll(() => mocks.addBookToCollection.mock.calls.length)
 			.toBeGreaterThan(0);
 		await expect.poll(async () => await db.collectionBooks.count()).toBe(0);
+	});
+
+	it("rebases a newer rename that lands during an accepted rename", async () => {
+		await db.collections.put({
+			clientKey: "local_col",
+			name: "Original",
+			createdAt: 1,
+			nameEditedAt: 1,
+			syncedServerTime: 10,
+			dirty: 0,
+			convexId: "col_server",
+		});
+		let resolveFirst: (value: {
+			accepted: boolean;
+			serverTime: number;
+		}) => void = () => {};
+		mocks.renameCollection
+			.mockReset()
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						resolveFirst = resolve;
+					}),
+			)
+			.mockResolvedValueOnce({ accepted: true, serverTime: 12 });
+
+		const { result } = await renderHook(() =>
+			useCollectionSync({ canQuery: true }),
+		);
+		await result.current.renameCollection("local_col", "First");
+		await expect.poll(() => mocks.renameCollection.mock.calls.length).toBe(1);
+		await result.current.renameCollection("local_col", "Second");
+		resolveFirst({ accepted: true, serverTime: 11 });
+
+		await expect.poll(() => mocks.renameCollection.mock.calls.length).toBe(2);
+		expect(mocks.renameCollection.mock.calls[1]?.[0]).toEqual(
+			expect.objectContaining({ name: "Second", baseServerTime: 11 }),
+		);
+	});
+
+	it("durably adopts the winning collection name after rejection", async () => {
+		await db.collections.put({
+			clientKey: "rejected_col",
+			name: "Old",
+			createdAt: 1,
+			nameEditedAt: 1,
+			syncedServerTime: 10,
+			dirty: 0,
+			convexId: "col_server",
+		});
+		mocks.renameCollection.mockResolvedValueOnce({
+			accepted: false,
+			serverTime: 20,
+			name: "Other device",
+		});
+		const { result } = await renderHook(() =>
+			useCollectionSync({ canQuery: true }),
+		);
+		await result.current.renameCollection("rejected_col", "Stale local");
+
+		await expect
+			.poll(async () => (await db.collections.get("rejected_col"))?.dirty)
+			.toBe(0);
+		expect(await db.collections.get("rejected_col")).toEqual(
+			expect.objectContaining({
+				name: "Other device",
+				syncedServerTime: 20,
+			}),
+		);
 	});
 });

@@ -76,9 +76,9 @@ state is single-user last-write-wins. No CRDTs. But three rules are load-bearing
 
 1. **Tombstones for deletes.** Deleting a book (or bookmark) writes a
    `deletedAt` tombstone record, synced like any other change. Deletion without a
-   tombstone gets resurrected by the next device that syncs. Tombstones can be
-   compacted after all known devices have synced past them (or after a fixed
-   horizon, e.g. 90 days).
+   tombstone gets resurrected by the next device that syncs. Tombstones may be
+   compacted only after every known device has acknowledged them (or been
+   explicitly retired); elapsed time alone is not proof that compaction is safe.
 2. **Server-authoritative timestamps.** LWW ordering uses the Convex server's
    receipt time (or a server-issued monotonic version), never device wall-clocks.
    A phone with a skewed clock must not be able to clobber newer progress.
@@ -91,7 +91,8 @@ Conflict policy per record type:
 - `bookmarks`: append-mostly; LWW on edits; tombstone on delete.
 - `library` (book add/remove): add is idempotent (keyed by content hash);
   remove is a tombstone.
-- `settings`: LWW.
+- `settings`: independent per-field optimistic versions, so simultaneous edits
+  to different controls merge while stale edits to the same control lose.
 
 ## Phases
 
@@ -174,8 +175,8 @@ hostage. All of it env-gated and currently in the sandbox era.
 - **Ops:** hello@librium.dev receives via Cloudflare Email Routing
   catch-all. Password reset + verification email via Resend
   (web/docs/email-setup.md). Account deletion is one command:
-  admin:deleteUserAccount. Daily crons: tombstone compaction + orphaned
-  R2 object sweep.
+  admin:deleteUserAccount. Daily cron: orphaned R2 object sweep. Sync
+  tombstones remain until device acknowledgements can prove compaction safe.
 
 ### Remaining before ALLOW_SIGNUP=true (public launch)
 

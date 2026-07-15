@@ -39,6 +39,7 @@ import { RequireAuth } from "./RequireAuth";
 const PURGE_GRACE_MS = 60_000;
 
 export function Library() {
+	const libraryDb = db;
 	const convex = useConvex();
 	const { isAuthenticated } = useConvexAuth();
 	const { data: authSession } = authClient.useSession();
@@ -49,8 +50,8 @@ export function Library() {
 	// Local-first: the shelf renders from IndexedDB when the server list is
 	// unavailable (offline); the remote list is authoritative when present.
 	const remoteBooks = useQuery(api.books.listByOwner, canQuery ? {} : "skip");
-	const localBooks = useLiveQuery(() => db.books.toArray(), []);
-	const localProgress = useLiveQuery(() => db.progress.toArray(), []);
+	const localBooks = useLiveQuery(() => libraryDb.books.toArray(), []);
+	const localProgress = useLiveQuery(() => libraryDb.progress.toArray(), []);
 
 	useEffect(() => {
 		const userId = authSession?.user?.id;
@@ -60,6 +61,7 @@ export function Library() {
 		void migrateLegacyDataForUser(
 			userId,
 			remoteBooks.map((book) => book._id as string),
+			libraryDb,
 		).catch(() => {
 			// Leave the migration marker unset; the next library visit retries.
 		});
@@ -214,7 +216,7 @@ export function Library() {
 		for (const book of targets) {
 			setBulkStatus(`Downloading… ${done}/${targets.length}`);
 			try {
-				await seedBookFromR2(convex, book._id);
+				await seedBookFromR2(convex, book._id, { database: libraryDb });
 			} catch {
 				// Skip failures (e.g. upload still pending); continue with the rest.
 			}
@@ -240,7 +242,7 @@ export function Library() {
 		setBulkStatus("Removing downloads…");
 		for (const book of targets) {
 			try {
-				await removeLocalContent(book._id);
+				await removeLocalContent(book._id, libraryDb);
 			} catch {
 				// Continue; the reconcile pass can retry later.
 			}
@@ -268,7 +270,7 @@ export function Library() {
 			setBulkStatus(`Deleting… ${done}/${list.length}`);
 			try {
 				await deleteBook({ bookId: book._id as never });
-				await deleteLocalBook(book._id).catch(() => {});
+				await deleteLocalBook(book._id, libraryDb).catch(() => {});
 			} catch (err) {
 				setError(
 					err instanceof Error ? err.message : `Failed to delete ${book.title}`,
@@ -331,7 +333,7 @@ export function Library() {
 			try {
 				setError(null);
 				setDownloadingId(bookId);
-				await seedBookFromR2(convex, bookId);
+				await seedBookFromR2(convex, bookId, { database: libraryDb });
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Download failed");
 			} finally {
@@ -343,7 +345,7 @@ export function Library() {
 	const handleRemoveDownload = useCallback(async (bookId: string) => {
 		try {
 			setError(null);
-			await removeLocalContent(bookId);
+			await removeLocalContent(bookId, libraryDb);
 		} catch (err) {
 			setError(
 				err instanceof Error ? err.message : "Failed to remove download",
@@ -413,7 +415,7 @@ export function Library() {
 					Date.now() - local.addedAt > PURGE_GRACE_MS
 				) {
 					try {
-						await deleteLocalBook(local.bookId);
+						await deleteLocalBook(local.bookId, libraryDb);
 					} catch {
 						// Retried on the next reconcile.
 					}
@@ -431,11 +433,11 @@ export function Library() {
 						// Insert a metadata-only row only if one still doesn't exist —
 						// a concurrent seed may have written a full row (with blocks +
 						// cover) that a blind put() would demote to content-absent.
-						await db.transaction("rw", db.books, async () => {
-							if (await db.books.get(id)) {
+						await libraryDb.transaction("rw", libraryDb.books, async () => {
+							if (await libraryDb.books.get(id)) {
 								return;
 							}
-							await db.books.put({
+							await libraryDb.books.put({
 								bookId: id,
 								title: remote.title,
 								author: remote.author ?? undefined,
@@ -485,7 +487,7 @@ export function Library() {
 						patch.coverVersion = undefined;
 					}
 					if (Object.keys(patch).length > 0) {
-						await db.books.update(id, patch);
+						await libraryDb.books.update(id, patch);
 					}
 				} catch {
 					// IndexedDB unavailable — shelf still renders from the server.
@@ -502,7 +504,7 @@ export function Library() {
 	// running it inside the reconcile effect would re-scan the indexes on
 	// every books-table write (each seed/delete in a bulk operation).
 	useEffect(() => {
-		void purgeOrphanedContent().catch(() => {
+		void purgeOrphanedContent(libraryDb).catch(() => {
 			// Best-effort hygiene; retried on the next visit.
 		});
 	}, []);
@@ -524,7 +526,7 @@ export function Library() {
 					continue;
 				}
 				try {
-					const row = await db.books.get(bookId);
+					const row = await libraryDb.books.get(bookId);
 					if (!row || row.coverBlob) {
 						continue;
 					}
@@ -533,7 +535,7 @@ export function Library() {
 						continue;
 					}
 					const blob = await res.blob();
-					await db.books.update(bookId, {
+					await libraryDb.books.update(bookId, {
 						coverBlob: blob,
 						coverType: blob.type || undefined,
 						coverVersion: coverStampById.get(bookId),
@@ -847,7 +849,7 @@ export function Library() {
 				setError(null);
 				await deleteBook({ bookId: bookId as never });
 				// Delete parity: purge this device's local copy too.
-				await deleteLocalBook(bookId).catch(() => {});
+				await deleteLocalBook(bookId, libraryDb).catch(() => {});
 			} catch (err) {
 				setError(err instanceof Error ? err.message : "Failed to delete book");
 			}

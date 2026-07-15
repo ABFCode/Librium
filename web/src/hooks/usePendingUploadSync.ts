@@ -5,8 +5,9 @@ import { db } from "../lib/db";
 import { uploadBookAsset } from "../lib/uploadBookAsset";
 
 export function usePendingUploadSync(canSync: boolean) {
+	const syncDb = db;
 	const convex = useConvex();
-	const pending = useLiveQuery(() => db.pendingUploads.toArray(), []);
+	const pending = useLiveQuery(() => syncDb.pendingUploads.toArray(), []);
 	const attemptedRef = useRef(new Set<string>());
 	const runningRef = useRef(false);
 	const [isRetrying, setIsRetrying] = useState(false);
@@ -34,11 +35,11 @@ export function usePendingUploadSync(canSync: boolean) {
 					attemptedRef.current.add(row.bookId);
 					try {
 						await uploadBookAsset(convex, row.bookId, "epub", row.blob);
-						await db.pendingUploads.delete(row.bookId);
+						await syncDb.pendingUploads.delete(row.bookId);
 					} catch (error) {
 						const message =
 							error instanceof Error ? error.message : "Cloud backup failed";
-						await db.pendingUploads.update(row.bookId, {
+						await syncDb.pendingUploads.update(row.bookId, {
 							lastError: message,
 							updatedAt: Date.now(),
 						});

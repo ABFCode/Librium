@@ -28,6 +28,7 @@ export type QueueItem = {
 const fileKey = (f: File) => `${f.name}-${f.size}-${f.lastModified}`;
 
 export const useImportFlow = () => {
+	const importDb = db;
 	const convex = useConvex();
 	const { isAuthenticated } = useConvexAuth();
 	const registerImport = useMutation(api.books.registerImport);
@@ -123,9 +124,12 @@ export const useImportFlow = () => {
 
 		// Local-first: the parsed book lands in IndexedDB immediately.
 		try {
-			await saveImportedBook(payloadToLocalBookInput(bookId, payload));
+			await saveImportedBook(
+				payloadToLocalBookInput(bookId, payload),
+				importDb,
+			);
 			if (!alreadyAttached) {
-				await db.pendingUploads.put({
+				await importDb.pendingUploads.put({
 					bookId,
 					fileName: file.name,
 					blob: epubBlob,
@@ -134,7 +138,7 @@ export const useImportFlow = () => {
 			} else {
 				// A previous attempt may have finalized remotely and crashed before
 				// deleting its local staging row. Registration is the confirmation.
-				await db.pendingUploads.delete(bookId);
+				await importDb.pendingUploads.delete(bookId);
 			}
 			// Content now lives on this device — ask to keep it (the browser's
 			// prompt reads clearly here, unlike at login).
@@ -149,7 +153,7 @@ export const useImportFlow = () => {
 		try {
 			if (!alreadyAttached) {
 				await uploadToR2(bookId, "epub", epubBlob);
-				await db.pendingUploads.delete(bookId).catch(() => {});
+				await importDb.pendingUploads.delete(bookId).catch(() => {});
 			}
 		} catch (err) {
 			if (isQuotaExceededError(err)) {
@@ -160,14 +164,14 @@ export const useImportFlow = () => {
 				await convex
 					.action(api.books.deleteBook, { bookId: bookId as never })
 					.catch(() => {});
-				await deleteLocalBook(bookId).catch(() => {});
+				await deleteLocalBook(bookId, importDb).catch(() => {});
 				throw new Error(
 					quotaErrorMessage(err, storedSize) ?? "Cloud storage is full.",
 				);
 			}
 			// Non-quota failures keep the local book and its staged raw EPUB. The
 			// library's pending-upload sync retries this exact book ID later.
-			await db.pendingUploads
+			await importDb.pendingUploads
 				.update(bookId, {
 					lastError: err instanceof Error ? err.message : "Cloud backup failed",
 					updatedAt: Date.now(),
@@ -192,7 +196,7 @@ export const useImportFlow = () => {
 				// remote.coverUpdatedAt, drops the just-saved blob, and re-downloads
 				// the identical bytes from R2.
 				if (coverStamp) {
-					await db.books
+					await importDb.books
 						.update(bookId, { coverVersion: coverStamp })
 						.catch(() => {});
 				}

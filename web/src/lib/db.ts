@@ -76,8 +76,8 @@ export type LocalProgress = {
 	// Fraction (0–1) of the way through the whole section — used by percent
 	// displays so partial chapters count (a 1-chapter book isn't pinned at 0%).
 	sectionFraction?: number;
-	// Device wall-clock time of the edit — compared only against this same
-	// user's other devices (LWW ordering of edits).
+	// Device wall-clock time used only to coalesce edits on this device. It is
+	// never sent to the server or compared with another device's clock.
 	editedAt: number;
 	// 1 = not yet accepted by the server (offline or pending push).
 	dirty: 0 | 1;
@@ -91,7 +91,7 @@ export type LocalBookStatus = {
 	// null = user explicitly chose "automatic" (clears the server field); the
 	// effective shelf status is then derived from progress.
 	status: ReadingStatus | null;
-	// Device wall-clock time of the edit (LWW, same convention as progress).
+	// Device-local edit order (same convention as progress).
 	editedAt: number;
 	// 1 = not yet accepted by the server (offline or pending push).
 	dirty: 0 | 1;
@@ -125,6 +125,10 @@ export type LocalCollectionBook = {
 	collectionKey: string;
 	bookId: string;
 	createdAt: number;
+	// Local-only operation order for add/remove/re-add races on this device.
+	editedAt?: number;
+	// Last server version of this collection/book membership that was observed.
+	syncedServerTime?: number;
 	deletedAt?: number;
 	dirty: 0 | 1;
 	convexId?: string;
@@ -136,6 +140,24 @@ export type LocalPendingUpload = {
 	blob: Blob;
 	updatedAt: number;
 	lastError?: string;
+};
+
+export type ReaderSettingField =
+	| "fontScale"
+	| "lineHeight"
+	| "contentWidth"
+	| "theme"
+	| "fontFamily";
+
+export type LocalReaderSettings = {
+	key: "reader";
+	fontScale: number;
+	lineHeight: number;
+	contentWidth: number;
+	theme: string;
+	fontFamily: string;
+	dirtyFields: ReaderSettingField[];
+	syncedServerTimes: Record<ReaderSettingField, number>;
 };
 
 // ── Database ─────────────────────────────────────────────────────────────────
@@ -150,6 +172,7 @@ class LibriumDB extends Dexie {
 	collections!: Table<LocalCollection, string>;
 	collectionBooks!: Table<LocalCollectionBook, string>;
 	pendingUploads!: Table<LocalPendingUpload, string>;
+	settings!: Table<LocalReaderSettings, string>;
 
 	constructor(name = "librium") {
 		super(name);
@@ -172,8 +195,13 @@ class LibriumDB extends Dexie {
 		this.version(5).stores({
 			pendingUploads: "bookId",
 		});
+		this.version(6).stores({
+			settings: "key",
+		});
 	}
 }
+
+export type LibriumDatabase = LibriumDB;
 
 const ACTIVE_USER_KEY = "librium:activeLocalUser";
 const databaseNameForUser = (userId: string) =>
@@ -216,12 +244,13 @@ export function forgetActiveUserDatabase() {
 export async function migrateLegacyDataForUser(
 	userId: string,
 	ownedBookIds: string[],
+	targetDb: LibriumDatabase = db,
 ) {
 	const marker = `librium:legacyMigrated:${userId}`;
 	if (
 		typeof window === "undefined" ||
 		window.localStorage.getItem(marker) === "true" ||
-		db.name === "librium"
+		targetDb.name === "librium"
 	) {
 		return;
 	}
@@ -251,29 +280,29 @@ export async function migrateLegacyDataForUser(
 		const collections = await legacy.collections
 			.filter((row) => collectionKeys.has(row.clientKey))
 			.toArray();
-		await db.transaction(
+		await targetDb.transaction(
 			"rw",
 			[
-				db.books,
-				db.sections,
-				db.images,
-				db.progress,
-				db.bookmarks,
-				db.bookStatus,
-				db.collections,
-				db.collectionBooks,
-				db.pendingUploads,
+				targetDb.books,
+				targetDb.sections,
+				targetDb.images,
+				targetDb.progress,
+				targetDb.bookmarks,
+				targetDb.bookStatus,
+				targetDb.collections,
+				targetDb.collectionBooks,
+				targetDb.pendingUploads,
 			],
 			async () => {
-				await db.books.bulkPut(books);
-				await db.sections.bulkPut(sections);
-				await db.images.bulkPut(images);
-				await db.progress.bulkPut(progress);
-				await db.bookmarks.bulkPut(bookmarks);
-				await db.bookStatus.bulkPut(bookStatus);
-				await db.collections.bulkPut(collections);
-				await db.collectionBooks.bulkPut(memberships);
-				await db.pendingUploads.bulkPut(pendingUploads);
+				await targetDb.books.bulkPut(books);
+				await targetDb.sections.bulkPut(sections);
+				await targetDb.images.bulkPut(images);
+				await targetDb.progress.bulkPut(progress);
+				await targetDb.bookmarks.bulkPut(bookmarks);
+				await targetDb.bookStatus.bulkPut(bookStatus);
+				await targetDb.collections.bulkPut(collections);
+				await targetDb.collectionBooks.bulkPut(memberships);
+				await targetDb.pendingUploads.bulkPut(pendingUploads);
 			},
 		);
 		window.localStorage.setItem(marker, "true");
@@ -291,36 +320,49 @@ export const isLocalSectionKey = (id: string) => id.startsWith("local:");
 
 // ── Import path ──────────────────────────────────────────────────────────────
 
-export async function saveImportedBook(input: {
-	bookId: string;
-	title: string;
-	author?: string;
-	cover?: { blob: Blob; contentType?: string };
-	sections: {
-		orderIndex: number;
+export async function saveImportedBook(
+	input: {
+		bookId: string;
 		title: string;
-		depth: number;
-		href?: string;
-		anchor?: string;
-		blocks: unknown[];
-	}[];
-	images: { href: string; blob: Blob; contentType?: string }[];
-}) {
+		author?: string;
+		cover?: { blob: Blob; contentType?: string };
+		sections: {
+			orderIndex: number;
+			title: string;
+			depth: number;
+			href?: string;
+			anchor?: string;
+			blocks: unknown[];
+		}[];
+		images: { href: string; blob: Blob; contentType?: string }[];
+	},
+	targetDb: LibriumDatabase = db,
+) {
 	const { bookId } = input;
-	await db.transaction("rw", db.books, db.sections, db.images, async () => {
-		await db.books.put({
-			bookId,
-			title: input.title,
-			author: input.author,
-			coverBlob: input.cover?.blob,
-			coverType: input.cover?.contentType,
-			sectionCount: input.sections.length,
-			parserVersion: PARSER_VERSION,
-			addedAt: Date.now(),
-		});
-		await db.sections.bulkPut(input.sections.map((s) => ({ bookId, ...s })));
-		await db.images.bulkPut(input.images.map((img) => ({ bookId, ...img })));
-	});
+	await targetDb.transaction(
+		"rw",
+		targetDb.books,
+		targetDb.sections,
+		targetDb.images,
+		async () => {
+			await targetDb.books.put({
+				bookId,
+				title: input.title,
+				author: input.author,
+				coverBlob: input.cover?.blob,
+				coverType: input.cover?.contentType,
+				sectionCount: input.sections.length,
+				parserVersion: PARSER_VERSION,
+				addedAt: Date.now(),
+			});
+			await targetDb.sections.bulkPut(
+				input.sections.map((s) => ({ bookId, ...s })),
+			);
+			await targetDb.images.bulkPut(
+				input.images.map((img) => ({ bookId, ...img })),
+			);
+		},
+	);
 }
 
 export async function getLocalBlocks(
@@ -334,13 +376,25 @@ export async function getLocalBlocks(
 // Remove this device's *content cache* for a book (sections + images) while
 // keeping the shelf row (title/cover), progress, and bookmarks — the book
 // stays in the library everywhere and re-seeds from R2 on demand.
-export async function removeLocalContent(bookId: string) {
-	await db.transaction("rw", db.books, db.sections, db.images, async () => {
-		await db.sections.where("bookId").equals(bookId).delete();
-		await db.images.where("bookId").equals(bookId).delete();
-		// parserVersion doubles as the "content is on this device" marker.
-		await db.books.where("bookId").equals(bookId).modify({ parserVersion: "" });
-	});
+export async function removeLocalContent(
+	bookId: string,
+	targetDb: LibriumDatabase = db,
+) {
+	await targetDb.transaction(
+		"rw",
+		targetDb.books,
+		targetDb.sections,
+		targetDb.images,
+		async () => {
+			await targetDb.sections.where("bookId").equals(bookId).delete();
+			await targetDb.images.where("bookId").equals(bookId).delete();
+			// parserVersion doubles as the "content is on this device" marker.
+			await targetDb.books
+				.where("bookId")
+				.equals(bookId)
+				.modify({ parserVersion: "" });
+		},
+	);
 }
 
 // Delete content rows whose book no longer has a shelf row — a safety net
@@ -348,50 +402,59 @@ export async function removeLocalContent(bookId: string) {
 // derived content with no sync semantics, so removal is always safe; they
 // re-seed from R2 if ever needed). Orphans otherwise accumulate forever and
 // inflate the storage figure.
-export async function purgeOrphanedContent() {
-	await db.transaction("rw", db.books, db.sections, db.images, async () => {
-		const known = new Set(
-			(await db.books.toCollection().primaryKeys()) as string[],
-		);
-		const sectionOwners = (await db.sections
-			.orderBy("bookId")
-			.uniqueKeys()) as string[];
-		const imageOwners = (await db.images
-			.orderBy("bookId")
-			.uniqueKeys()) as string[];
-		for (const bookId of new Set([...sectionOwners, ...imageOwners])) {
-			if (!known.has(bookId)) {
-				await db.sections.where("bookId").equals(bookId).delete();
-				await db.images.where("bookId").equals(bookId).delete();
+export async function purgeOrphanedContent(targetDb: LibriumDatabase = db) {
+	await targetDb.transaction(
+		"rw",
+		targetDb.books,
+		targetDb.sections,
+		targetDb.images,
+		async () => {
+			const known = new Set(
+				(await targetDb.books.toCollection().primaryKeys()) as string[],
+			);
+			const sectionOwners = (await targetDb.sections
+				.orderBy("bookId")
+				.uniqueKeys()) as string[];
+			const imageOwners = (await targetDb.images
+				.orderBy("bookId")
+				.uniqueKeys()) as string[];
+			for (const bookId of new Set([...sectionOwners, ...imageOwners])) {
+				if (!known.has(bookId)) {
+					await targetDb.sections.where("bookId").equals(bookId).delete();
+					await targetDb.images.where("bookId").equals(bookId).delete();
+				}
 			}
-		}
-	});
+		},
+	);
 }
 
 // ── Delete parity ────────────────────────────────────────────────────────────
 
-export async function deleteLocalBook(bookId: string) {
-	await db.transaction(
+export async function deleteLocalBook(
+	bookId: string,
+	targetDb: LibriumDatabase = db,
+) {
+	await targetDb.transaction(
 		"rw",
 		[
-			db.books,
-			db.sections,
-			db.images,
-			db.progress,
-			db.bookmarks,
-			db.bookStatus,
-			db.collectionBooks,
-			db.pendingUploads,
+			targetDb.books,
+			targetDb.sections,
+			targetDb.images,
+			targetDb.progress,
+			targetDb.bookmarks,
+			targetDb.bookStatus,
+			targetDb.collectionBooks,
+			targetDb.pendingUploads,
 		],
 		async () => {
-			await db.books.delete(bookId);
-			await db.sections.where("bookId").equals(bookId).delete();
-			await db.images.where("bookId").equals(bookId).delete();
-			await db.progress.delete(bookId);
-			await db.bookmarks.where("bookId").equals(bookId).delete();
-			await db.bookStatus.delete(bookId);
-			await db.collectionBooks.where("bookId").equals(bookId).delete();
-			await db.pendingUploads.delete(bookId);
+			await targetDb.books.delete(bookId);
+			await targetDb.sections.where("bookId").equals(bookId).delete();
+			await targetDb.images.where("bookId").equals(bookId).delete();
+			await targetDb.progress.delete(bookId);
+			await targetDb.bookmarks.where("bookId").equals(bookId).delete();
+			await targetDb.bookStatus.delete(bookId);
+			await targetDb.collectionBooks.where("bookId").equals(bookId).delete();
+			await targetDb.pendingUploads.delete(bookId);
 		},
 	);
 }

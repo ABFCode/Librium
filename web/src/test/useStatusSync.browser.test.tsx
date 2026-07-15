@@ -35,7 +35,11 @@ vi.mock("convex/react", async () => {
 beforeEach(async () => {
 	await db.bookStatus.clear();
 	mocks.updateStatus.mockReset();
-	mocks.updateStatus.mockResolvedValue({ accepted: true, serverTime: 7 });
+	mocks.updateStatus.mockResolvedValue({
+		accepted: true,
+		serverTime: 7,
+		status: "reading",
+	});
 	mocks.remote = undefined;
 });
 
@@ -80,6 +84,60 @@ describe("useStatusSync push base version", () => {
 			.toBeGreaterThan(0);
 		expect(mocks.updateStatus).toHaveBeenCalledWith(
 			expect.objectContaining({ bookId: "book_b", baseServerTime: 100 }),
+		);
+	});
+
+	it("rebases a newer local status that lands during an accepted push", async () => {
+		let resolveFirst: (value: {
+			accepted: boolean;
+			serverTime: number;
+		}) => void = () => {};
+		mocks.updateStatus
+			.mockReset()
+			.mockImplementationOnce(
+				() =>
+					new Promise((resolve) => {
+						resolveFirst = resolve;
+					}),
+			)
+			.mockResolvedValueOnce({ accepted: true, serverTime: 12 });
+
+		const { result } = await renderHook(() =>
+			useStatusSync({ canQuery: true }),
+		);
+		await result.current.setStatus("book_c", "reading");
+		await expect.poll(() => mocks.updateStatus.mock.calls.length).toBe(1);
+		await result.current.setStatus("book_c", "finished");
+		resolveFirst({ accepted: true, serverTime: 11 });
+
+		await expect.poll(() => mocks.updateStatus.mock.calls.length).toBe(2);
+		expect(mocks.updateStatus.mock.calls[1]?.[0]).toEqual(
+			expect.objectContaining({
+				status: "finished",
+				baseServerTime: 11,
+			}),
+		);
+	});
+
+	it("durably adopts the winning status when a stale write is rejected", async () => {
+		mocks.updateStatus.mockResolvedValueOnce({
+			accepted: false,
+			serverTime: 20,
+			status: "finished",
+		});
+		const { result } = await renderHook(() =>
+			useStatusSync({ canQuery: true }),
+		);
+		await result.current.setStatus("book_rejected", "want");
+
+		await expect
+			.poll(async () => (await db.bookStatus.get("book_rejected"))?.dirty)
+			.toBe(0);
+		expect(await db.bookStatus.get("book_rejected")).toEqual(
+			expect.objectContaining({
+				status: "finished",
+				syncedServerTime: 20,
+			}),
 		);
 	});
 });

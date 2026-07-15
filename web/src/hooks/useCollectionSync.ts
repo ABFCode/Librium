@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { api } from "../../convex/_generated/api";
 import { db, type LocalCollection } from "../lib/db";
+import { useSyncWakeSignal } from "./useSyncWakeSignal";
 
 // Local-first collections + memberships with tombstone sync — two instances
 // of the bookmark pattern, plus one ordering rule of their own:
@@ -26,11 +27,17 @@ type UseCollectionSyncArgs = {
 };
 
 export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
+	const syncDb = db;
 	const createRemote = useMutation(api.collections.createCollection);
 	const renameRemote = useMutation(api.collections.renameCollection);
 	const deleteRemote = useMutation(api.collections.deleteCollection);
-	const addRemote = useMutation(api.collections.addBookToCollection);
-	const removeRemote = useMutation(api.collections.removeBookFromCollection);
+	const addRemote = useMutation(api.collections.addBookMembership);
+	const removeRemote = useMutation(api.collections.removeBookMembership);
+	const {
+		signal: syncWakeSignal,
+		retry: retrySync,
+		settled: settleSync,
+	} = useSyncWakeSignal();
 
 	const remoteCollections = useQuery(
 		api.collections.listByUser,
@@ -40,8 +47,11 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 		api.collections.listMembershipsByUser,
 		canQuery ? {} : "skip",
 	);
-	const localCollections = useLiveQuery(() => db.collections.toArray(), []);
-	const localMemberships = useLiveQuery(() => db.collectionBooks.toArray(), []);
+	const localCollections = useLiveQuery(() => syncDb.collections.toArray(), []);
+	const localMemberships = useLiveQuery(
+		() => syncDb.collectionBooks.toArray(),
+		[],
+	);
 
 	// ── Merge: collections ───────────────────────────────────────────────────
 	useEffect(() => {
@@ -67,15 +77,15 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 						// Remote tombstone: drop the local collection and any local
 						// membership rows still pointing at it.
 						const key = local?.clientKey ?? r.clientKey;
-						await db.collections.delete(key);
-						await db.collectionBooks
+						await syncDb.collections.delete(key);
+						await syncDb.collectionBooks
 							.where("collectionKey")
 							.equals(key)
 							.delete();
 						continue;
 					}
 					if (!local) {
-						await db.collections.put({
+						await syncDb.collections.put({
 							clientKey: r.clientKey,
 							name: r.name,
 							createdAt: r.createdAt,
@@ -90,7 +100,7 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 						// Our offline create landed — record the id. Re-read the live
 						// row: a rename/delete committed after this pass's snapshot
 						// leaves dirty set, and must survive.
-						await db.collections
+						await syncDb.collections
 							.where("clientKey")
 							.equals(local.clientKey)
 							.modify((row) => {
@@ -111,7 +121,7 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 						// local rename that raced in after the snapshot (LWW: newer) wins.
 						const remoteName = r.name;
 						const remoteNameEditedAt = r.nameEditedAt ?? 0;
-						await db.collections
+						await syncDb.collections
 							.where("clientKey")
 							.equals(local.clientKey)
 							.modify((row) => {
@@ -133,8 +143,8 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 			for (const l of localCollections) {
 				try {
 					if (l.convexId && !remoteIds.has(l.convexId)) {
-						await db.collections.delete(l.clientKey);
-						await db.collectionBooks
+						await syncDb.collections.delete(l.clientKey);
+						await syncDb.collectionBooks
 							.where("collectionKey")
 							.equals(l.clientKey)
 							.delete();
@@ -143,8 +153,8 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 							(r) => r.clientKey === l.clientKey,
 						);
 						if (!landed) {
-							await db.collections.delete(l.clientKey);
-							await db.collectionBooks
+							await syncDb.collections.delete(l.clientKey);
+							await syncDb.collectionBooks
 								.where("collectionKey")
 								.equals(l.clientKey)
 								.delete();
@@ -187,8 +197,35 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 					byConvexId.get(r._id as string) ?? byClientKey.get(r.clientKey);
 				try {
 					if (r.deletedAt) {
-						if (local) {
-							await db.collectionBooks.delete(local.clientKey);
+						if (!local) {
+							const collectionKey = collectionKeyByConvexId.get(
+								r.collectionId as string,
+							);
+							if (collectionKey) {
+								await syncDb.collectionBooks.put({
+									clientKey: r.clientKey,
+									collectionKey,
+									bookId: r.bookId as string,
+									createdAt: r.createdAt,
+									editedAt: r.updatedAt,
+									syncedServerTime: r.updatedAt,
+									deletedAt: r.deletedAt,
+									dirty: 0,
+									convexId: r._id as string,
+								});
+							}
+						} else if (!local.dirty) {
+							await syncDb.collectionBooks
+								.where("clientKey")
+								.equals(local.clientKey)
+								.modify((row) => {
+									if (row.dirty) return;
+									row.convexId = r._id as string;
+									row.syncedServerTime = r.updatedAt;
+									row.editedAt = r.updatedAt;
+									row.deletedAt = r.deletedAt;
+									row.dirty = 0;
+								});
 						}
 						continue;
 					}
@@ -200,11 +237,13 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 							// The collection row hasn't merged yet — next pass catches it.
 							continue;
 						}
-						await db.collectionBooks.put({
+						await syncDb.collectionBooks.put({
 							clientKey: r.clientKey,
 							collectionKey,
 							bookId: r.bookId as string,
 							createdAt: r.createdAt,
+							editedAt: r.updatedAt,
+							syncedServerTime: r.updatedAt,
 							dirty: 0,
 							convexId: r._id as string,
 						});
@@ -213,14 +252,38 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 					if (!local.convexId) {
 						// Re-read the live row: a remove committed after the snapshot
 						// sets deletedAt+dirty and must survive to be pushed.
-						await db.collectionBooks
+						await syncDb.collectionBooks
 							.where("clientKey")
 							.equals(local.clientKey)
 							.modify((row) => {
 								row.convexId = r._id as string;
-								if (!row.deletedAt) {
+								row.syncedServerTime = Math.max(
+									row.syncedServerTime ?? 0,
+									r.updatedAt,
+								);
+								if (
+									!row.deletedAt &&
+									(row.editedAt ?? row.createdAt) <=
+										(local.editedAt ?? local.createdAt)
+								) {
 									row.dirty = 0;
 								}
+							});
+					} else if (
+						!local.dirty &&
+						r.updatedAt > (local.syncedServerTime ?? 0)
+					) {
+						await syncDb.collectionBooks
+							.where("clientKey")
+							.equals(local.clientKey)
+							.modify((row) => {
+								if (row.dirty || r.updatedAt <= (row.syncedServerTime ?? 0)) {
+									return;
+								}
+								row.deletedAt = undefined;
+								row.editedAt = r.updatedAt;
+								row.syncedServerTime = r.updatedAt;
+								row.dirty = 0;
 							});
 					}
 				} catch {
@@ -230,13 +293,13 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 			for (const l of localMemberships) {
 				try {
 					if (l.convexId && !remoteIds.has(l.convexId)) {
-						await db.collectionBooks.delete(l.clientKey);
-					} else if (!l.convexId && l.deletedAt) {
+						await syncDb.collectionBooks.delete(l.clientKey);
+					} else if (!l.convexId && l.deletedAt && l.dirty) {
 						const landed = remoteMemberships.some(
 							(r) => r.clientKey === l.clientKey,
 						);
 						if (!landed) {
-							await db.collectionBooks.delete(l.clientKey);
+							await syncDb.collectionBooks.delete(l.clientKey);
 						}
 					}
 				} catch {
@@ -253,6 +316,7 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 	// Each pass re-reads dirty rows from Dexie so it always sees fresh state.
 	const pushQueueRef = useRef<Promise<void>>(Promise.resolve());
 	useEffect(() => {
+		void syncWakeSignal; // reconnect/backoff trigger; durable rows are re-read below
 		if (
 			!canQuery ||
 			localCollections === undefined ||
@@ -267,10 +331,10 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 			return;
 		}
 		const pushPass = async () => {
-			const dirtyCollections = await db.collections
+			const dirtyCollections = await syncDb.collections
 				.filter((l) => l.dirty === 1)
 				.toArray();
-			const dirtyMemberships = await db.collectionBooks
+			const dirtyMemberships = await syncDb.collectionBooks
 				.filter((l) => l.dirty === 1)
 				.toArray();
 			// convexIds recorded during this run, so memberships of a
@@ -281,8 +345,8 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 					if (l.deletedAt) {
 						if (l.convexId) {
 							await deleteRemote({ collectionId: l.convexId as never });
-							await db.collections.delete(l.clientKey);
-							await db.collectionBooks
+							await syncDb.collections.delete(l.clientKey);
+							await syncDb.collectionBooks
 								.where("collectionKey")
 								.equals(l.clientKey)
 								.delete();
@@ -299,27 +363,39 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 						// An idempotent-match returns the existing row without renaming;
 						// follow up when a rename happened after the create.
 						let acceptedServerTime = created.serverTime;
+						let rejectedName: string | undefined;
 						if (l.nameEditedAt > l.createdAt) {
 							const renamed = await renameRemote({
 								collectionId: created.id as never,
 								name: l.name,
 								baseServerTime: created.serverTime,
 							});
-							if (renamed?.accepted) {
+							if (renamed) {
 								acceptedServerTime = renamed.serverTime;
+								if (!renamed.accepted) {
+									rejectedName = renamed.name;
+								}
 							}
 						}
 						freshConvexIds.set(l.clientKey, created.id as unknown as string);
-						await db.collections
+						await syncDb.collections
 							.where("clientKey")
 							.equals(l.clientKey)
 							.modify((row) => {
 								row.convexId = created.id as unknown as string;
+								row.syncedServerTime = Math.max(
+									row.syncedServerTime ?? 0,
+									acceptedServerTime,
+								);
 								if (row.nameEditedAt <= l.nameEditedAt && !row.deletedAt) {
+									if (rejectedName !== undefined) {
+										row.name = rejectedName;
+										row.nameEditedAt = acceptedServerTime;
+									}
 									row.dirty = 0;
-									row.syncedServerTime = acceptedServerTime;
 								}
 							});
+						settleSync();
 						continue;
 					}
 					const editedAt = l.nameEditedAt;
@@ -328,31 +404,64 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 						name: l.name,
 						baseServerTime: l.syncedServerTime ?? 0,
 					});
-					await db.collections
+					await syncDb.collections
 						.where("clientKey")
 						.equals(l.clientKey)
 						.modify((row) => {
+							if (!renamed) {
+								return;
+							}
+							row.syncedServerTime = Math.max(
+								row.syncedServerTime ?? 0,
+								renamed.serverTime,
+							);
 							// Only clear dirty if no newer local edit happened meanwhile.
 							if (row.nameEditedAt <= editedAt && !row.deletedAt) {
-								row.dirty = 0;
-								if (renamed?.accepted) {
-									row.syncedServerTime = renamed.serverTime;
+								if (!renamed.accepted) {
+									row.name = renamed.name;
+									row.nameEditedAt = renamed.serverTime;
 								}
+								row.dirty = 0;
 							}
 						});
+					settleSync();
 				} catch {
 					// Offline or transient — retried on the next change/reconnect.
+					retrySync();
 				}
 			}
 			const collectionsByKey = new Map(
-				(await db.collections.toArray()).map((c) => [c.clientKey, c]),
+				(await syncDb.collections.toArray()).map((c) => [c.clientKey, c]),
 			);
 			for (const l of dirtyMemberships) {
+				const sentEditedAt = l.editedAt ?? l.createdAt;
 				try {
 					if (l.deletedAt) {
 						if (l.convexId) {
-							await removeRemote({ membershipId: l.convexId as never });
-							await db.collectionBooks.delete(l.clientKey);
+							const removed = await removeRemote({
+								membershipId: l.convexId as never,
+								baseServerTime: l.syncedServerTime ?? 0,
+							});
+							const outcome = removed ?? {
+								serverTime: l.syncedServerTime ?? 0,
+								deleted: true,
+							};
+							await syncDb.collectionBooks
+								.where("clientKey")
+								.equals(l.clientKey)
+								.modify((row) => {
+									row.syncedServerTime = Math.max(
+										row.syncedServerTime ?? 0,
+										outcome.serverTime,
+									);
+									if ((row.editedAt ?? row.createdAt) <= sentEditedAt) {
+										row.deletedAt = outcome.deleted
+											? (row.deletedAt ?? Date.now())
+											: undefined;
+										row.dirty = 0;
+									}
+								});
+							settleSync();
 						}
 						continue;
 					}
@@ -364,31 +473,41 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 						// the header comment; retried next pass.
 						continue;
 					}
-					const id = await addRemote({
+					const added = await addRemote({
 						collectionId: collectionConvexId as never,
 						bookId: l.bookId as never,
 						clientKey: l.clientKey,
 						createdAt: l.createdAt,
+						baseServerTime: l.syncedServerTime ?? 0,
 					});
-					if (id === null) {
+					if (added === null) {
 						// Collection was deleted elsewhere while this add was queued.
-						await db.collectionBooks.delete(l.clientKey);
+						await syncDb.collectionBooks.delete(l.clientKey);
 						continue;
 					}
 					// Re-read the live row: a remove committed during the addRemote
 					// round-trip set deletedAt+dirty; clearing dirty here would strand
 					// the tombstone (never pushed, hidden locally, alive on the server).
-					await db.collectionBooks
+					await syncDb.collectionBooks
 						.where("clientKey")
 						.equals(l.clientKey)
 						.modify((row) => {
-							row.convexId = id as unknown as string;
-							if (!row.deletedAt) {
+							row.convexId = added.id as unknown as string;
+							row.syncedServerTime = Math.max(
+								row.syncedServerTime ?? 0,
+								added.serverTime,
+							);
+							if ((row.editedAt ?? row.createdAt) <= sentEditedAt) {
+								row.deletedAt = added.deleted
+									? (row.deletedAt ?? Date.now())
+									: undefined;
 								row.dirty = 0;
 							}
 						});
+					settleSync();
 				} catch {
 					// Offline or transient — retried on the next change/reconnect.
+					retrySync();
 				}
 			}
 		};
@@ -402,6 +521,9 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 		deleteRemote,
 		addRemote,
 		removeRemote,
+		syncWakeSignal,
+		retrySync,
+		settleSync,
 	]);
 
 	// ── UI views ─────────────────────────────────────────────────────────────
@@ -435,7 +557,7 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 		const clientKey = crypto.randomUUID();
 		const now = Date.now();
 		try {
-			await db.collections.put({
+			await syncDb.collections.put({
 				clientKey,
 				name: name.trim(),
 				createdAt: now,
@@ -452,11 +574,14 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 	const renameCollection = useCallback(
 		async (clientKey: string, name: string) => {
 			try {
-				await db.collections.update(clientKey, {
-					name: name.trim(),
-					nameEditedAt: Date.now(),
-					dirty: 1,
-				});
+				await syncDb.collections
+					.where("clientKey")
+					.equals(clientKey)
+					.modify((row) => {
+						row.name = name.trim();
+						row.nameEditedAt = Math.max(Date.now(), row.nameEditedAt + 1);
+						row.dirty = 1;
+					});
 			} catch {
 				// IndexedDB unavailable.
 			}
@@ -467,11 +592,14 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 	const deleteCollection = useCallback(async (clientKey: string) => {
 		const now = Date.now();
 		try {
-			await db.collections.update(clientKey, { deletedAt: now, dirty: 1 });
+			await syncDb.collections.update(clientKey, {
+				deletedAt: now,
+				dirty: 1,
+			});
 			// Tombstone the memberships too so the UI empties immediately; the
 			// server cascade (and merge settling for offline-only rows) finishes
 			// the job.
-			await db.collectionBooks
+			await syncDb.collectionBooks
 				.where("collectionKey")
 				.equals(clientKey)
 				.modify((row) => {
@@ -486,7 +614,7 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 	const addBooks = useCallback(
 		async (collectionKey: string, bookIds: string[]) => {
 			try {
-				const existing = await db.collectionBooks
+				const existing = await syncDb.collectionBooks
 					.where("collectionKey")
 					.equals(collectionKey)
 					.toArray();
@@ -498,13 +626,29 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 					if (live.has(bookId)) {
 						continue;
 					}
+					const tombstone = existing.find(
+						(row) => row.bookId === bookId && row.deletedAt,
+					);
+					if (tombstone) {
+						await syncDb.collectionBooks.update(tombstone.clientKey, {
+							deletedAt: undefined,
+							editedAt: Math.max(
+								now,
+								(tombstone.editedAt ?? tombstone.createdAt) + 1,
+							),
+							dirty: 1,
+						});
+						continue;
+					}
 					// Always a fresh clientKey: resurrecting a tombstoned key is unsafe
 					// (the server may already hold its tombstone).
-					await db.collectionBooks.put({
+					await syncDb.collectionBooks.put({
 						clientKey: crypto.randomUUID(),
 						collectionKey,
 						bookId,
 						createdAt: now,
+						editedAt: now,
+						syncedServerTime: 0,
 						dirty: 1,
 					});
 				}
@@ -519,12 +663,17 @@ export function useCollectionSync({ canQuery }: UseCollectionSyncArgs) {
 		async (collectionKey: string, bookIds: string[]) => {
 			try {
 				const targets = new Set(bookIds);
-				await db.collectionBooks
+				await syncDb.collectionBooks
 					.where("collectionKey")
 					.equals(collectionKey)
 					.modify((row) => {
 						if (!row.deletedAt && targets.has(row.bookId)) {
-							row.deletedAt = Date.now();
+							const now = Math.max(
+								Date.now(),
+								(row.editedAt ?? row.createdAt) + 1,
+							);
+							row.editedAt = now;
+							row.deletedAt = now;
 							row.dirty = 1;
 						}
 					});

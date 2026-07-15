@@ -5,6 +5,7 @@ import {
 	requireBookOwner,
 	requireViewerUserId,
 } from "./authHelpers";
+import { nextServerVersion, observedServerVersion } from "./syncVersion";
 
 // Collections: user-named, many-to-many book groups. Same sync plane as
 // bookmarks — client-generated clientKeys make offline creates idempotent,
@@ -60,15 +61,19 @@ export const createCollection = mutation({
 		if (match) {
 			return {
 				id: match._id,
-				serverTime: match.nameUpdatedAt ?? match.updatedAt,
+				// Return only the version this create originally observed. Returning a
+				// later rename version would let an unacknowledged stale local rename
+				// masquerade as though it had observed (and could overwrite) that rename.
+				serverTime: match.createdServerTime ?? 0,
 			};
 		}
-		const now = Date.now();
+		const now = nextServerVersion(0);
 		const id = await ctx.db.insert("collections", {
 			userId,
 			name,
 			clientKey: args.clientKey,
 			createdAt: args.createdAt ?? now,
+			createdServerTime: now,
 			updatedAt: now,
 			nameUpdatedAt: now,
 		});
@@ -90,25 +95,30 @@ export const renameCollection = mutation({
 		}
 		const currentServerTime = collection.nameUpdatedAt ?? collection.updatedAt;
 		if (collection.deletedAt !== undefined) {
-			return { accepted: false, serverTime: currentServerTime };
+			return {
+				accepted: false,
+				serverTime: currentServerTime,
+				name: collection.name,
+			};
 		}
 		const name = args.name.trim();
 		if (!name) {
 			throw new Error("Collection name cannot be empty.");
 		}
-		if (
-			args.baseServerTime !== undefined &&
-			args.baseServerTime < currentServerTime
-		) {
-			return { accepted: false, serverTime: currentServerTime };
+		if (observedServerVersion(args.baseServerTime) < currentServerTime) {
+			return {
+				accepted: false,
+				serverTime: currentServerTime,
+				name: collection.name,
+			};
 		}
-		const now = Date.now();
+		const now = nextServerVersion(currentServerTime);
 		await ctx.db.patch(args.collectionId, {
 			name,
 			nameUpdatedAt: now,
 			updatedAt: now,
 		});
-		return { accepted: true, serverTime: now };
+		return { accepted: true, serverTime: now, name };
 	},
 });
 
@@ -141,12 +151,13 @@ export const deleteCollection = mutation({
 	},
 });
 
-export const addBookToCollection = mutation({
+export const addBookMembership = mutation({
 	args: {
 		collectionId: v.id("collections"),
 		bookId: v.id("books"),
 		clientKey: v.string(),
 		createdAt: v.optional(v.number()),
+		baseServerTime: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
 		const userId = await requireViewerUserId(ctx);
@@ -166,11 +177,155 @@ export const addBookToCollection = mutation({
 				q.eq("collectionId", args.collectionId),
 			)
 			.collect();
-		const match = existing.find((m) => m.clientKey === args.clientKey);
+		const tupleRows = existing.filter((m) => m.bookId === args.bookId);
+		const currentServerTime = tupleRows.reduce(
+			(latest, row) => Math.max(latest, row.updatedAt),
+			0,
+		);
+		const keyMatch = tupleRows.find((m) => m.clientKey === args.clientKey);
+		// Different devices generate different client keys for the same logical
+		// membership. Keep exactly one live row per collection/book tuple so a
+		// later remove cannot reveal a duplicate add.
+		const liveMatch = tupleRows.find((m) => m.deletedAt === undefined);
+		if (liveMatch) {
+			// Collapse any legacy duplicate live rows while this tuple is touched.
+			for (const duplicate of tupleRows) {
+				if (
+					duplicate._id !== liveMatch._id &&
+					duplicate.deletedAt === undefined
+				) {
+					await ctx.db.patch(duplicate._id, {
+						deletedAt: currentServerTime,
+						updatedAt: currentServerTime,
+					});
+				}
+			}
+			return {
+				id: liveMatch._id,
+				accepted: true,
+				serverTime: currentServerTime,
+				deleted: false,
+			};
+		}
+		if (
+			currentServerTime > 0 &&
+			observedServerVersion(args.baseServerTime) < currentServerTime
+		) {
+			const tombstone = keyMatch ?? tupleRows[0];
+			return {
+				id: tombstone?._id ?? null,
+				accepted: false,
+				serverTime: currentServerTime,
+				deleted: true,
+			};
+		}
+		const now = nextServerVersion(currentServerTime);
+		const tombstone = keyMatch ?? tupleRows[0];
+		if (tombstone) {
+			await ctx.db.patch(tombstone._id, {
+				deletedAt: undefined,
+				updatedAt: now,
+			});
+			return {
+				id: tombstone._id,
+				accepted: true,
+				serverTime: now,
+				deleted: false,
+			};
+		}
+		const id = await ctx.db.insert("collectionBooks", {
+			userId,
+			collectionId: args.collectionId,
+			bookId: args.bookId,
+			clientKey: args.clientKey,
+			createdAt: args.createdAt ?? now,
+			updatedAt: now,
+		});
+		return { id, accepted: true, serverTime: now, deleted: false };
+	},
+});
+
+export const removeBookMembership = mutation({
+	args: {
+		membershipId: v.id("collectionBooks"),
+		baseServerTime: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const userId = await requireViewerUserId(ctx);
+		const membership = await ctx.db.get(args.membershipId);
+		if (!membership) {
+			return;
+		}
+		if (membership.userId !== userId) {
+			throw new Error("Not authorized to modify this collection.");
+		}
+		const siblings = await ctx.db
+			.query("collectionBooks")
+			.withIndex("by_collection", (q) =>
+				q.eq("collectionId", membership.collectionId),
+			)
+			.collect();
+		const tupleRows = siblings.filter(
+			(row) => row.bookId === membership.bookId,
+		);
+		const currentServerTime = tupleRows.reduce(
+			(latest, row) => Math.max(latest, row.updatedAt),
+			0,
+		);
+		if (observedServerVersion(args.baseServerTime) < currentServerTime) {
+			return {
+				accepted: false,
+				serverTime: currentServerTime,
+				deleted: tupleRows.every((row) => row.deletedAt !== undefined),
+			};
+		}
+		const now = nextServerVersion(currentServerTime);
+		for (const row of tupleRows) {
+			if (row.deletedAt === undefined) {
+				await ctx.db.patch(row._id, { deletedAt: now, updatedAt: now });
+			}
+		}
+		return { accepted: true, serverTime: now, deleted: true };
+	},
+});
+
+// Rolling-deploy compatibility for already-open/PWA-cached clients. The old
+// add endpoint returned only an id. It may create a brand-new tuple or resolve
+// an existing live tuple, but it never resurrects a tombstone because it has no
+// causal base with which to prove the delete was observed.
+export const addBookToCollection = mutation({
+	args: {
+		collectionId: v.id("collections"),
+		bookId: v.id("books"),
+		clientKey: v.string(),
+		createdAt: v.optional(v.number()),
+	},
+	handler: async (ctx, args) => {
+		const userId = await requireViewerUserId(ctx);
+		await requireBookOwner(ctx, args.bookId);
+		const collection = await ctx.db.get(args.collectionId);
+		if (
+			!collection ||
+			collection.userId !== userId ||
+			collection.deletedAt !== undefined
+		) {
+			return null;
+		}
+		const existing = await ctx.db
+			.query("collectionBooks")
+			.withIndex("by_collection", (q) =>
+				q.eq("collectionId", args.collectionId),
+			)
+			.collect();
+		const tupleRows = existing.filter((row) => row.bookId === args.bookId);
+		const match =
+			tupleRows.find((row) => row.clientKey === args.clientKey) ??
+			tupleRows.find((row) => row.deletedAt === undefined) ??
+			tupleRows[0];
 		if (match) {
 			return match._id;
 		}
-		const now = Date.now();
+		const now = nextServerVersion(0);
 		return await ctx.db.insert("collectionBooks", {
 			userId,
 			collectionId: args.collectionId,
@@ -182,22 +337,25 @@ export const addBookToCollection = mutation({
 	},
 });
 
+// Rows last changed before the versioned membership protocol shipped can be
+// safely removed by an old client. Newer rows require the versioned endpoint;
+// treating an unversioned remove as a no-op is safer than letting a stale PWA
+// erase a later intentional re-add.
+const MEMBERSHIP_CAUSAL_VERSION_EPOCH = Date.UTC(2026, 6, 15);
+
 export const removeBookFromCollection = mutation({
-	args: {
-		membershipId: v.id("collectionBooks"),
-	},
+	args: { membershipId: v.id("collectionBooks") },
 	handler: async (ctx, args) => {
 		const userId = await requireViewerUserId(ctx);
 		const membership = await ctx.db.get(args.membershipId);
-		if (!membership) {
-			return;
-		}
+		if (!membership) return;
 		if (membership.userId !== userId) {
 			throw new Error("Not authorized to modify this collection.");
 		}
-		await ctx.db.patch(args.membershipId, {
-			deletedAt: Date.now(),
-			updatedAt: Date.now(),
-		});
+		if (membership.updatedAt >= MEMBERSHIP_CAUSAL_VERSION_EPOCH) {
+			return;
+		}
+		const now = nextServerVersion(membership.updatedAt);
+		await ctx.db.patch(membership._id, { deletedAt: now, updatedAt: now });
 	},
 });

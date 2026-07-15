@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { api } from "../../convex/_generated/api";
 import { db } from "../lib/db";
 import type { ReadingStatus } from "../lib/status";
+import { useSyncWakeSignal } from "./useSyncWakeSignal";
 
 // Local-first reading status with LWW sync — the batched, library-wide
 // sibling of useProgressSync (same rules, own server version):
@@ -19,9 +20,15 @@ type UseStatusSyncArgs = {
 };
 
 export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
+	const syncDb = db;
 	const updateStatus = useMutation(api.userBooks.updateStatus);
+	const {
+		signal: syncWakeSignal,
+		retry: retrySync,
+		settled: settleSync,
+	} = useSyncWakeSignal();
 	const remote = useQuery(api.userBooks.listByUser, canQuery ? {} : "skip");
-	const local = useLiveQuery(() => db.bookStatus.toArray(), []);
+	const local = useLiveQuery(() => syncDb.bookStatus.toArray(), []);
 
 	// Merge pass: adopt newer remote state into IndexedDB so it survives going
 	// offline. userBooks.updatedAt also bumps on progress writes, so some
@@ -43,8 +50,8 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 		}));
 		const mergePass = async () => {
 			for (const entry of entries) {
-				await db.transaction("rw", db.bookStatus, async () => {
-					const live = await db.bookStatus.get(entry.bookId);
+				await syncDb.transaction("rw", syncDb.bookStatus, async () => {
+					const live = await syncDb.bookStatus.get(entry.bookId);
 					// Unpushed local edit — never overwrite it.
 					if (live?.dirty) {
 						return;
@@ -58,7 +65,7 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 					if (!live && entry.status === null) {
 						return;
 					}
-					await db.bookStatus.put({
+					await syncDb.bookStatus.put({
 						bookId: entry.bookId,
 						status: entry.status,
 						editedAt: entry.statusUpdatedAt,
@@ -79,11 +86,12 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 	// pass instead of being dropped; each pass re-reads dirty rows from Dexie.
 	const pushQueueRef = useRef<Promise<void>>(Promise.resolve());
 	useEffect(() => {
+		void syncWakeSignal; // reconnect/backoff trigger; durable rows are re-read below
 		if (!canQuery || !local?.some((row) => row.dirty)) {
 			return;
 		}
 		const pushPass = async () => {
-			const dirtyRows = await db.bookStatus
+			const dirtyRows = await syncDb.bookStatus
 				.filter((row) => row.dirty === 1)
 				.toArray();
 			for (const row of dirtyRows) {
@@ -94,25 +102,32 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 						status: row.status,
 						baseServerTime: row.syncedServerTime,
 					});
-					await db.bookStatus
+					await syncDb.bookStatus
 						.where("bookId")
 						.equals(row.bookId)
 						.modify((r) => {
+							r.syncedServerTime = Math.max(
+								r.syncedServerTime ?? 0,
+								result.serverTime,
+							);
 							// Only clear dirty if no newer local edit happened meanwhile.
 							if (r.editedAt <= editedAt) {
-								r.dirty = 0;
-								if (result.accepted) {
-									r.syncedServerTime = result.serverTime;
+								if (!result.accepted) {
+									r.status = result.status;
+									r.editedAt = result.serverTime;
 								}
+								r.dirty = 0;
 							}
 						});
+					settleSync();
 				} catch {
 					// Offline or transient — retried on the next edit or reconnect.
+					retrySync();
 				}
 			}
 		};
 		pushQueueRef.current = pushQueueRef.current.then(pushPass).catch(() => {});
-	}, [canQuery, local, updateStatus]);
+	}, [canQuery, local, updateStatus, syncWakeSignal, retrySync, settleSync]);
 
 	// Effective explicit-status view: remote is authoritative except where an
 	// unpushed local edit exists; offline, local rows are the source.
@@ -138,14 +153,14 @@ export function useStatusSync({ canQuery }: UseStatusSyncArgs) {
 	const setStatus = useCallback(
 		async (bookId: string, status: ReadingStatus | null) => {
 			try {
-				const existing = await db.bookStatus.get(bookId);
+				const existing = await syncDb.bookStatus.get(bookId);
 				const remoteVersion = remote?.find(
 					(entry) => entry.bookId === bookId,
 				)?.statusUpdatedAt;
-				await db.bookStatus.put({
+				await syncDb.bookStatus.put({
 					bookId,
 					status,
-					editedAt: Date.now(),
+					editedAt: Math.max(Date.now(), (existing?.editedAt ?? 0) + 1),
 					dirty: 1,
 					// Concrete floor of 0 when nothing is known: an undefined base
 					// bypasses the server's stale-write guard and would clobber a

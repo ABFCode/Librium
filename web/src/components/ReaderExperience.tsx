@@ -81,6 +81,7 @@ const PHONE_READER_MEDIA =
 	"(max-width: 599px), (pointer: coarse) and (max-width: 899px)";
 
 export function ReaderExperience({ bookId }: ReaderExperienceProps) {
+	const readerDb = db;
 	const { isAuthenticated } = useConvexAuth();
 	const canQuery = isAuthenticated;
 	const navigate = useNavigate();
@@ -97,7 +98,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		}
 		void (async () => {
 			try {
-				await deleteLocalBook(bookId);
+				await deleteLocalBook(bookId, readerDb);
 			} catch {
 				// Purge retried by the library reconcile.
 			}
@@ -107,11 +108,11 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 	// Local-first: IndexedDB is the only content source. Books not on this
 	// device are seeded from R2 (download EPUB → re-parse → IndexedDB) below.
 	const localSectionRows = useLiveQuery(
-		() => db.sections.where("bookId").equals(bookId).sortBy("orderIndex"),
+		() => readerDb.sections.where("bookId").equals(bookId).sortBy("orderIndex"),
 		[bookId],
 	);
 	// Book title for the panel header (local row works offline).
-	const localBookRow = useLiveQuery(() => db.books.get(bookId), [bookId]);
+	const localBookRow = useLiveQuery(() => readerDb.books.get(bookId), [bookId]);
 	const bookTitle = localBookRow?.title ?? remoteBook?.title ?? "";
 	const sections: ReaderSection[] | undefined = useMemo(() => {
 		if (!localSectionRows) {
@@ -149,7 +150,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 			return;
 		}
 		void (async () => {
-			const localBook = await db.books.get(bookId);
+			const localBook = await readerDb.books.get(bookId);
 			const hasContent = localSectionRows.length > 0;
 			const stale =
 				hasContent &&
@@ -165,6 +166,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 			try {
 				await seedBookFromR2(convex, bookId, {
 					replace: stale,
+					database: readerDb,
 					onProgress: (loaded, total) => setSeedProgress({ loaded, total }),
 				});
 			} catch (err) {
@@ -433,7 +435,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		void (async () => {
 			const local: Record<string, string> = {};
 			try {
-				const rows = await db.images.bulkGet(
+				const rows = await readerDb.images.bulkGet(
 					imageHrefs.map((href) => [bookId, href] as [string, string]),
 				);
 				rows.forEach((row, i) => {

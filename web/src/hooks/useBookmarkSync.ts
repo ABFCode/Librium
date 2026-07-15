@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { api } from "../../convex/_generated/api";
 import { db } from "../lib/db";
+import { useSyncWakeSignal } from "./useSyncWakeSignal";
 
 // Local-first bookmarks with tombstone sync (ROADMAP Phase 4).
 //
@@ -20,14 +21,20 @@ type UseBookmarkSyncArgs = {
 };
 
 export function useBookmarkSync({ bookId, canQuery }: UseBookmarkSyncArgs) {
+	const syncDb = db;
 	const createRemote = useMutation(api.bookmarks.createBookmark);
 	const deleteRemote = useMutation(api.bookmarks.deleteBookmark);
+	const {
+		signal: syncWakeSignal,
+		retry: retrySync,
+		settled: settleSync,
+	} = useSyncWakeSignal();
 	const remote = useQuery(
 		api.bookmarks.listByUserBook,
 		canQuery ? { bookId: bookId as never } : "skip",
 	);
 	const localAll = useLiveQuery(
-		() => db.bookmarks.where("bookId").equals(bookId).toArray(),
+		() => syncDb.bookmarks.where("bookId").equals(bookId).toArray(),
 		[bookId],
 	);
 
@@ -62,12 +69,12 @@ export function useBookmarkSync({ bookId, canQuery }: UseBookmarkSyncArgs) {
 						// Remote tombstone: drop any local copy (dirty deletes of the
 						// same row are also settled — the server already deleted it).
 						if (local) {
-							await db.bookmarks.delete(local.clientKey);
+							await syncDb.bookmarks.delete(local.clientKey);
 						}
 						continue;
 					}
 					if (!local) {
-						await db.bookmarks.put({
+						await syncDb.bookmarks.put({
 							clientKey: r.clientKey ?? `remote:${r._id}`,
 							bookId,
 							sectionIndex: r.sectionIndex,
@@ -83,10 +90,15 @@ export function useBookmarkSync({ bookId, canQuery }: UseBookmarkSyncArgs) {
 					if (!local.convexId) {
 						// Our offline create landed (matched by clientKey) — record the
 						// id; keep dirty if a delete is still pending for it.
-						await db.bookmarks.update(local.clientKey, {
-							convexId: r._id as string,
-							dirty: local.deletedAt ? 1 : 0,
-						});
+						await syncDb.bookmarks
+							.where("clientKey")
+							.equals(local.clientKey)
+							.modify((row) => {
+								row.convexId = r._id as string;
+								if (!row.deletedAt) {
+									row.dirty = 0;
+								}
+							});
 					}
 				} catch {
 					// IndexedDB hiccup — retried on the next merge.
@@ -98,11 +110,11 @@ export function useBookmarkSync({ bookId, canQuery }: UseBookmarkSyncArgs) {
 			for (const l of localAll) {
 				try {
 					if (l.convexId && !remoteIds.has(l.convexId)) {
-						await db.bookmarks.delete(l.clientKey);
+						await syncDb.bookmarks.delete(l.clientKey);
 					} else if (!l.convexId && l.deletedAt) {
 						const landed = remote.some((r) => r.clientKey === l.clientKey);
 						if (!landed) {
-							await db.bookmarks.delete(l.clientKey);
+							await syncDb.bookmarks.delete(l.clientKey);
 						}
 					}
 				} catch {
@@ -113,23 +125,26 @@ export function useBookmarkSync({ bookId, canQuery }: UseBookmarkSyncArgs) {
 	}, [remote, localAll, bookId]);
 
 	// Push dirty rows (fires on edit and on reconnect).
-	const pushingRef = useRef(false);
+	const pushQueueRef = useRef<Promise<void>>(Promise.resolve());
 	useEffect(() => {
-		if (!canQuery || !localAll || pushingRef.current) {
+		void syncWakeSignal; // reconnect/backoff trigger; durable rows are re-read below
+		if (!canQuery || !localAll) {
 			return;
 		}
 		const dirty = localAll.filter((l) => l.dirty);
 		if (dirty.length === 0) {
 			return;
 		}
-		pushingRef.current = true;
-		void (async () => {
-			for (const l of dirty) {
+		const pushPass = async () => {
+			const freshDirty = await syncDb.bookmarks
+				.filter((row) => row.dirty === 1)
+				.toArray();
+			for (const l of freshDirty) {
 				try {
 					if (l.deletedAt) {
 						if (l.convexId) {
 							await deleteRemote({ bookmarkId: l.convexId as never });
-							await db.bookmarks.delete(l.clientKey);
+							await syncDb.bookmarks.delete(l.clientKey);
 						}
 						// No convexId: an unacknowledged create — the merge pass settles
 						// it once the server list confirms whether it landed.
@@ -144,18 +159,35 @@ export function useBookmarkSync({ bookId, canQuery }: UseBookmarkSyncArgs) {
 						clientKey: l.clientKey,
 						createdAt: l.createdAt,
 					});
-					await db.bookmarks.update(l.clientKey, {
-						convexId: id as unknown as string,
-						dirty: 0,
-					});
+					await syncDb.bookmarks
+						.where("clientKey")
+						.equals(l.clientKey)
+						.modify((row) => {
+							row.convexId = id as unknown as string;
+							// A delete may have landed during createRemote. Preserve its
+							// dirty tombstone so the next queued pass deletes the server row.
+							if (!row.deletedAt) {
+								row.dirty = 0;
+							}
+						});
+					settleSync();
 				} catch {
 					// Offline or transient — retried on the next change/reconnect.
+					retrySync();
 				}
 			}
-		})().finally(() => {
-			pushingRef.current = false;
-		});
-	}, [canQuery, localAll, bookId, createRemote, deleteRemote]);
+		};
+		pushQueueRef.current = pushQueueRef.current.then(pushPass).catch(() => {});
+	}, [
+		canQuery,
+		localAll,
+		bookId,
+		createRemote,
+		deleteRemote,
+		syncWakeSignal,
+		retrySync,
+		settleSync,
+	]);
 
 	const createBookmark = useCallback(
 		async (args: {
@@ -165,7 +197,7 @@ export function useBookmarkSync({ bookId, canQuery }: UseBookmarkSyncArgs) {
 			label?: string;
 		}) => {
 			try {
-				await db.bookmarks.put({
+				await syncDb.bookmarks.put({
 					clientKey: crypto.randomUUID(),
 					bookId,
 					sectionIndex: args.sectionIndex,
@@ -184,13 +216,13 @@ export function useBookmarkSync({ bookId, canQuery }: UseBookmarkSyncArgs) {
 
 	const deleteBookmark = useCallback(async (clientKey: string) => {
 		try {
-			const row = await db.bookmarks.get(clientKey);
+			const row = await syncDb.bookmarks.get(clientKey);
 			if (!row) {
 				return;
 			}
 			// Tombstone locally; the push effect propagates it. (Rows the server
 			// never saw are settled by the merge pass.)
-			await db.bookmarks.update(clientKey, {
+			await syncDb.bookmarks.update(clientKey, {
 				deletedAt: Date.now(),
 				dirty: 1,
 			});

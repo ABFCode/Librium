@@ -1,6 +1,11 @@
 import type { ConvexReactClient } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { db, type LocalBook, saveImportedBook } from "./db";
+import {
+	db,
+	type LibriumDatabase,
+	type LocalBook,
+	saveImportedBook,
+} from "./db";
 import { payloadToLocalBookInput } from "./localBook";
 import { parseEpubOffThread } from "./parseEpubOffThread";
 import { ensurePersistentStorage } from "./persistentStorage";
@@ -41,8 +46,10 @@ export async function seedBookFromR2(
 	opts?: {
 		replace?: boolean;
 		onProgress?: (loaded: number, total?: number) => void;
+		database?: LibriumDatabase;
 	},
 ) {
+	const targetDb = opts?.database ?? db;
 	const url = (await convex.query(api.books.getEpubUrl, {
 		bookId: bookId as never,
 	})) as string | null;
@@ -80,16 +87,16 @@ export async function seedBookFromR2(
 	const payload = await parseEpubOffThread(bytes);
 	if (opts?.replace) {
 		// Replacing a stale parse wholesale — section counts may differ.
-		await db.sections.where("bookId").equals(bookId).delete();
-		await db.images.where("bookId").equals(bookId).delete();
+		await targetDb.sections.where("bookId").equals(bookId).delete();
+		await targetDb.images.where("bookId").equals(bookId).delete();
 	}
 	// A re-parse refreshes *content*, never identity: the shelf row may carry
 	// user-edited metadata and a replaced cover (server-authoritative, mirrored
 	// locally) that the EPUB's embedded values must not resurrect.
-	const existing = await db.books.get(bookId);
-	await saveImportedBook(payloadToLocalBookInput(bookId, payload));
+	const existing = await targetDb.books.get(bookId);
+	await saveImportedBook(payloadToLocalBookInput(bookId, payload), targetDb);
 	if (existing) {
-		await db.books.update(bookId, bookIdentityPatch(existing));
+		await targetDb.books.update(bookId, bookIdentityPatch(existing));
 	}
 	// A book's content now lives on this device — the moment persistence is
 	// worth asking for (Safari evicts IndexedDB after ~7 idle days otherwise).

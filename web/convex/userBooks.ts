@@ -5,6 +5,7 @@ import {
 	requireBookOwner,
 	requireViewerUserId,
 } from "./authHelpers";
+import { nextServerVersion, observedServerVersion } from "./syncVersion";
 
 export const upsertUserBook = mutation({
 	args: {
@@ -20,7 +21,7 @@ export const upsertUserBook = mutation({
 			)
 			.first();
 
-		const now = Date.now();
+		const now = nextServerVersion(existing?.updatedAt ?? 0);
 		if (existing) {
 			// Opening a book is reading activity → bump Recent recency.
 			await ctx.db.patch(existing._id, {
@@ -91,17 +92,20 @@ export const updateProgress = mutation({
 		// server value it never observed. Device wall clocks are irrelevant.
 		if (
 			existing &&
-			args.baseServerTime !== undefined &&
-			args.baseServerTime < currentServerTime
+			observedServerVersion(args.baseServerTime) < currentServerTime
 		) {
 			return {
 				id: existing._id,
 				accepted: false,
 				serverTime: currentServerTime,
+				lastSectionIndex: existing.lastSectionIndex ?? 0,
+				lastBlockIndex: existing.lastBlockIndex,
+				lastBlockOffset: existing.lastBlockOffset,
+				lastSectionFraction: existing.lastSectionFraction,
 			};
 		}
 
-		const now = Date.now();
+		const now = nextServerVersion(currentServerTime);
 		const patch = {
 			lastSectionIndex:
 				args.lastSectionIndex ?? existing?.lastSectionIndex ?? 0,
@@ -119,7 +123,15 @@ export const updateProgress = mutation({
 
 		if (existing) {
 			await ctx.db.patch(existing._id, patch);
-			return { id: existing._id, accepted: true, serverTime: now };
+			return {
+				id: existing._id,
+				accepted: true,
+				serverTime: now,
+				lastSectionIndex: patch.lastSectionIndex,
+				lastBlockIndex: patch.lastBlockIndex,
+				lastBlockOffset: patch.lastBlockOffset,
+				lastSectionFraction: patch.lastSectionFraction,
+			};
 		}
 
 		const id = await ctx.db.insert("userBooks", {
@@ -127,7 +139,15 @@ export const updateProgress = mutation({
 			bookId: args.bookId,
 			...patch,
 		});
-		return { id, accepted: true, serverTime: now };
+		return {
+			id,
+			accepted: true,
+			serverTime: now,
+			lastSectionIndex: patch.lastSectionIndex,
+			lastBlockIndex: patch.lastBlockIndex,
+			lastBlockOffset: patch.lastBlockOffset,
+			lastSectionFraction: patch.lastSectionFraction,
+		};
 	},
 });
 
@@ -163,18 +183,20 @@ export const updateStatus = mutation({
 		// subscription re-emits and the losing device promptly re-adopts.
 		if (
 			existing &&
-			args.baseServerTime !== undefined &&
-			args.baseServerTime < currentServerTime
+			observedServerVersion(args.baseServerTime) < currentServerTime
 		) {
-			await ctx.db.patch(existing._id, { updatedAt: Date.now() });
+			await ctx.db.patch(existing._id, {
+				updatedAt: nextServerVersion(existing.updatedAt),
+			});
 			return {
 				id: existing._id,
 				accepted: false,
 				serverTime: currentServerTime,
+				status: existing.status ?? null,
 			};
 		}
 
-		const now = Date.now();
+		const now = nextServerVersion(currentServerTime);
 		// Note: no lastActivityAt here — marking a status is organizing, not
 		// reading, so it must not reorder the Recent shelf. A never-opened book
 		// marked from the shelf is inserted with lastActivityAt absent, so it
@@ -187,7 +209,12 @@ export const updateStatus = mutation({
 
 		if (existing) {
 			await ctx.db.patch(existing._id, patch);
-			return { id: existing._id, accepted: true, serverTime: now };
+			return {
+				id: existing._id,
+				accepted: true,
+				serverTime: now,
+				status: args.status,
+			};
 		}
 
 		const id = await ctx.db.insert("userBooks", {
@@ -196,7 +223,7 @@ export const updateStatus = mutation({
 			lastSectionIndex: 0,
 			...patch,
 		});
-		return { id, accepted: true, serverTime: now };
+		return { id, accepted: true, serverTime: now, status: args.status };
 	},
 });
 

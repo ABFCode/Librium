@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { api } from "../../convex/_generated/api";
 import { db, type LocalProgress } from "../lib/db";
+import { useSyncWakeSignal } from "./useSyncWakeSignal";
 
 // Local-first reading progress with LWW sync (ROADMAP Phase 4).
 //
@@ -30,7 +31,16 @@ type UseProgressSyncArgs = {
 };
 
 export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
+	// Pin this hook to the account database it mounted with. The exported `db`
+	// binding changes on account switch; an old in-flight response must never
+	// acknowledge or merge into the next account's database.
+	const syncDb = db;
 	const updateProgress = useMutation(api.userBooks.updateProgress);
+	const {
+		signal: syncWakeSignal,
+		retry: retrySync,
+		settled: settleSync,
+	} = useSyncWakeSignal();
 	const remote = useQuery(
 		api.userBooks.getUserBook,
 		canQuery ? { bookId: bookId as never } : "skip",
@@ -38,7 +48,7 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
 	// undefined = still loading; null = no local record.
 	const local = useLiveQuery(
 		async () =>
-			((await db.progress.get(bookId)) ?? null) as LocalProgress | null,
+			((await syncDb.progress.get(bookId)) ?? null) as LocalProgress | null,
 		[bookId],
 	);
 
@@ -114,46 +124,82 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
 		) {
 			return;
 		}
-		void db.progress.put(remoteRecord).catch(() => {});
-	}, [remoteRecord, local]);
+		void syncDb
+			.transaction("rw", syncDb.progress, async () => {
+				const live = await syncDb.progress.get(bookId);
+				if (
+					live?.dirty ||
+					(live && remoteRecord.syncedServerTime <= live.syncedServerTime)
+				) {
+					return;
+				}
+				await syncDb.progress.put(remoteRecord);
+			})
+			.catch(() => {});
+	}, [remoteRecord, local, bookId]);
 
 	// Push dirty local edits to the server (fires on edit and on reconnect).
-	const pushingRef = useRef(false);
+	const pushQueueRef = useRef<Promise<void>>(Promise.resolve());
 	useEffect(() => {
-		if (!canQuery || !local?.dirty || pushingRef.current) {
+		void syncWakeSignal; // reconnect/backoff trigger; durable row is re-read below
+		if (!canQuery || !local?.dirty) {
 			return;
 		}
-		pushingRef.current = true;
-		const editedAt = local.editedAt;
-		void updateProgress({
-			bookId: bookId as never,
-			lastSectionIndex: local.sectionIndex,
-			lastBlockIndex: local.blockIndex,
-			lastBlockOffset: local.blockOffset,
-			lastSectionFraction: local.sectionFraction ?? 0,
-			baseServerTime: local.syncedServerTime,
-		})
-			.then(async (result) => {
-				await db.progress
+		const pushPass = async () => {
+			const row = await syncDb.progress.get(bookId);
+			if (!row?.dirty) {
+				return;
+			}
+			const editedAt = row.editedAt;
+			try {
+				const result = await updateProgress({
+					bookId: bookId as never,
+					lastSectionIndex: row.sectionIndex,
+					lastBlockIndex: row.blockIndex,
+					lastBlockOffset: row.blockOffset,
+					lastSectionFraction: row.sectionFraction ?? 0,
+					baseServerTime: row.syncedServerTime,
+				});
+				await syncDb.progress
 					.where("bookId")
 					.equals(bookId)
 					.modify((p) => {
+						// A newer local edit is causally after this accepted write, so
+						// rebase it onto the returned server version while keeping it dirty.
+						// Accepted or rejected, this response proves the client has now
+						// observed the returned server version. Rebase any newer local edit.
+						p.syncedServerTime = Math.max(
+							p.syncedServerTime,
+							result.serverTime,
+						);
 						// Only clear dirty if no newer local edit happened meanwhile.
 						if (p.editedAt <= editedAt) {
-							p.dirty = 0;
-							if (result.accepted) {
-								p.syncedServerTime = result.serverTime;
+							if (!result.accepted) {
+								p.sectionIndex = result.lastSectionIndex;
+								p.blockIndex = result.lastBlockIndex ?? 0;
+								p.blockOffset = result.lastBlockOffset ?? 0;
+								p.sectionFraction = result.lastSectionFraction ?? 0;
+								p.editedAt = result.serverTime;
 							}
+							p.dirty = 0;
 						}
 					});
-			})
-			.catch(() => {
+				settleSync();
+			} catch {
 				// Offline or transient — retried on the next edit or reconnect.
-			})
-			.finally(() => {
-				pushingRef.current = false;
-			});
-	}, [canQuery, local, bookId, updateProgress]);
+				retrySync();
+			}
+		};
+		pushQueueRef.current = pushQueueRef.current.then(pushPass).catch(() => {});
+	}, [
+		canQuery,
+		local,
+		bookId,
+		updateProgress,
+		syncWakeSignal,
+		retrySync,
+		settleSync,
+	]);
 
 	const saveProgress = useCallback(
 		async (args: {
@@ -163,14 +209,14 @@ export function useProgressSync({ bookId, canQuery }: UseProgressSyncArgs) {
 			sectionFraction?: number;
 		}) => {
 			try {
-				const existing = await db.progress.get(bookId);
-				await db.progress.put({
+				const existing = await syncDb.progress.get(bookId);
+				await syncDb.progress.put({
 					bookId,
 					sectionIndex: args.sectionIndex,
 					blockIndex: args.blockIndex,
 					blockOffset: args.blockOffset,
 					sectionFraction: args.sectionFraction ?? 0,
-					editedAt: Date.now(),
+					editedAt: Math.max(Date.now(), (existing?.editedAt ?? 0) + 1),
 					dirty: 1,
 					syncedServerTime: existing?.syncedServerTime ?? 0,
 				});

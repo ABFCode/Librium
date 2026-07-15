@@ -106,6 +106,11 @@ const userSettings = defineTable({
 	theme: v.string(),
 	// Reading font: "sans" (default) or "serif". Optional for pre-existing rows.
 	fontFamily: v.optional(v.string()),
+	fontScaleUpdatedAt: v.optional(v.number()),
+	lineHeightUpdatedAt: v.optional(v.number()),
+	contentWidthUpdatedAt: v.optional(v.number()),
+	themeUpdatedAt: v.optional(v.number()),
+	fontFamilyUpdatedAt: v.optional(v.number()),
 	updatedAt: v.number(),
 }).index("by_user", ["userId"]);
 
@@ -117,9 +122,12 @@ const collections = defineTable({
 	name: v.string(),
 	clientKey: v.string(),
 	createdAt: v.number(),
+	// Immutable server version assigned when the collection was first created.
+	// An idempotent create retry returns this base, not a later rename version.
+	createdServerTime: v.optional(v.number()),
 	updatedAt: v.number(),
 	deletedAt: v.optional(v.number()),
-	// LWW clock for offline renames (device clock, same-user devices).
+	// Legacy device edit marker retained for old rows; never used for conflicts.
 	nameEditedAt: v.optional(v.number()),
 	// Server-issued version for collection names. nameEditedAt is legacy.
 	nameUpdatedAt: v.optional(v.number()),
@@ -151,15 +159,16 @@ const bookmarks = defineTable({
 	createdAt: v.number(),
 	// Sync (ROADMAP Phase 4): client-generated key for idempotent offline
 	// creates; deletedAt is a tombstone so deletes propagate instead of
-	// resurrecting on other devices. Compacted daily past a 90-day horizon
-	// (crons.ts → maintenance.compactTombstones).
+	// resurrecting on other devices. Tombstones remain until a future
+	// acknowledgement-based compactor can prove every device observed them.
 	clientKey: v.optional(v.string()),
 	updatedAt: v.optional(v.number()),
 	deletedAt: v.optional(v.number()),
 })
 	.index("by_user_book", ["userId", "bookId"])
 	.index("by_book", ["bookId"])
-	// For the compaction cron: range over tombstones without a table scan.
+	// Retained for future acknowledgement-based compaction. Age alone is never
+	// sufficient: a long-offline device could otherwise resurrect a deletion.
 	.index("by_deleted", ["deletedAt"]);
 
 export default defineSchema({

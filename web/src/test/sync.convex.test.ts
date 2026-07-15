@@ -111,6 +111,307 @@ describe("server-versioned progress conflicts", () => {
 		expect(row?.lastSectionIndex).toBe(15);
 		expect(row?.progressUpdatedAt).toBe(chapterSixteen.serverTime);
 	});
+
+	test("a missing base from an old client cannot bypass conflict checks", async () => {
+		const { as, bookId } = await seed();
+		const current = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 15,
+			baseServerTime: 0,
+		});
+		expect(current.accepted).toBe(true);
+
+		const staleOldClient = await as.mutation(api.userBooks.updateProgress, {
+			bookId,
+			lastSectionIndex: 0,
+		});
+		expect(staleOldClient.accepted).toBe(false);
+		expect(
+			(await as.query(api.userBooks.getUserBook, { bookId }))?.lastSectionIndex,
+		).toBe(15);
+	});
+
+	test("arbitrary interleaved progress and status writes obey their own causal versions", async () => {
+		await fc.assert(
+			fc.asyncProperty(
+				fc.array(
+					fc.record({
+						field: fc.constantFrom("progress", "status"),
+						stale: fc.boolean(),
+						value: fc.nat({ max: 200 }),
+					}),
+					{ minLength: 1, maxLength: 30 },
+				),
+				async (operations) => {
+					const { as, bookId } = await seed();
+					let progressVersion = 0;
+					let statusVersion = 0;
+					let expectedSection = 0;
+					let expectedStatus: "reading" | "finished" = "reading";
+					for (const operation of operations) {
+						if (operation.field === "progress") {
+							const base = operation.stale ? 0 : progressVersion;
+							const result = await as.mutation(api.userBooks.updateProgress, {
+								bookId,
+								lastSectionIndex: operation.value,
+								baseServerTime: base,
+							});
+							const shouldAccept = base >= progressVersion;
+							expect(result.accepted).toBe(shouldAccept);
+							if (shouldAccept) {
+								expect(result.serverTime).toBeGreaterThan(progressVersion);
+								progressVersion = result.serverTime;
+								expectedSection = operation.value;
+							}
+						} else {
+							const base = operation.stale ? 0 : statusVersion;
+							const value = operation.value % 2 === 0 ? "reading" : "finished";
+							const result = await as.mutation(api.userBooks.updateStatus, {
+								bookId,
+								status: value,
+								baseServerTime: base,
+							});
+							const shouldAccept = base >= statusVersion;
+							expect(result.accepted).toBe(shouldAccept);
+							if (shouldAccept) {
+								expect(result.serverTime).toBeGreaterThan(statusVersion);
+								statusVersion = result.serverTime;
+								expectedStatus = value;
+							}
+						}
+					}
+					const row = await as.query(api.userBooks.getUserBook, { bookId });
+					expect(row?.lastSectionIndex).toBe(expectedSection);
+					expect(row?.status ?? "reading").toBe(expectedStatus);
+				},
+			),
+			{ numRuns: 100 },
+		);
+	});
+});
+
+describe("collection membership idempotency", () => {
+	test("concurrent device keys create one live membership per book", async () => {
+		const { as, bookId } = await seed();
+		const collection = await as.mutation(api.collections.createCollection, {
+			name: "Shared",
+			clientKey: "collection-key",
+		});
+		const first = await as.mutation(api.collections.addBookMembership, {
+			collectionId: collection.id,
+			bookId,
+			clientKey: "device-a-key",
+		});
+		const second = await as.mutation(api.collections.addBookMembership, {
+			collectionId: collection.id,
+			bookId,
+			clientKey: "device-b-key",
+		});
+		expect(second?.id).toBe(first?.id);
+		const memberships = await as.query(
+			api.collections.listMembershipsByUser,
+			{},
+		);
+		expect(
+			memberships.filter(
+				(row) => row.bookId === bookId && row.deletedAt === undefined,
+			),
+		).toHaveLength(1);
+	});
+
+	test("legacy endpoints keep their id shape and cannot resurrect versioned tombstones", async () => {
+		const { as, bookId } = await seed();
+		const collection = await as.mutation(api.collections.createCollection, {
+			name: "Shared",
+			clientKey: "collection-key",
+		});
+		const legacyId = await as.mutation(api.collections.addBookToCollection, {
+			collectionId: collection.id,
+			bookId,
+			clientKey: "legacy-key",
+		});
+		expect(typeof legacyId).toBe("string");
+		if (!legacyId) throw new Error("legacy add failed");
+
+		const current = (
+			await as.query(api.collections.listMembershipsByUser, {})
+		).find((row) => row._id === legacyId);
+		if (!current) throw new Error("membership missing");
+		const removed = await as.mutation(api.collections.removeBookMembership, {
+			membershipId: current._id,
+			baseServerTime: current.updatedAt,
+		});
+		expect(removed?.deleted).toBe(true);
+
+		const retryId = await as.mutation(api.collections.addBookToCollection, {
+			collectionId: collection.id,
+			bookId,
+			clientKey: "legacy-key",
+		});
+		expect(retryId).toBe(legacyId);
+		const after = (
+			await as.query(api.collections.listMembershipsByUser, {})
+		).find((row) => row._id === legacyId);
+		expect(after?.deletedAt).toBeDefined();
+	});
+
+	test("a delayed add cannot resurrect a newer remove", async () => {
+		const { as, bookId } = await seed();
+		const collection = await as.mutation(api.collections.createCollection, {
+			name: "Shared",
+			clientKey: "collection-key",
+		});
+		const added = await as.mutation(api.collections.addBookMembership, {
+			collectionId: collection.id,
+			bookId,
+			clientKey: "device-a-key",
+			baseServerTime: 0,
+		});
+		expect(added?.accepted).toBe(true);
+		if (!added) throw new Error("collection disappeared");
+		const removed = await as.mutation(api.collections.removeBookMembership, {
+			membershipId: added.id,
+			baseServerTime: added.serverTime,
+		});
+		expect(removed?.accepted).toBe(true);
+
+		const delayedAdd = await as.mutation(api.collections.addBookMembership, {
+			collectionId: collection.id,
+			bookId,
+			clientKey: "offline-device-key",
+			baseServerTime: added.serverTime,
+		});
+		expect(delayedAdd?.accepted).toBe(false);
+		expect(delayedAdd?.deleted).toBe(true);
+	});
+
+	test("an observed tombstone can be intentionally re-added and defeats a stale remove", async () => {
+		const { as, bookId } = await seed();
+		const collection = await as.mutation(api.collections.createCollection, {
+			name: "Shared",
+			clientKey: "collection-key",
+		});
+		const added = await as.mutation(api.collections.addBookMembership, {
+			collectionId: collection.id,
+			bookId,
+			clientKey: "membership-key",
+			baseServerTime: 0,
+		});
+		if (!added) throw new Error("collection disappeared");
+		const removed = await as.mutation(api.collections.removeBookMembership, {
+			membershipId: added.id,
+			baseServerTime: added.serverTime,
+		});
+		if (!removed) throw new Error("membership disappeared");
+		const readded = await as.mutation(api.collections.addBookMembership, {
+			collectionId: collection.id,
+			bookId,
+			clientKey: "membership-key",
+			baseServerTime: removed.serverTime,
+		});
+		expect(readded?.accepted).toBe(true);
+		expect(readded?.deleted).toBe(false);
+
+		const staleRemove = await as.mutation(
+			api.collections.removeBookMembership,
+			{
+				membershipId: added.id,
+				baseServerTime: added.serverTime,
+			},
+		);
+		expect(staleRemove?.accepted).toBe(false);
+		expect(staleRemove?.deleted).toBe(false);
+	});
+});
+
+describe("collection rename acknowledgement loss", () => {
+	test("an idempotent create retry cannot borrow a newer rename version", async () => {
+		const { as } = await seed();
+		const created = await as.mutation(api.collections.createCollection, {
+			name: "Original",
+			clientKey: "stable-key",
+		});
+		const current = await as.mutation(api.collections.renameCollection, {
+			collectionId: created.id,
+			name: "Current name",
+			baseServerTime: created.serverTime,
+		});
+		expect(current.accepted).toBe(true);
+
+		// Device A lost the create response and retries its old request. The
+		// returned base must still describe creation, not Device B's later rename.
+		const retriedCreate = await as.mutation(api.collections.createCollection, {
+			name: "Original",
+			clientKey: "stable-key",
+		});
+		expect(retriedCreate.serverTime).toBe(created.serverTime);
+		const staleRename = await as.mutation(api.collections.renameCollection, {
+			collectionId: created.id,
+			name: "Stale device name",
+			baseServerTime: retriedCreate.serverTime,
+		});
+		expect(staleRename.accepted).toBe(false);
+		const rows = await as.query(api.collections.listByUser, {});
+		expect(rows[0]?.name).toBe("Current name");
+	});
+});
+
+describe("field-versioned reader settings", () => {
+	test("the first concurrent edits to different fields both survive", async () => {
+		const { as } = await seed();
+		const theme = await as.mutation(api.userSettings.upsert, {
+			theme: "sepia",
+			baseVersions: { theme: 0 },
+		});
+		const font = await as.mutation(api.userSettings.upsert, {
+			fontFamily: "serif",
+			baseVersions: { fontFamily: 0 },
+		});
+		expect(theme.accepted.theme).toBe(true);
+		expect(font.accepted.fontFamily).toBe(true);
+		const saved = await as.query(api.userSettings.getByUser, {});
+		expect(saved?.theme).toBe("sepia");
+		expect(saved?.fontFamily).toBe("serif");
+	});
+
+	test("concurrent edits to different fields both survive", async () => {
+		const { as } = await seed();
+		const initial = await as.mutation(api.userSettings.upsert, {
+			theme: "night",
+			fontScale: 0,
+		});
+		const theme = await as.mutation(api.userSettings.upsert, {
+			theme: "sepia",
+			baseVersions: { theme: initial.serverVersions.theme },
+		});
+		const font = await as.mutation(api.userSettings.upsert, {
+			fontScale: 2,
+			baseVersions: { fontScale: initial.serverVersions.fontScale },
+		});
+		expect(theme.accepted.theme).toBe(true);
+		expect(font.accepted.fontScale).toBe(true);
+		const saved = await as.query(api.userSettings.getByUser, {});
+		expect(saved?.theme).toBe("sepia");
+		expect(saved?.fontScale).toBe(2);
+	});
+
+	test("a stale edit cannot overwrite a newer value of the same field", async () => {
+		const { as } = await seed();
+		const initial = await as.mutation(api.userSettings.upsert, {
+			theme: "night",
+		});
+		const current = await as.mutation(api.userSettings.upsert, {
+			theme: "paper",
+			baseVersions: { theme: initial.serverVersions.theme },
+		});
+		const stale = await as.mutation(api.userSettings.upsert, {
+			theme: "sepia",
+			baseVersions: { theme: initial.serverVersions.theme },
+		});
+		expect(current.accepted.theme).toBe(true);
+		expect(stale.accepted.theme).toBe(false);
+		expect(stale.settings.theme).toBe("paper");
+	});
 });
 
 describe("bookmark tombstones never resurrect", () => {

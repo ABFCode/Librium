@@ -26,6 +26,7 @@ import type * as metadataProviders from "../metadataProviders.js";
 import type * as quota from "../quota.js";
 import type * as r2 from "../r2.js";
 import type * as seed from "../seed.js";
+import type * as syncVersion from "../syncVersion.js";
 import type * as userBooks from "../userBooks.js";
 import type * as userSettings from "../userSettings.js";
 import type * as users from "../users.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   quota: typeof quota;
   r2: typeof r2;
   seed: typeof seed;
+  syncVersion: typeof syncVersion;
   userBooks: typeof userBooks;
   userSettings: typeof userSettings;
   users: typeof users;

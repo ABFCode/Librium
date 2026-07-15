@@ -1,6 +1,54 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getViewerUserId, requireViewerUserId } from "./authHelpers";
+import { nextServerVersion, observedServerVersion } from "./syncVersion";
+
+const fields = [
+	"fontScale",
+	"lineHeight",
+	"contentWidth",
+	"theme",
+	"fontFamily",
+] as const;
+type SettingField = (typeof fields)[number];
+type SettingsValues = {
+	fontScale: number;
+	lineHeight: number;
+	contentWidth: number;
+	theme: string;
+	fontFamily: string;
+};
+type SettingsVersions = Record<SettingField, number>;
+type SettingsAccepted = Record<SettingField, boolean>;
+
+const defaults: SettingsValues = {
+	fontScale: 0,
+	lineHeight: 1.7,
+	contentWidth: 720,
+	theme: "night",
+	fontFamily: "sans",
+};
+
+const versionKeys = {
+	fontScale: "fontScaleUpdatedAt",
+	lineHeight: "lineHeightUpdatedAt",
+	contentWidth: "contentWidthUpdatedAt",
+	theme: "themeUpdatedAt",
+	fontFamily: "fontFamilyUpdatedAt",
+} as const;
+
+const clamp = (value: number, min: number, max: number) =>
+	Math.min(Math.max(value, min), max);
+
+const normalize = {
+	fontScale: (value: number) => clamp(value, -2, 10),
+	lineHeight: (value: number) => clamp(value, 1.4, 2.4),
+	contentWidth: (value: number) => clamp(value, 520, 960),
+	theme: (value: string) =>
+		new Set(["night", "paper", "sepia"]).has(value) ? value : "night",
+	fontFamily: (value: string) =>
+		value === "serif" || value === "sans" ? value : "sans",
+};
 
 export const getByUser = query({
 	args: {},
@@ -18,49 +66,107 @@ export const getByUser = query({
 
 export const upsert = mutation({
 	args: {
-		fontScale: v.number(),
-		lineHeight: v.number(),
-		contentWidth: v.number(),
-		theme: v.string(),
+		fontScale: v.optional(v.number()),
+		lineHeight: v.optional(v.number()),
+		contentWidth: v.optional(v.number()),
+		theme: v.optional(v.string()),
 		fontFamily: v.optional(v.string()),
+		baseVersions: v.optional(
+			v.object({
+				fontScale: v.optional(v.number()),
+				lineHeight: v.optional(v.number()),
+				contentWidth: v.optional(v.number()),
+				theme: v.optional(v.number()),
+				fontFamily: v.optional(v.number()),
+			}),
+		),
 	},
 	handler: async (ctx, args) => {
 		const userId = await requireViewerUserId(ctx);
-		const clamp = (value: number, min: number, max: number) =>
-			Math.min(Math.max(value, min), max);
-		const allowedThemes = new Set(["night", "paper", "sepia"]);
-		// fontSize = 16 + 2 * fontScale (half-steps allowed) → 12px–36px.
-		const fontScale = clamp(args.fontScale, -2, 10);
-		const lineHeight = clamp(args.lineHeight, 1.4, 2.4);
-		const contentWidth = clamp(args.contentWidth, 520, 960);
-		const theme = allowedThemes.has(args.theme) ? args.theme : "night";
 		const existing = await ctx.db
 			.query("userSettings")
 			.withIndex("by_user", (q) => q.eq("userId", userId))
 			.first();
-		// Preserve the stored value when the arg is omitted (e.g. a stale client
-		// bundle) — defaulting would silently reset the preference.
-		const fontFamily =
-			args.fontFamily === "serif" || args.fontFamily === "sans"
-				? args.fontFamily
-				: (existing?.fontFamily ?? "sans");
 
-		const now = Date.now();
-		const payload = {
-			userId,
-			fontScale,
-			lineHeight,
-			contentWidth,
-			theme,
-			fontFamily,
-			updatedAt: now,
-		};
-
-		if (existing) {
-			await ctx.db.patch(existing._id, payload);
-			return existing._id;
+		if (!existing) {
+			const now = nextServerVersion(0);
+			const settings: SettingsValues = {
+				fontScale: normalize.fontScale(args.fontScale ?? defaults.fontScale),
+				lineHeight: normalize.lineHeight(
+					args.lineHeight ?? defaults.lineHeight,
+				),
+				contentWidth: normalize.contentWidth(
+					args.contentWidth ?? defaults.contentWidth,
+				),
+				theme: normalize.theme(args.theme ?? defaults.theme),
+				fontFamily: normalize.fontFamily(
+					args.fontFamily ?? defaults.fontFamily,
+				),
+			};
+			const serverVersions = Object.fromEntries(
+				fields.map((field) => [field, args[field] === undefined ? 0 : now]),
+			) as SettingsVersions;
+			const accepted = Object.fromEntries(
+				fields.map((field) => [field, args[field] !== undefined]),
+			) as SettingsAccepted;
+			await ctx.db.insert("userSettings", {
+				userId,
+				...settings,
+				fontScaleUpdatedAt: serverVersions.fontScale,
+				lineHeightUpdatedAt: serverVersions.lineHeight,
+				contentWidthUpdatedAt: serverVersions.contentWidth,
+				themeUpdatedAt: serverVersions.theme,
+				fontFamilyUpdatedAt: serverVersions.fontFamily,
+				updatedAt: now,
+			});
+			return { accepted, serverVersions, settings };
 		}
 
-		return await ctx.db.insert("userSettings", payload);
+		const settings: SettingsValues = {
+			fontScale: existing.fontScale,
+			lineHeight: existing.lineHeight,
+			contentWidth: existing.contentWidth,
+			theme: existing.theme,
+			fontFamily: existing.fontFamily ?? "sans",
+		};
+		const serverVersions = Object.fromEntries(
+			fields.map((field) => [
+				field,
+				existing[versionKeys[field]] ?? existing.updatedAt,
+			]),
+		) as SettingsVersions;
+		const accepted = Object.fromEntries(
+			fields.map((field) => [field, false]),
+		) as SettingsAccepted;
+		const patch: Record<string, string | number> = {};
+
+		const apply = <K extends SettingField>(
+			field: K,
+			value: SettingsValues[K] | undefined,
+		) => {
+			if (value === undefined) {
+				return;
+			}
+			const currentVersion = serverVersions[field];
+			if (observedServerVersion(args.baseVersions?.[field]) < currentVersion) {
+				return;
+			}
+			const normalized = normalize[field](value as never) as SettingsValues[K];
+			const nextVersion = nextServerVersion(currentVersion);
+			settings[field] = normalized;
+			serverVersions[field] = nextVersion;
+			accepted[field] = true;
+			patch[field] = normalized;
+			patch[versionKeys[field]] = nextVersion;
+		};
+
+		for (const field of fields) {
+			apply(field, args[field] as never);
+		}
+		if (Object.keys(patch).length > 0) {
+			patch.updatedAt = Math.max(...Object.values(serverVersions));
+			await ctx.db.patch(existing._id, patch);
+		}
+		return { accepted, serverVersions, settings };
 	},
 });
