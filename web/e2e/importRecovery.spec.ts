@@ -16,6 +16,7 @@ test("failed cloud backup survives reload, retries, and deduplicates", async ({
 	page,
 }) => {
 	test.setTimeout(120_000);
+	let failedUploadAttempts = 0;
 
 	await page.goto("/sign-up");
 	await page.getByPlaceholder("Name").fill("Recovery Reader");
@@ -27,6 +28,7 @@ test("failed cloud backup survives reload, retries, and deduplicates", async ({
 	// Fail the direct-to-R2 PUT while leaving Convex/auth traffic untouched.
 	await page.route("**/*", async (route) => {
 		if (route.request().method() === "PUT") {
+			failedUploadAttempts += 1;
 			await route.abort("failed");
 			return;
 		}
@@ -47,10 +49,21 @@ test("failed cloud backup survives reload, retries, and deduplicates", async ({
 		timeout: 15_000,
 	});
 	await expect(page.getByText(/cloud backup pending/)).toBeVisible();
+	const attemptsBeforeReload = failedUploadAttempts;
 	await page.reload();
+	// A fresh library mount retries automatically. Wait for that attempt to
+	// finish under the simulated outage before restoring the network, otherwise
+	// the automatic retry can succeed and remove the manual-retry button while
+	// Playwright is moving to click it.
+	await expect
+		.poll(() => failedUploadAttempts, { timeout: 15_000 })
+		.toBeGreaterThan(attemptsBeforeReload);
 	await expect(page.getByText(/cloud backup pending/)).toBeVisible({
 		timeout: 15_000,
 	});
+	await expect(
+		page.getByRole("button", { name: "Retry backup" }),
+	).toBeEnabled();
 
 	// Restore the upload path and retry the exact staged Blob/book ID.
 	await page.unroute("**/*");
