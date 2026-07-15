@@ -2,6 +2,7 @@ import { useAction } from "convex/react";
 import { useMemo, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { MetadataCandidate } from "../../convex/metadataProviders";
+import { safeExternalHref } from "../lib/externalUrl";
 import {
 	type DiffableCurrent,
 	type DiffField,
@@ -53,6 +54,7 @@ export const MetadataFetchPanel = ({
 		() => (selected ? diffCandidate(current, selected) : []),
 		[selected, current],
 	);
+	const selectedSourceHref = safeExternalHref(selected?.sourceUrl);
 	const coverProposed = Boolean(selected?.coverUrl);
 
 	const search = async () => {
@@ -168,10 +170,10 @@ export const MetadataFetchPanel = ({
 					<div className="flex items-center justify-between">
 						<span className="text-xs text-[var(--muted)]">
 							{`From ${SOURCE_LABELS[selected.source]}`}
-							{selected.sourceUrl ? (
+							{selectedSourceHref ? (
 								<a
 									className="ml-2 inline-flex items-center gap-1 text-[var(--accent)] hover:underline"
-									href={selected.sourceUrl}
+									href={selectedSourceHref}
 									target="_blank"
 									rel="noreferrer"
 								>

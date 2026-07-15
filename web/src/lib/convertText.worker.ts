@@ -14,6 +14,9 @@ type WorkerScope = {
 
 const scope = self as unknown as WorkerScope;
 
+// Dedicated workers are reachable only through the Worker object held by the
+// creating page. This is not cross-window postMessage and therefore has no
+// untrusted origin to allowlist.
 scope.onmessage = (event) => {
 	try {
 		const out = convertTextToEpub(event.data.bytes, event.data.fileName);

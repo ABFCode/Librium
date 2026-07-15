@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { MetadataCandidate } from "../../convex/metadataProviders";
 import { db } from "../lib/db";
+import { safeExternalHref } from "../lib/externalUrl";
 import type { DiffField } from "../lib/metadataDiff";
 import {
 	dataUrlToBlob,
@@ -99,6 +100,8 @@ export const EditBookDialog = ({
 	const [pastedHtml, setPastedHtml] = useState("");
 	const [nuNotice, setNuNotice] = useState<string | null>(null);
 	const sourceIsNovelUpdates = isNovelUpdatesUrl(form.sourceUrl.trim());
+	const sourceHref = safeExternalHref(form.sourceUrl);
+	const sourceUrlInvalid = form.sourceUrl.trim() !== "" && sourceHref === null;
 
 	// Stable (setters only) so the window-level paste listener can call it.
 	const adoptNuHtml = useCallback((html: string, sourceUrl: string) => {
@@ -246,7 +249,12 @@ export const EditBookDialog = ({
 		pendingCover !== null ||
 		pendingSubjects !== null;
 	const titleInvalid = form.title.trim() === "";
-	const canSave = isAuthenticated && hasChanges && !titleInvalid && !isSaving;
+	const canSave =
+		isAuthenticated &&
+		hasChanges &&
+		!titleInvalid &&
+		!sourceUrlInvalid &&
+		!isSaving;
 
 	const pickCover = (file: File | undefined) => {
 		if (!file) {
@@ -461,11 +469,11 @@ export const EditBookDialog = ({
 					{field("Language", "language", "en")}
 					{field("Source page URL", "sourceUrl", "https://…")}
 				</div>
-				{form.sourceUrl.trim() ? (
+				{sourceHref ? (
 					<div className="flex flex-wrap items-center gap-3">
 						<a
 							className="inline-flex items-center gap-1.5 text-xs text-[var(--accent)] hover:underline"
-							href={form.sourceUrl.trim()}
+							href={sourceHref}
 							target="_blank"
 							rel="noreferrer"
 						>
@@ -483,6 +491,11 @@ export const EditBookDialog = ({
 							</button>
 						) : null}
 					</div>
+				) : null}
+				{sourceUrlInvalid ? (
+					<p className="text-xs text-[var(--danger)]">
+						Source page must be a valid https:// URL.
+					</p>
 				) : null}
 				{nuNotice ? (
 					<p className="text-xs text-[var(--muted)]">{nuNotice}</p>

@@ -13,6 +13,9 @@ type WorkerScope = {
 
 const scope = self as unknown as WorkerScope;
 
+// This is a DedicatedWorkerGlobalScope, not a Window message listener. Only
+// the page that owns this Worker object can reach it; cross-origin windows do
+// not receive a reference and worker MessageEvents have no navigable origin.
 scope.onmessage = (event) => {
 	try {
 		const payload = parseEpubToPayload(event.data);

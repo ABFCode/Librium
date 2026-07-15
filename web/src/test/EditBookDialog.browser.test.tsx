@@ -112,6 +112,29 @@ describe("EditBookDialog", () => {
 		await expect.element(save).toBeDisabled();
 	});
 
+	it("never renders or saves an unsafe source-page link", async () => {
+		const screen = await render(
+			<EditBookDialog book={book} onClose={vi.fn()} />,
+		);
+		const source = screen.getByLabelText("Source page URL");
+		const save = screen.getByRole("button", { name: "Save" });
+
+		await source.fill("javascript:alert(document.domain)");
+		await expect
+			.element(screen.getByText("Source page must be a valid https:// URL."))
+			.toBeVisible();
+		await expect
+			.element(screen.getByRole("link", { name: "Open source page" }))
+			.not.toBeInTheDocument();
+		await expect.element(save).toBeDisabled();
+
+		await source.fill("https://example.com/books/clockwork");
+		await expect
+			.element(screen.getByRole("link", { name: "Open source page" }))
+			.toHaveAttribute("href", "https://example.com/books/clockwork");
+		await expect.element(save).toBeEnabled();
+	});
+
 	it("applies fetched fields into the form via the diff preview, respecting unchecked rows", async () => {
 		mocks.fetchCandidates.mockResolvedValue([
 			{

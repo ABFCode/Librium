@@ -32,6 +32,21 @@ export const updateBookMetadata = mutation({
 		if (title !== undefined && title.trim().length === 0) {
 			throw new Error("Title cannot be empty.");
 		}
+		if (rest.sourceUrl) {
+			try {
+				const sourceUrl = new URL(rest.sourceUrl.trim());
+				if (
+					sourceUrl.protocol !== "https:" ||
+					sourceUrl.username ||
+					sourceUrl.password
+				) {
+					throw new Error("unsafe source URL");
+				}
+				rest.sourceUrl = sourceUrl.href;
+			} catch {
+				throw new Error("Source page must be a valid HTTPS URL.");
+			}
+		}
 		const patch: Record<string, unknown> = {};
 		if (title !== undefined) {
 			patch.title = title.trim();
