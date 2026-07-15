@@ -90,13 +90,17 @@ describe("EditBookDialog", () => {
 		await expect.poll(() => onClose.mock.calls.length).toBe(1);
 	});
 
-	it("clears a field with an emptied input (null), and blocks empty titles", async () => {
+	it("clears a blank field as null and blocks blank titles", async () => {
 		const screen = await render(
 			<EditBookDialog book={book} onClose={vi.fn()} />,
 		);
 
-		await screen.getByLabelText("Author").fill("");
-		await screen.getByRole("button", { name: "Save" }).click();
+		const author = screen.getByLabelText("Author");
+		await author.fill(" ");
+		await expect.element(author).toHaveValue(" ");
+		const save = screen.getByRole("button", { name: "Save" });
+		await expect.element(save).toBeEnabled();
+		await save.click();
 		await expect.poll(() => mocks.updateBookMetadata.mock.calls.length).toBe(1);
 		expect(mocks.updateBookMetadata).toHaveBeenCalledWith({
 			bookId: "book1",
@@ -104,8 +108,7 @@ describe("EditBookDialog", () => {
 		});
 
 		mocks.updateBookMetadata.mockClear();
-		await screen.getByLabelText("Title").fill("");
-		const save = screen.getByRole("button", { name: "Save" });
+		await screen.getByLabelText("Title").fill(" ");
 		await expect.element(save).toBeDisabled();
 	});
 

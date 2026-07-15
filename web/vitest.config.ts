@@ -8,6 +8,12 @@ export default defineConfig({
 		tsconfigPaths: true,
 		alias: [
 			{
+				find: "virtual:pwa-register",
+				replacement: fileURLToPath(
+					new URL("./src/test/pwaRegisterMock.ts", import.meta.url),
+				),
+			},
+			{
 				find: /^@\//,
 				replacement: `${fileURLToPath(new URL("./src", import.meta.url))}/`,
 			},
@@ -16,8 +22,14 @@ export default defineConfig({
 	},
 	optimizeDeps: {
 		include: [
+			"@convex-dev/better-auth/react",
+			"@tanstack/react-devtools",
+			"@tanstack/react-router",
+			"@tanstack/react-router-devtools",
+			"@tanstack/react-virtual",
 			"react",
 			"react-dom",
+			"react-dom/client",
 			"react/jsx-runtime",
 			"react/jsx-dev-runtime",
 			"vitest-browser-react",
