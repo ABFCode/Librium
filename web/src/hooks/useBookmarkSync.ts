@@ -196,9 +196,10 @@ export function useBookmarkSync({ bookId, canQuery }: UseBookmarkSyncArgs) {
 			offset: number;
 			label?: string;
 		}) => {
+			const clientKey = crypto.randomUUID();
 			try {
 				await syncDb.bookmarks.put({
-					clientKey: crypto.randomUUID(),
+					clientKey,
 					bookId,
 					sectionIndex: args.sectionIndex,
 					blockIndex: args.blockIndex,
@@ -207,8 +208,10 @@ export function useBookmarkSync({ bookId, canQuery }: UseBookmarkSyncArgs) {
 					createdAt: Date.now(),
 					dirty: 1,
 				});
+				return clientKey;
 			} catch {
 				// IndexedDB unavailable — nothing durable to write.
+				return null;
 			}
 		},
 		[bookId],
@@ -218,7 +221,7 @@ export function useBookmarkSync({ bookId, canQuery }: UseBookmarkSyncArgs) {
 		try {
 			const row = await syncDb.bookmarks.get(clientKey);
 			if (!row) {
-				return;
+				return false;
 			}
 			// Tombstone locally; the push effect propagates it. (Rows the server
 			// never saw are settled by the merge pass.)
@@ -226,8 +229,10 @@ export function useBookmarkSync({ bookId, canQuery }: UseBookmarkSyncArgs) {
 				deletedAt: Date.now(),
 				dirty: 1,
 			});
+			return true;
 		} catch {
 			// IndexedDB unavailable.
+			return false;
 		}
 	}, []);
 

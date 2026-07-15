@@ -205,14 +205,48 @@ test("mobile reader has deterministic chrome and true chapter starts", async ({
 		searchGeometry.topbarBottom,
 	);
 
-	// Bookmarking opens the bookmark list. Choosing the saved location closes
-	// it, while the primary Contents control always reopens on Chapters.
-	page.once("dialog", (dialog) => dialog.accept("Search location"));
-	await page.locator('.reader-topbar button[data-tooltip="Bookmark"]').click();
-	await expect(page.locator(".reader-drawer")).toHaveClass(/is-open/);
+	// Bookmarking is an immediate, non-blocking toggle. Labels are an optional
+	// secondary edit inside the bookmark list; no native browser prompt appears.
+	let bookmarkDialogCount = 0;
+	page.on("dialog", (dialog) => {
+		bookmarkDialogCount += 1;
+		void dialog.dismiss();
+	});
+	const bookmarkButton = page.locator(".reader-bookmark-button");
+	await expect(bookmarkButton).toHaveAttribute("aria-pressed", "false");
+	await bookmarkButton.click();
+	await expect(page.locator(".reader-bookmark-notice")).toHaveText(
+		/Bookmark added/,
+	);
+	await expect(page.locator(".reader-drawer")).not.toHaveClass(/is-open/);
+	await expect(bookmarkButton).toHaveAttribute("aria-pressed", "true");
+	await bookmarkButton.click();
+	await expect(page.locator(".reader-bookmark-notice")).toHaveText(
+		/Bookmark removed/,
+	);
+	await expect(bookmarkButton).toHaveAttribute("aria-pressed", "false");
+	await bookmarkButton.click();
+	await expect(bookmarkButton).toHaveAttribute("aria-pressed", "true");
+	expect(bookmarkDialogCount).toBe(0);
+
+	await topContents.click();
+	await page.getByRole("button", { name: "Bookmarks", exact: true }).click();
 	await expect(
 		page.getByRole("button", { name: "Bookmarks", exact: true }),
 	).toHaveClass(/is-active/);
+	await page
+		.getByRole("button", { name: "Edit bookmark label", exact: true })
+		.click();
+	const bookmarkLabel = page.getByLabel("Bookmark label (optional)");
+	await expect(bookmarkLabel).toBeFocused();
+	await bookmarkLabel.fill("Search location");
+	await page.getByRole("button", { name: "Save", exact: true }).click();
+	await expect(
+		page.getByText("Search location", { exact: true }),
+	).toBeVisible();
+	await expect(page.locator(".reader-bookmark-notice")).toHaveText(
+		/Bookmark renamed/,
+	);
 	await page
 		.locator('.reader-drawer [role="button"].surface-soft')
 		.first()

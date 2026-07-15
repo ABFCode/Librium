@@ -41,15 +41,18 @@ describe("useBookmarkSync in-flight operations", () => {
 			useBookmarkSync({ bookId: "book_a", canQuery: true }),
 		);
 
-		await result.current.createBookmark({
+		const clientKey = await result.current.createBookmark({
 			sectionIndex: 1,
 			blockIndex: 2,
 			offset: 0.25,
 		});
+		expect(clientKey).toEqual(expect.any(String));
 		await expect.poll(() => mocks.createBookmark.mock.calls.length).toBe(1);
 		const local = await db.bookmarks.toCollection().first();
 		expect(local).toBeDefined();
-		await result.current.deleteBookmark(local?.clientKey ?? "missing");
+		expect(
+			await result.current.deleteBookmark(local?.clientKey ?? "missing"),
+		).toBe(true);
 		resolveCreate("bookmark_1");
 
 		await expect.poll(() => mocks.deleteBookmark.mock.calls.length).toBe(1);

@@ -60,6 +60,42 @@
 		color: var(--muted);
 	}
 
+	.reader-bookmark-button.is-active svg {
+		fill: currentColor;
+	}
+
+	.reader-bookmark-notice {
+		position: fixed;
+		left: 50%;
+		bottom: 1.25rem;
+		z-index: 60;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		max-width: calc(100vw - 2rem);
+		padding: 0.65rem 0.9rem;
+		border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--outline));
+		border-radius: 999px;
+		background: color-mix(in srgb, var(--surface-3) 94%, transparent);
+		box-shadow: var(--shadow-soft);
+		color: var(--ink);
+		font-size: 0.8rem;
+		white-space: nowrap;
+		pointer-events: none;
+		transform: translateX(-50%);
+	}
+
+	.reader-bookmark-notice.is-error {
+		border-color: color-mix(in srgb, var(--danger) 45%, var(--outline));
+		color: var(--danger);
+	}
+
+	@media (max-width: 599px), (pointer: coarse) and (max-width: 899px) {
+		.reader-bookmark-notice {
+			bottom: calc(4.75rem + var(--reader-safe-bottom-max));
+		}
+	}
+
 	.reader-content {
 		flex: 1;
 		min-height: 0;

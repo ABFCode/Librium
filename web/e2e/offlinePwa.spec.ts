@@ -81,7 +81,10 @@ test("production PWA cold-starts the library and reader offline", async ({
 
 	const target = reader.locator('[data-chunk-index="2"]');
 	await target.scrollIntoViewIfNeeded();
-	await offlinePage.locator('button[data-tooltip="Bookmark"]').click();
+	await offlinePage.locator(".reader-bookmark-button").click();
+	await expect(offlinePage.locator(".reader-bookmark-notice")).toHaveText(
+		/Bookmark added/,
+	);
 	await offlinePage.waitForTimeout(1_200);
 
 	await context.setOffline(false);

@@ -165,8 +165,21 @@ test("two devices converge across settings, bookmark deletes, and stale collecti
 
 	// A bookmark created on one device appears on the other; deleting there
 	// must propagate back without resurrection after a reload.
-	deviceA.once("dialog", (dialog) => dialog.accept("Cross-device marker"));
-	await deviceA.locator('button[data-tooltip="Bookmark"]').click();
+	await deviceA.locator(".reader-bookmark-button").click();
+	await expect(deviceA.locator(".reader-bookmark-notice")).toHaveText(
+		/Bookmark added/,
+	);
+	await openBookmarks(deviceA);
+	await deviceA
+		.getByRole("button", { name: "Edit bookmark label", exact: true })
+		.click();
+	await deviceA
+		.getByLabel("Bookmark label (optional)")
+		.fill("Cross-device marker");
+	await deviceA.getByRole("button", { name: "Save", exact: true }).click();
+	await expect(
+		deviceA.getByText("Cross-device marker", { exact: true }),
+	).toBeVisible();
 	await openBookmarks(deviceB);
 	await expect(
 		deviceB.getByText("Cross-device marker", { exact: true }),

@@ -24,6 +24,7 @@ import {
 	db,
 	deleteLocalBook,
 	getLocalBlocks,
+	type LocalBookmark,
 	localSectionKey,
 	PARSER_VERSION,
 } from "../lib/db";
@@ -195,6 +196,52 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		bookId,
 		canQuery,
 	});
+	const [visibleBookmarkAnchor, setVisibleBookmarkAnchor] = useState<{
+		sectionIndex: number;
+		blockIndex: number;
+	} | null>(null);
+	const [bookmarkActionPending, setBookmarkActionPending] = useState(false);
+	const [editingBookmarkKey, setEditingBookmarkKey] = useState<string | null>(
+		null,
+	);
+	const [bookmarkLabelDraft, setBookmarkLabelDraft] = useState("");
+	const bookmarkLabelInputRef = useRef<HTMLInputElement | null>(null);
+	const [bookmarkNotice, setBookmarkNotice] = useState<{
+		id: number;
+		message: string;
+		kind: "success" | "error";
+	} | null>(null);
+	const bookmarkNoticeTimerRef = useRef<number | null>(null);
+	const showBookmarkNotice = useCallback(
+		(message: string, kind: "success" | "error" = "success") => {
+			if (bookmarkNoticeTimerRef.current !== null) {
+				window.clearTimeout(bookmarkNoticeTimerRef.current);
+			}
+			setBookmarkNotice({ id: Date.now(), message, kind });
+			bookmarkNoticeTimerRef.current = window.setTimeout(() => {
+				bookmarkNoticeTimerRef.current = null;
+				setBookmarkNotice(null);
+			}, 2_200);
+		},
+		[],
+	);
+	useEffect(
+		() => () => {
+			if (bookmarkNoticeTimerRef.current !== null) {
+				window.clearTimeout(bookmarkNoticeTimerRef.current);
+			}
+		},
+		[],
+	);
+	useEffect(() => {
+		if (!editingBookmarkKey) {
+			return;
+		}
+		const frame = window.requestAnimationFrame(() => {
+			bookmarkLabelInputRef.current?.focus();
+		});
+		return () => window.cancelAnimationFrame(frame);
+	}, [editingBookmarkKey]);
 	const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
 	const [chunks, setChunks] = useState<ReaderChunk[]>([]);
 	const [blocks, setBlocks] = useState<BlockPayload[] | null>(null);
@@ -345,6 +392,8 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 
 	useEffect(() => {
 		activeSectionRef.current = sectionId;
+		setVisibleBookmarkAnchor(null);
+		setEditingBookmarkKey(null);
 	}, [sectionId]);
 
 	const activeSection = useMemo(() => {
@@ -368,6 +417,43 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		}
 		return sections.findIndex((section) => section._id === sectionId);
 	}, [sections, sectionId]);
+
+	const captureVisibleBookmarkAnchor = useCallback(() => {
+		if (!parentRef.current || activeIndex < 0) {
+			return null;
+		}
+		const anchor = findAnchor(parentRef.current);
+		const next = {
+			sectionIndex: activeIndex,
+			blockIndex: anchor.blockIndex,
+		};
+		setVisibleBookmarkAnchor((current) =>
+			current?.sectionIndex === next.sectionIndex &&
+			current.blockIndex === next.blockIndex
+				? current
+				: next,
+		);
+		return anchor;
+	}, [activeIndex]);
+
+	const currentLocationBookmarks = useMemo(() => {
+		if (!bookmarks || !visibleBookmarkAnchor) {
+			return [];
+		}
+		return bookmarks.filter(
+			(bookmark) =>
+				bookmark.sectionIndex === visibleBookmarkAnchor.sectionIndex &&
+				bookmark.blockIndex === visibleBookmarkAnchor.blockIndex,
+		);
+	}, [bookmarks, visibleBookmarkAnchor]);
+	const isCurrentLocationBookmarked = currentLocationBookmarks.length > 0;
+
+	useLayoutEffect(() => {
+		if (loadedSectionId !== sectionId || !blocks || blocks.length === 0) {
+			return;
+		}
+		captureVisibleBookmarkAnchor();
+	}, [loadedSectionId, sectionId, blocks, captureVisibleBookmarkAnchor]);
 
 	const sectionLinkIndex = useMemo(() => {
 		const map = new Map<string, string>();
@@ -626,6 +712,12 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 			return;
 		}
 		const anchor = findAnchor(parentRef.current);
+		setVisibleBookmarkAnchor((current) =>
+			current?.sectionIndex === activeIndex &&
+			current.blockIndex === anchor.blockIndex
+				? current
+				: { sectionIndex: activeIndex, blockIndex: anchor.blockIndex },
+		);
 		// Local write is instant and offline-capable; the sync hook pushes to
 		// Convex (LWW) whenever a connection and the section's Convex id exist.
 		void saveProgress({
@@ -1041,22 +1133,113 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 		}
 	};
 
-	const handleCreateBookmark = async () => {
-		if (!sectionId || !parentRef.current || activeIndex < 0) {
+	const handleToggleBookmark = async () => {
+		if (
+			!sectionId ||
+			!parentRef.current ||
+			activeIndex < 0 ||
+			!bookmarks ||
+			bookmarkActionPending
+		) {
 			return;
 		}
-		// Same layout-independent anchor as progress: block index + fraction
-		// within it ("offset" carries the fraction).
+		setBookmarkActionPending(true);
 		const anchor = findAnchor(parentRef.current);
-		const label = window.prompt("Bookmark label (optional)") ?? undefined;
-		await createBookmark({
+		setVisibleBookmarkAnchor({
 			sectionIndex: activeIndex,
 			blockIndex: anchor.blockIndex,
-			offset: anchor.fraction,
-			label: label && label.length > 0 ? label : undefined,
 		});
-		setActiveSideTab("bookmarks");
-		setIsTocOpen(true);
+		const matches = bookmarks.filter(
+			(bookmark) =>
+				bookmark.sectionIndex === activeIndex &&
+				bookmark.blockIndex === anchor.blockIndex,
+		);
+		try {
+			if (matches.length > 0) {
+				const removed = await Promise.all(
+					matches.map((bookmark) => deleteBookmark(bookmark.clientKey)),
+				);
+				showBookmarkNotice(
+					removed.every(Boolean)
+						? "Bookmark removed"
+						: "Could not remove bookmark",
+					removed.every(Boolean) ? "success" : "error",
+				);
+				return;
+			}
+			// Same layout-independent anchor as progress: block index + fraction
+			// within it ("offset" carries the fraction).
+			const clientKey = await createBookmark({
+				sectionIndex: activeIndex,
+				blockIndex: anchor.blockIndex,
+				offset: anchor.fraction,
+			});
+			showBookmarkNotice(
+				clientKey ? "Bookmark added" : "Could not add bookmark",
+				clientKey ? "success" : "error",
+			);
+		} finally {
+			setBookmarkActionPending(false);
+		}
+	};
+
+	const beginBookmarkLabelEdit = (bookmark: LocalBookmark) => {
+		setEditingBookmarkKey(bookmark.clientKey);
+		setBookmarkLabelDraft(bookmark.label ?? "");
+	};
+
+	const saveBookmarkLabel = async (bookmark: LocalBookmark) => {
+		if (bookmarkActionPending) {
+			return;
+		}
+		const nextLabel = bookmarkLabelDraft.trim() || undefined;
+		const currentLabel = bookmark.label?.trim() || undefined;
+		if (nextLabel === currentLabel) {
+			setEditingBookmarkKey(null);
+			return;
+		}
+		setBookmarkActionPending(true);
+		try {
+			// Replace using the existing durable create + tombstone operations. This
+			// remains offline-first and converges without adding a fragile update race.
+			const replacementKey = await createBookmark({
+				sectionIndex: bookmark.sectionIndex,
+				blockIndex: bookmark.blockIndex,
+				offset: bookmark.offset,
+				label: nextLabel,
+			});
+			if (!replacementKey) {
+				showBookmarkNotice("Could not update bookmark", "error");
+				return;
+			}
+			if (!(await deleteBookmark(bookmark.clientKey))) {
+				await deleteBookmark(replacementKey);
+				showBookmarkNotice("Could not update bookmark", "error");
+				return;
+			}
+			setEditingBookmarkKey(null);
+			showBookmarkNotice(
+				nextLabel ? "Bookmark renamed" : "Bookmark label removed",
+			);
+		} finally {
+			setBookmarkActionPending(false);
+		}
+	};
+
+	const removeBookmarkFromPanel = async (bookmark: LocalBookmark) => {
+		if (bookmarkActionPending) {
+			return;
+		}
+		setBookmarkActionPending(true);
+		try {
+			const removed = await deleteBookmark(bookmark.clientKey);
+			showBookmarkNotice(
+				removed ? "Bookmark removed" : "Could not remove bookmark",
+				removed ? "success" : "error",
+			);
+		} finally {
+			setBookmarkActionPending(false);
+		}
 	};
 
 	useEffect(() => {
@@ -1243,6 +1426,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 									"Untitled chapter";
 								const label = bookmark.label?.trim();
 								const title = label || sectionTitle;
+								const isEditing = editingBookmarkKey === bookmark.clientKey;
 								const jumpToBookmark = () => {
 									if (!targetSectionId) {
 										return;
@@ -1276,11 +1460,58 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 										}
 									}
 								};
+								if (isEditing) {
+									return (
+										<form
+											key={bookmark.clientKey}
+											className="surface-soft flex shrink-0 flex-col gap-2 p-3 text-xs"
+											onSubmit={(event) => {
+												event.preventDefault();
+												void saveBookmarkLabel(bookmark);
+											}}
+										>
+											<label
+												htmlFor={`bookmark-label-${bookmark.clientKey}`}
+												className="text-[11px] text-[var(--muted)]"
+											>
+												Bookmark label (optional)
+											</label>
+											<input
+												ref={bookmarkLabelInputRef}
+												id={`bookmark-label-${bookmark.clientKey}`}
+												className="input"
+												value={bookmarkLabelDraft}
+												onChange={(event) =>
+													setBookmarkLabelDraft(event.target.value)
+												}
+												maxLength={120}
+											/>
+											<div className="flex justify-end gap-2">
+												<button
+													type="button"
+													className="btn btn-ghost"
+													onClick={() => setEditingBookmarkKey(null)}
+													disabled={bookmarkActionPending}
+												>
+													Cancel
+												</button>
+												<button
+													type="submit"
+													className="btn btn-primary"
+													disabled={bookmarkActionPending}
+												>
+													Save
+												</button>
+											</div>
+										</form>
+									);
+								}
 								return (
-									// biome-ignore lint/a11y/useSemanticElements: the card nests a delete <button>; interactive controls can't nest inside a real button
+									// biome-ignore lint/a11y/useSemanticElements: the card nests edit/delete buttons; interactive controls can't nest inside a real button
 									<div
 										key={bookmark.clientKey}
 										role="button"
+										aria-label={`Go to ${title}`}
 										tabIndex={0}
 										className="surface-soft relative shrink-0 cursor-pointer p-3 pr-10 text-xs transition hover:border-[color-mix(in_srgb,var(--accent)_35%,transparent)]"
 										onClick={jumpToBookmark}
@@ -1302,11 +1533,24 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 										</div>
 										<button
 											type="button"
-											className="absolute bottom-3 right-3 inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/10 text-[var(--muted-2)] transition hover:border-rose-500/40 hover:text-rose-300"
+											className="absolute right-3 top-2.5 inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/10 text-[var(--muted-2)] transition hover:border-[color-mix(in_srgb,var(--accent)_35%,transparent)] hover:text-[var(--accent)]"
 											onClick={(event) => {
 												event.stopPropagation();
-												void deleteBookmark(bookmark.clientKey);
+												beginBookmarkLabelEdit(bookmark);
 											}}
+											disabled={bookmarkActionPending}
+										>
+											<span className="sr-only">Edit bookmark label</span>
+											<Icon name="pencil" size={12} />
+										</button>
+										<button
+											type="button"
+											className="absolute bottom-2.5 right-3 inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/10 text-[var(--muted-2)] transition hover:border-rose-500/40 hover:text-rose-300"
+											onClick={(event) => {
+												event.stopPropagation();
+												void removeBookmarkFromPanel(bookmark);
+											}}
+											disabled={bookmarkActionPending}
 										>
 											<span className="sr-only">Remove bookmark</span>
 											<Icon name="close" size={12} />
@@ -1394,13 +1638,22 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 					<div className="ml-auto flex shrink-0 items-center gap-1">
 						<button
 							type="button"
-							className="icon-btn tooltip"
-							data-tooltip="Bookmark"
+							className={`icon-btn tooltip reader-bookmark-button ${isCurrentLocationBookmarked ? "is-active" : ""}`}
+							data-tooltip={
+								isCurrentLocationBookmarked ? "Remove bookmark" : "Add bookmark"
+							}
 							data-tooltip-position="bottom"
-							onClick={handleCreateBookmark}
-							disabled={!sectionId}
+							aria-pressed={isCurrentLocationBookmarked}
+							onClick={handleToggleBookmark}
+							disabled={
+								!sectionId || bookmarks === undefined || bookmarkActionPending
+							}
 						>
-							<span className="sr-only">Bookmark</span>
+							<span className="sr-only">
+								{isCurrentLocationBookmarked
+									? "Remove bookmark"
+									: "Add bookmark"}
+							</span>
 							<Icon name="bookmark" />
 						</button>
 						<button
@@ -1729,6 +1982,19 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 						>
 							<Icon name="settings" />
 						</button>
+					</div>
+				) : null}
+
+				{bookmarkNotice ? (
+					<div
+						key={bookmarkNotice.id}
+						className={`reader-bookmark-notice ${bookmarkNotice.kind === "error" ? "is-error" : ""}`}
+						role="status"
+					>
+						{bookmarkNotice.kind === "success" ? (
+							<Icon name="check" size={15} />
+						) : null}
+						<span>{bookmarkNotice.message}</span>
 					</div>
 				) : null}
 
