@@ -26,7 +26,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
 
@@ -72,7 +72,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
 
@@ -81,6 +81,23 @@ jobs:
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start local S3-compatible object storage
+        run: |
+          docker run --detach --rm --name librium-minio \
+            --publish 9000:9000 \
+            --env MINIO_ROOT_USER=librium-e2e \
+            --env MINIO_ROOT_PASSWORD=librium-e2e-secret \
+            quay.io/minio/minio server /data
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:9000/minio/health/live; then
+              READY=1; break
+            fi
+            sleep 1
+          done
+          if [ -z "$READY" ]; then docker logs librium-minio; exit 1; fi
+          docker run --rm --network host --entrypoint /bin/sh minio/mc -c \
+            'mc alias set local http://127.0.0.1:9000 librium-e2e librium-e2e-secret && mc mb local/librium-e2e'
 
       - name: Start anonymous Convex backend and deploy functions
         env:
@@ -115,6 +132,10 @@ jobs:
         run: |
           npx convex env set SITE_URL http://localhost:3000
           npx convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
+          npx convex env set R2_BUCKET librium-e2e
+          npx convex env set R2_ENDPOINT http://127.0.0.1:9000
+          npx convex env set R2_ACCESS_KEY_ID librium-e2e
+          npx convex env set R2_SECRET_ACCESS_KEY librium-e2e-secret
 
       - name: Run e2e
         run: pnpm test:e2e
@@ -124,6 +145,7 @@ jobs:
         run: |
           kill "$(cat /tmp/convex.pid)" 2>/dev/null || true
           pkill -f 'convex' 2>/dev/null || true
+          docker stop librium-minio 2>/dev/null || true
 
       - name: Upload Playwright report on failure
         if: failure()

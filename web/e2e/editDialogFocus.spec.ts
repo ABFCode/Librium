@@ -44,22 +44,27 @@ test("opening Edit details moves focus into the dialog, not onto the hidden file
 
 	// Focus must be inside the dialog, on a visible control — never stranded on
 	// the hidden file input or outside the dialog.
-	const focus = await page.evaluate(() => {
-		const el = document.activeElement as HTMLElement | null;
-		const dialog = document.querySelector('[role="dialog"]');
-		return {
-			inDialog: Boolean(el && dialog?.contains(el)),
-			isHiddenFileInput:
-				el?.tagName === "INPUT" && (el as HTMLInputElement).type === "file",
-			visible: Boolean(
-				el &&
-					(el.offsetWidth > 0 ||
-						el.offsetHeight > 0 ||
-						el.getClientRects().length > 0),
-			),
-		};
-	});
-	expect(focus.inDialog).toBe(true);
-	expect(focus.isHiddenFileInput).toBe(false);
-	expect(focus.visible).toBe(true);
+	await expect
+		.poll(() =>
+			page.evaluate(() => {
+				const el = document.activeElement as HTMLElement | null;
+				const dialog = document.querySelector('[role="dialog"]');
+				return {
+					inDialog: Boolean(el && dialog?.contains(el)),
+					isHiddenFileInput:
+						el?.tagName === "INPUT" && (el as HTMLInputElement).type === "file",
+					visible: Boolean(
+						el &&
+							(el.offsetWidth > 0 ||
+								el.offsetHeight > 0 ||
+								el.getClientRects().length > 0),
+					),
+				};
+			}),
+		)
+		.toMatchObject({
+			inDialog: true,
+			isHiddenFileInput: false,
+			visible: true,
+		});
 });

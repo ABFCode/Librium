@@ -59,6 +59,10 @@ export default defineConfig({
 					include: ["src/test/**/*.browser.test.{ts,tsx}"],
 					browser: {
 						enabled: true,
+						// These component suites mock shared modules such as convex/react.
+						// Run files serially so a slower CI browser cannot observe another
+						// file's mock graph while Vite is still loading it.
+						fileParallelism: false,
 						provider: playwright(),
 						instances: [{ browser: "chromium" }],
 						headless:

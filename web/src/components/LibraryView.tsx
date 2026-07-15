@@ -53,7 +53,7 @@ export function Library() {
 	const localProgress = useLiveQuery(() => db.progress.toArray(), []);
 
 	useEffect(() => {
-		const userId = authSession?.user.id;
+		const userId = authSession?.user?.id;
 		if (!userId || !remoteBooks) {
 			return;
 		}
@@ -63,7 +63,7 @@ export function Library() {
 		).catch(() => {
 			// Leave the migration marker unset; the next library visit retries.
 		});
-	}, [authSession?.user.id, remoteBooks]);
+	}, [authSession?.user?.id, remoteBooks]);
 
 	const books: LibraryBook[] | undefined = useMemo(() => {
 		if (remoteBooks) {
