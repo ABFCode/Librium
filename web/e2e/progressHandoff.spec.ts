@@ -57,7 +57,7 @@ test("a long-lived stale reader cannot overwrite newer progress from another dev
 	await phone.waitForURL("**/library", { timeout: 20_000 });
 	await openBook(phone);
 
-	await phone.locator(".reader-botbar-center").click();
+	await phone.locator('button[data-tooltip="Chapters"]').click();
 	await phone.locator('.reader-drawer [data-index="2"]').click();
 	await expect(readerTitle(phone)).toHaveText(/Chapter III/, {
 		timeout: 20_000,

@@ -1431,10 +1431,17 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 						</button>
 						<button
 							type="button"
-							className={`icon-btn tooltip reader-top-mobile-secondary ${isTocOpen ? "is-active" : ""}`}
+							className={`icon-btn tooltip ${isTocOpen && activeSideTab === "toc" ? "is-active" : ""}`}
 							data-tooltip="Chapters"
 							data-tooltip-position="bottom"
-							onClick={() => setIsTocOpen((prev) => !prev)}
+							onClick={() => {
+								if (isTocOpen && activeSideTab === "toc") {
+									setIsTocOpen(false);
+									return;
+								}
+								setActiveSideTab("toc");
+								setIsTocOpen(true);
+							}}
 						>
 							<span className="sr-only">Chapters</span>
 							<Icon name="menu" />
@@ -1676,7 +1683,8 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 				</div>
 
 				{/* Thumb-zone control bar (phone only, CSS-gated): persistent chapter
-				    navigation around Contents/progress, plus appearance settings. */}
+				    navigation around progress, plus appearance settings. Contents lives
+				    beside the chapter title in the top bar. */}
 				{sections && sections.length > 0 && activeIndex >= 0 ? (
 					<div className={`reader-botbar ${chromeHidden ? "is-hidden" : ""}`}>
 						<button
@@ -1689,16 +1697,8 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 						>
 							<Icon name="chevron-left" />
 						</button>
-						<button
-							type="button"
-							className="reader-botbar-center"
-							aria-label="Contents and reading progress"
-							onClick={() => {
-								setActiveSideTab("toc");
-								setIsTocOpen(true);
-							}}
-						>
-							<Icon name="menu" size={16} />
+						<div className="reader-botbar-center">
+							<span className="sr-only">Reading progress: </span>
 							<span>
 								{`${activeIndex + 1} / ${sections.length} · ${Math.round(
 									bookProgress(
@@ -1710,7 +1710,7 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 									) * 100,
 								)}%`}
 							</span>
-						</button>
+						</div>
 						<button
 							type="button"
 							className="reader-botbar-nav"

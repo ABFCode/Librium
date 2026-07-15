@@ -85,9 +85,9 @@
 		}
 	}
 
-	/* Thumb-zone control bar — phone only, with chapter navigation,
-	   Contents/progress, and reader appearance. It overlays the bottom of the
-	   text and slides away with the rest of the chrome. */
+	/* Thumb-zone control bar — phone only, with chapter navigation, progress,
+	   and reader appearance. Contents stays with the chapter title above. It
+	   overlays the bottom of the text and slides away with the rest of the chrome. */
 	.reader-botbar {
 		display: none;
 	}

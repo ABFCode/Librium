@@ -48,12 +48,7 @@ const openBook = async (page: Page, expected: RegExp) => {
 };
 
 const chooseChapter = async (page: Page, index: number) => {
-	const phoneControl = page.locator(".reader-botbar-center");
-	if (await phoneControl.isVisible()) {
-		await phoneControl.click();
-	} else {
-		await page.locator('button[data-tooltip="Chapters"]').click();
-	}
+	await page.locator('button[data-tooltip="Chapters"]').click();
 	await page.locator(`.reader-drawer [data-index="${index}"]`).click();
 };
 

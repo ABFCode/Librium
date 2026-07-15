@@ -55,7 +55,14 @@ test("mobile reader has deterministic chrome and true chapter starts", async ({
 				nodes.every((node) => getComputedStyle(node).display === "none"),
 			),
 	).toBe(true);
-	await expect(page.locator(".reader-botbar button")).toHaveCount(4);
+	const topContents = page.locator(
+		'.reader-topbar button[data-tooltip="Chapters"]',
+	);
+	await expect(topContents).toBeVisible();
+	await expect(page.locator(".reader-botbar button")).toHaveCount(3);
+	await expect(page.locator(".reader-botbar-center .sr-only")).toHaveText(
+		"Reading progress:",
+	);
 	await expect(page.locator(".reader-botbar-settings")).toBeVisible();
 	const bottomPrevious = page.locator(
 		'.reader-botbar [aria-label="Previous chapter"]',
@@ -147,7 +154,7 @@ test("mobile reader has deterministic chrome and true chapter starts", async ({
 		.toBeLessThanOrEqual(1);
 
 	// A TOC choice and the chapter-end continuation both start at zero.
-	await page.locator(".reader-botbar-center").click();
+	await topContents.click();
 	await page.locator('.reader-drawer [data-index="1"]').click();
 	await expect(page.locator(".reader-topbar-title")).toHaveText(/Chapter II/);
 	await page.waitForTimeout(800);
@@ -155,7 +162,7 @@ test("mobile reader has deterministic chrome and true chapter starts", async ({
 
 	// Search is an explicit destination: the matching paragraph must clear the
 	// fixed toolbar, and selecting it dismisses the sheet.
-	await page.locator(".reader-botbar-center").click();
+	await topContents.click();
 	await page.getByRole("button", { name: "Search", exact: true }).click();
 	await page
 		.getByPlaceholder("Search the whole book…")
@@ -211,7 +218,7 @@ test("mobile reader has deterministic chrome and true chapter starts", async ({
 		.first()
 		.click();
 	await expect(page.locator(".reader-drawer")).not.toHaveClass(/is-open/);
-	await page.locator(".reader-botbar-center").click();
+	await topContents.click();
 	await expect(
 		page.getByRole("button", { name: "Chapters", exact: true }),
 	).toHaveClass(/is-active/);
@@ -221,7 +228,7 @@ test("mobile reader has deterministic chrome and true chapter starts", async ({
 
 	// The preferences controls reflow at the narrowest supported phone size.
 	await page.setViewportSize({ width: 320, height: 800 });
-	await expect(page.locator(".reader-botbar button")).toHaveCount(4);
+	await expect(page.locator(".reader-botbar button")).toHaveCount(3);
 	const bottomBarGeometry = await page
 		.locator(".reader-botbar")
 		.evaluate((bar) => ({
@@ -298,7 +305,7 @@ test("mobile reader has deterministic chrome and true chapter starts", async ({
 	// The same phone reader remains active after a landscape rotation.
 	await page.setViewportSize({ width: 844, height: 390 });
 	await expect(page.locator(".reader-botbar")).toHaveCSS("display", "flex");
-	await expect(page.locator(".reader-botbar button")).toHaveCount(4);
+	await expect(page.locator(".reader-botbar button")).toHaveCount(3);
 	await expect(page.locator(".reader-topbar")).toHaveCSS("position", "fixed");
 	await expect(page.locator(".reader-top-progress")).toHaveCSS(
 		"display",
