@@ -5,11 +5,10 @@ import {
 	parseLibriumPayload,
 	parseNovelUpdatesHtml,
 } from "../lib/novelUpdates";
-// Real NovelUpdates series page, captured live via the clipper extension on
-// 2026-07-07 (Cloudflare blocks every server-side fetch, so this is the only
-// way to obtain genuine markup). Guards the community selectors
-// (#editdescription, #showauthors, #seriesgenre) against wishful thinking.
-import realNuPage from "./fixtures/nu-memorize.html?raw";
+// Deliberately synthetic page with the same public selector contract used by
+// NovelUpdates. Keeping this fixture invented and minimal avoids checking a
+// third-party page, book description, or user reviews into the repository.
+import syntheticNuPage from "./fixtures/nu-series-synthetic.html?raw";
 
 const SOURCE = "https://www.novelupdates.com/series/martial-world/";
 
@@ -77,26 +76,19 @@ describe("parseNovelUpdatesHtml", () => {
 		expect(candidate.source).toBe("novelupdates");
 	});
 
-	it("extracts every field from a real captured NU series page", () => {
-		const nuSource = "https://www.novelupdates.com/series/m-e-m-o-r-i-z-e/";
-		const candidate = parseNovelUpdatesHtml(realNuPage, nuSource);
-		// og:title carries no " - Novel Updates" suffix on the live page (only
-		// <title> does); the strip regex must be a harmless no-op.
-		expect(candidate.title).toBe("M E M O R I Z E");
-		// NU lists romanized + original-script author entries.
-		expect(candidate.author).toBe("Ro Yu-jin, 로유진");
-		expect(candidate.description).toContain("A man who had lost everything.");
-		expect(candidate.description).toContain("Zero Code");
-		expect(candidate.subjects).toEqual([
-			"Action",
-			"Adventure",
-			"Fantasy",
-			"Harem",
-			"Mature",
-			"Seinen",
-		]);
+	it("extracts every field from a representative synthetic series page", () => {
+		const nuSource =
+			"https://www.novelupdates.com/series/librium-parser-fixture/";
+		const candidate = parseNovelUpdatesHtml(syntheticNuPage, nuSource);
+		// og:title has no " - Novel Updates" suffix (only <title> does), matching
+		// a real-world quirk without retaining a captured third-party page.
+		expect(candidate.title).toBe("The Clockwork Orchard");
+		expect(candidate.author).toBe("Mira Vale, 미라 베일");
+		expect(candidate.description).toContain("mechanical orchard");
+		expect(candidate.description).toContain("forgotten memory");
+		expect(candidate.subjects).toEqual(["Fantasy", "Mystery", "Adventure"]);
 		expect(candidate.coverUrl).toBe(
-			"https://cdn.novelupdates.com/images/2019/06/memorize.jpeg",
+			"https://cdn.novelupdates.com/images/librium-parser-fixture.jpg",
 		);
 		expect(candidate.sourceUrl).toBe(nuSource);
 	});

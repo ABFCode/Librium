@@ -1,19 +1,7 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { action, internalMutation } from "./_generated/server";
-
-const deploymentName = process.env.CONVEX_DEPLOYMENT ?? "";
-const convexUrl = process.env.CONVEX_URL ?? process.env.CONVEX_SITE_URL ?? "";
-const isLocalDeployment =
-	deploymentName.startsWith("local") ||
-	deploymentName.startsWith("anonymous") ||
-	deploymentName.includes("local") ||
-	deploymentName.includes("anonymous");
-const isLocalConvex =
-	convexUrl.includes("127.0.0.1") || convexUrl.includes("localhost");
-const allowSeed =
-	process.env.ALLOW_SEED === "true" || isLocalDeployment || isLocalConvex;
+import { internalAction, internalMutation } from "./_generated/server";
 
 export const upsertBetterAuthUserInternal = internalMutation({
 	args: {
@@ -54,7 +42,9 @@ export const upsertBetterAuthUserInternal = internalMutation({
 // Dev convenience: create (or sign in) a demo auth user. Demo *books* are no
 // longer seeded server-side — content is derived from real EPUBs parsed on
 // the client (see ROADMAP Phase 5); import a book through the UI instead.
-export const createDemoUser = action({
+// Internal-only: this remains convenient through `convex run` but is absent
+// from the browser-callable API on every deployment.
+export const createDemoUser = internalAction({
 	args: {
 		email: v.string(),
 		password: v.string(),
@@ -66,9 +56,6 @@ export const createDemoUser = action({
 		ctx,
 		args,
 	): Promise<{ userId: Id<"users">; authUserId: string; email: string }> => {
-		if (!allowSeed) {
-			throw new Error("Seeding is disabled in this environment.");
-		}
 		const baseUrl =
 			process.env.CONVEX_SITE_URL ??
 			process.env.VITE_CONVEX_SITE_URL ??

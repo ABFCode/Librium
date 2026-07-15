@@ -20,6 +20,6 @@ export function convertTextToEpub(
 		// The guard's warnings must be visible somewhere — a silently-dropped
 		// data-loss warning would defeat the point of having one.
 		onWarning: (warning) =>
-			console.warn(`[librium] text import (${fileName}):`, warning),
+			console.warn("[librium] text import warning:", { fileName, warning }),
 	});
 }

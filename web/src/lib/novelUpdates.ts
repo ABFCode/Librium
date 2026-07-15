@@ -7,10 +7,10 @@ import type { MetadataCandidate } from "../../convex/metadataProviders";
 // their side degrades that one field instead of throwing.
 //
 // Selectors follow the ids community scrapers use (#editdescription,
-// #showauthors, #seriesgenre) — verified against real live markup captured
-// 2026-07-07 (fixture: src/test/fixtures/nu-memorize.html; note og:title
-// carries no " - Novel Updates" suffix there, only <title> does). og:* tags
-// are the stable part and cover the essentials on their own.
+// #showauthors, #seriesgenre). The representative test fixture is entirely
+// synthetic; it preserves this public selector contract without retaining a
+// captured third-party page or its user-generated content. og:* tags are the
+// stable part and cover the essentials on their own.
 
 export function isNovelUpdatesUrl(raw: string): boolean {
 	try {

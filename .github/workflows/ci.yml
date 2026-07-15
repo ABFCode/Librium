@@ -2,7 +2,12 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 # One run per ref; a new push cancels the stale run.
 concurrency:
@@ -18,13 +23,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
-          version: 10
+          version: 10.28.2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: pnpm
@@ -64,13 +69,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
-          version: 10
+          version: 10.28.2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: pnpm
@@ -88,7 +93,7 @@ jobs:
             --publish 9000:9000 \
             --env MINIO_ROOT_USER=librium-e2e \
             --env MINIO_ROOT_PASSWORD=librium-e2e-secret \
-            quay.io/minio/minio server /data
+            quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e server /data
           for i in $(seq 1 30); do
             if curl --silent --fail http://127.0.0.1:9000/minio/health/live; then
               READY=1; break
@@ -96,7 +101,7 @@ jobs:
             sleep 1
           done
           if [ -z "$READY" ]; then docker logs librium-minio; exit 1; fi
-          docker run --rm --network host --entrypoint /bin/sh minio/mc -c \
+          docker run --rm --network host --entrypoint /bin/sh minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727 -c \
             'mc alias set local http://127.0.0.1:9000 librium-e2e librium-e2e-secret && mc mb local/librium-e2e'
 
       - name: Start anonymous Convex backend and deploy functions
@@ -106,7 +111,7 @@ jobs:
           # --typecheck disable: the `checks` job already runs tsc over the
           # whole project (convex/ included); re-checking here just re-resolves
           # tsconfig in a fresh env and flakes on the node `process` global.
-          npx convex dev --typecheck disable > /tmp/convex.log 2>&1 &
+          pnpm exec convex dev --typecheck disable > /tmp/convex.log 2>&1 &
           echo $! > /tmp/convex.pid
           # Wait for functions to finish pushing (env.local is written at
           # configure time, before the push completes — so gate on both).
@@ -117,9 +122,11 @@ jobs:
             fi
             sleep 2
           done
-          echo '----- convex.log -----'; cat /tmp/convex.log || true
-          echo '----- .env.local -----'; cat .env.local || true
-          if [ -z "$READY" ]; then echo 'Convex did not become ready'; exit 1; fi
+          if [ -z "$READY" ]; then
+            echo 'Convex did not become ready'
+            tail -200 /tmp/convex.log | sed -E 's/([A-Z_]*(KEY|SECRET|TOKEN)[A-Z_]*=).*/\1<redacted>/g'
+            exit 1
+          fi
           # auth-client needs the .site URL; derive it if convex didn't write it.
           if ! grep -q VITE_CONVEX_SITE_URL .env.local; then
             SITE=$(grep VITE_CONVEX_URL .env.local | cut -d= -f2- | sed 's/3210/3211/')
@@ -130,12 +137,12 @@ jobs:
         env:
           CONVEX_AGENT_MODE: anonymous
         run: |
-          npx convex env set SITE_URL http://localhost:3000
-          npx convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
-          npx convex env set R2_BUCKET librium-e2e
-          npx convex env set R2_ENDPOINT http://127.0.0.1:9000
-          npx convex env set R2_ACCESS_KEY_ID librium-e2e
-          npx convex env set R2_SECRET_ACCESS_KEY librium-e2e-secret
+          pnpm exec convex env set SITE_URL http://localhost:3000
+          pnpm exec convex env set BETTER_AUTH_SECRET "$(openssl rand -base64 32)"
+          pnpm exec convex env set R2_BUCKET librium-e2e
+          pnpm exec convex env set R2_ENDPOINT http://127.0.0.1:9000
+          pnpm exec convex env set R2_ACCESS_KEY_ID librium-e2e
+          pnpm exec convex env set R2_SECRET_ACCESS_KEY librium-e2e-secret
 
       - name: Run e2e
         run: pnpm test:e2e
@@ -149,7 +156,7 @@ jobs:
 
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: playwright-report
           path: web/playwright-report

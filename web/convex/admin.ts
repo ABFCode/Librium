@@ -1,33 +1,19 @@
 import { v } from "convex/values";
 import { components, internal } from "./_generated/api";
-import {
-	internalAction,
-	internalMutation,
-	mutation,
-} from "./_generated/server";
+import { internalAction, internalMutation } from "./_generated/server";
 import { bookAssetKey } from "./books";
 import { r2 } from "./r2";
 
-const deploymentName = process.env.CONVEX_DEPLOYMENT ?? "";
-const convexUrl = process.env.CONVEX_URL ?? process.env.CONVEX_SITE_URL ?? "";
-const isLocalDeployment =
-	deploymentName.startsWith("local") ||
-	deploymentName.startsWith("anonymous") ||
-	deploymentName.includes("local") ||
-	deploymentName.includes("anonymous");
-const isLocalConvex =
-	convexUrl.includes("127.0.0.1") || convexUrl.includes("localhost");
-const allowAdminReset =
-	process.env.ALLOW_ADMIN_RESET === "true" ||
-	isLocalDeployment ||
-	isLocalConvex;
-
 // Note: blobs live in R2 now; this clears Convex rows only. Orphaned R2
 // objects from a full reset are dev debris — clear the bucket manually (or
-// via lifecycle rules) if it matters.
-export const resetAllDataInternal = internalMutation({
-	args: {},
-	handler: async (ctx) => {
+// via lifecycle rules) if it matters. Internal-only means browser clients can
+// never invoke it, even if an operator misconfigures an environment flag.
+export const resetAllData = internalMutation({
+	args: { confirm: v.string() },
+	handler: async (ctx, args) => {
+		if (args.confirm !== "RESET") {
+			throw new Error("Confirmation required.");
+		}
 		const bookmarks = await ctx.db.query("bookmarks").collect();
 		for (const bookmark of bookmarks) {
 			await ctx.db.delete(bookmark._id);
@@ -46,6 +32,16 @@ export const resetAllDataInternal = internalMutation({
 		const userSettings = await ctx.db.query("userSettings").collect();
 		for (const setting of userSettings) {
 			await ctx.db.delete(setting._id);
+		}
+
+		const collectionBooks = await ctx.db.query("collectionBooks").collect();
+		for (const membership of collectionBooks) {
+			await ctx.db.delete(membership._id);
+		}
+
+		const collections = await ctx.db.query("collections").collect();
+		for (const collection of collections) {
+			await ctx.db.delete(collection._id);
 		}
 
 		const books = await ctx.db.query("books").collect();
@@ -183,7 +179,7 @@ export const deleteUserRowsInternal = internalMutation({
 export const deleteUserAccount = internalAction({
 	args: { email: v.string(), confirm: v.string() },
 	// Explicit annotations break the internal.admin self-reference cycle
-	// (same pattern as resetAllData below).
+	// created by the mutation call below.
 	handler: async (
 		ctx,
 		args,
@@ -251,23 +247,5 @@ export const deleteUserAccount = internalAction({
 		await deleteAuthRows("user", "email", args.email);
 
 		return { deletedBooks: bookIds.length, email: args.email };
-	},
-});
-
-export const resetAllData = mutation({
-	args: {
-		confirm: v.string(),
-	},
-	// Explicit return type: referencing internal.admin from inside this module
-	// is self-referential for inference and needs the annotation to break the
-	// cycle (standard Convex pattern).
-	handler: async (ctx, args): Promise<{ ok: boolean }> => {
-		if (args.confirm !== "RESET") {
-			throw new Error("Confirmation required.");
-		}
-		if (!allowAdminReset) {
-			throw new Error("Reset is disabled in this environment.");
-		}
-		return await ctx.runMutation(internal.admin.resetAllDataInternal, {});
 	},
 });

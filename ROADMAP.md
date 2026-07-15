@@ -150,8 +150,8 @@ reading from local storage; total Convex storage usage is near-zero.
   offline), and a storage-used view.
 
 ### Phase 7 — Harden + deploy
-- Auth: close signups (allowlist / disable registration post-setup); remove
-  `admin.resetAllData` and `seed.*` from the deployed instance; rate limiting.
+- Auth: close signups (allowlist / disable registration post-setup); keep
+  destructive admin and seed functions internal-only; rate limiting.
 - Deploy: Cloudflare Pages (app) + Convex Cloud (prod deployment) + R2 bucket.
 - Per-environment buckets: the existing bucket stays dev-only; create a fresh
   prod bucket + token and set the `R2_*` env vars on the cloud deployment

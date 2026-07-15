@@ -143,3 +143,29 @@ describe("admin.deleteUserRowsInternal", () => {
 		expect(result).toEqual({ bookIds: [], authUserId: null });
 	});
 });
+
+describe("admin.resetAllData", () => {
+	test("requires explicit confirmation and clears app rows through the internal API", async () => {
+		const t = convexTest(schema, modules);
+		const user = await seedUser(t, "reset-target");
+
+		await expect(
+			t.mutation(internal.admin.resetAllData, { confirm: "not-reset" }),
+		).rejects.toThrow("Confirmation required");
+		expect((await rowsFor(t, user.userId)).books).toBe(1);
+
+		await expect(
+			t.mutation(internal.admin.resetAllData, { confirm: "RESET" }),
+		).resolves.toEqual({ ok: true });
+		expect(await rowsFor(t, user.userId)).toEqual({
+			user: null,
+			books: 0,
+			userBooks: 0,
+			progressHistory: 0,
+			bookmarks: 0,
+			collections: 0,
+			collectionBooks: 0,
+			userSettings: 0,
+		});
+	});
+});

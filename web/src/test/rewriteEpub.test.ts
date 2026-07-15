@@ -11,24 +11,24 @@ import { DOT_PNG, TESTBOOKS_DIR, testbook } from "./corpusFixtures";
 describe("rewriteEpubBytes", () => {
 	it("bakes edited metadata and a replaced cover into the output", () => {
 		const out = rewriteEpubBytes(
-			buildFixtureEpub("Mesmorize"),
+			buildFixtureEpub("Clockwork Draft"),
 			{
-				title: "M E M O R I Z E",
-				author: "Ro Yu-jin",
-				series: "Hall Plain",
+				title: "The Clockwork Orchard",
+				author: "Mira Vale",
+				series: "Orchard Stories",
 				seriesIndex: "1",
-				description: "An almighty power, the Zero Code.",
+				description: "A wholly invented metadata fixture.",
 			},
 			{ bytes: DOT_PNG, mediaType: "image/png" },
 		);
 		const payload = parseEpubToPayload(out);
-		expect(payload.metadata.title).toBe("M E M O R I Z E");
-		expect(payload.metadata.authors).toEqual(["Ro Yu-jin"]);
-		expect(payload.metadata.series).toBe("Hall Plain");
+		expect(payload.metadata.title).toBe("The Clockwork Orchard");
+		expect(payload.metadata.authors).toEqual(["Mira Vale"]);
+		expect(payload.metadata.series).toBe("Orchard Stories");
 		expect(payload.metadata.seriesIndex).toBe("1");
 		expect(payload.cover?.bytes.length).toBe(DOT_PNG.length);
 		// Content unharmed: same chapters, same prose.
-		const original = parseEpubToPayload(buildFixtureEpub("Mesmorize"));
+		const original = parseEpubToPayload(buildFixtureEpub("Clockwork Draft"));
 		expect(payload.sections.length).toBe(original.sections.length);
 		expect(payload.chunks.map((c) => c.content).join("")).toContain(
 			"what are you doing out here",

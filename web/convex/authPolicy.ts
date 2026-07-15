@@ -1,7 +1,8 @@
 // Single source of truth for whether email/password registration is open.
 // Closed by default on deployed instances (ROADMAP Phase 7); local/dev
-// deployments always allow signup; prod reopens it with ALLOW_SIGNUP=true —
-// same convention as ALLOW_ADMIN_RESET / ALLOW_SEED.
+// deployments always allow signup; prod reopens it with ALLOW_SIGNUP=true.
+// Destructive admin and seed functions are internal-only and do not depend on
+// environment flags for access control.
 //
 // Enforced server-side in auth.ts (emailAndPassword.disableSignUp) and mirrored
 // to the UI via the public config.signupEnabled query so the sign-up form and
