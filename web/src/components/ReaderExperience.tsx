@@ -1675,14 +1675,24 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 					)}
 				</div>
 
-				{/* Thumb-zone control bar (phone only, CSS-gated): Contents/progress
-				    and appearance settings. Chapter turns stay in the contents sheet
-				    and at the natural end-of-chapter decision point. */}
+				{/* Thumb-zone control bar (phone only, CSS-gated): persistent chapter
+				    navigation around Contents/progress, plus appearance settings. */}
 				{sections && sections.length > 0 && activeIndex >= 0 ? (
 					<div className={`reader-botbar ${chromeHidden ? "is-hidden" : ""}`}>
 						<button
 							type="button"
+							className="reader-botbar-nav"
+							aria-label="Previous chapter"
+							title="Previous chapter"
+							onClick={goPrev}
+							disabled={activeIndex <= 0}
+						>
+							<Icon name="chevron-left" />
+						</button>
+						<button
+							type="button"
 							className="reader-botbar-center"
+							aria-label="Contents and reading progress"
 							onClick={() => {
 								setActiveSideTab("toc");
 								setIsTocOpen(true);
@@ -1703,10 +1713,20 @@ export function ReaderExperience({ bookId }: ReaderExperienceProps) {
 						</button>
 						<button
 							type="button"
+							className="reader-botbar-nav"
+							aria-label="Next chapter"
+							title="Next chapter"
+							onClick={goNext}
+							disabled={activeIndex >= sections.length - 1}
+						>
+							<Icon name="chevron-right" />
+						</button>
+						<button
+							type="button"
 							className="reader-botbar-settings"
+							aria-label="Reader preferences"
 							onClick={() => setIsPrefsOpen(true)}
 						>
-							<span className="sr-only">Reader preferences</span>
 							<Icon name="settings" />
 						</button>
 					</div>

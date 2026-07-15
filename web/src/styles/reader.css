@@ -85,9 +85,9 @@
 		}
 	}
 
-	/* Thumb-zone control bar — phone only, with Contents/progress and reader
-	   appearance. It overlays the bottom of the text and slides away with the
-	   rest of the chrome. */
+	/* Thumb-zone control bar — phone only, with chapter navigation,
+	   Contents/progress, and reader appearance. It overlays the bottom of the
+	   text and slides away with the rest of the chrome. */
 	.reader-botbar {
 		display: none;
 	}
@@ -119,16 +119,22 @@
 		}
 	}
 
+	.reader-botbar-nav,
 	.reader-botbar-settings {
 		display: inline-flex;
+		flex: 0 0 44px;
 		align-items: center;
 		justify-content: center;
-		width: 48px;
+		width: 44px;
 		height: 44px;
 		border-radius: var(--radius-sm);
 		border: none;
 		background: transparent;
 		color: var(--ink);
+	}
+
+	.reader-botbar-nav:disabled {
+		opacity: 0.35;
 	}
 
 	.reader-botbar-center {
@@ -143,6 +149,7 @@
 		background: transparent;
 		color: var(--muted);
 		font-size: 0.8rem;
+		white-space: nowrap;
 	}
 
 	@media (max-width: 359px) {

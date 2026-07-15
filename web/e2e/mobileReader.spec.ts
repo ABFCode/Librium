@@ -55,8 +55,14 @@ test("mobile reader has deterministic chrome and true chapter starts", async ({
 				nodes.every((node) => getComputedStyle(node).display === "none"),
 			),
 	).toBe(true);
-	await expect(page.locator(".reader-botbar button")).toHaveCount(2);
+	await expect(page.locator(".reader-botbar button")).toHaveCount(4);
 	await expect(page.locator(".reader-botbar-settings")).toBeVisible();
+	const bottomPrevious = page.locator(
+		'.reader-botbar [aria-label="Previous chapter"]',
+	);
+	const bottomNext = page.locator('.reader-botbar [aria-label="Next chapter"]');
+	await expect(bottomPrevious).toBeDisabled();
+	await expect(bottomNext).toBeEnabled();
 
 	// A chapter start remains the true scroll origin after the arrival progress
 	// write, and the first content block clears the fixed toolbar.
@@ -75,6 +81,19 @@ test("mobile reader has deterministic chrome and true chapter starts", async ({
 	expect(startGeometry.firstTop).toBeGreaterThanOrEqual(
 		startGeometry.topbarBottom,
 	);
+
+	// Persistent mobile chapter controls are immediately discoverable, respect
+	// boundaries, and treat both directions as explicit chapter-start actions.
+	await bottomNext.click();
+	await expect(page.locator(".reader-topbar-title")).toHaveText(/Chapter II/);
+	await page.waitForTimeout(800);
+	expect(await reader(page).evaluate((element) => element.scrollTop)).toBe(0);
+	await expect(bottomPrevious).toBeEnabled();
+	await bottomPrevious.click();
+	await expect(page.locator(".reader-topbar-title")).toHaveText(/Chapter I/);
+	await page.waitForTimeout(800);
+	expect(await reader(page).evaluate((element) => element.scrollTop)).toBe(0);
+	await expect(bottomPrevious).toBeDisabled();
 
 	// Small scroll increments accumulate into one deliberate gesture.
 	await reader(page).evaluate(async (element) => {
@@ -202,6 +221,20 @@ test("mobile reader has deterministic chrome and true chapter starts", async ({
 
 	// The preferences controls reflow at the narrowest supported phone size.
 	await page.setViewportSize({ width: 320, height: 800 });
+	await expect(page.locator(".reader-botbar button")).toHaveCount(4);
+	const bottomBarGeometry = await page
+		.locator(".reader-botbar")
+		.evaluate((bar) => ({
+			fits: bar.scrollWidth <= bar.clientWidth,
+			buttonWidths: Array.from(
+				bar.querySelectorAll("button"),
+				(button) => button.getBoundingClientRect().width,
+			),
+		}));
+	expect(bottomBarGeometry.fits).toBe(true);
+	expect(bottomBarGeometry.buttonWidths.every((width) => width >= 44)).toBe(
+		true,
+	);
 	// Open directly because the earlier bookmark jump deliberately left the
 	// immersive controls hidden; activation itself was already exercised above.
 	await page
@@ -265,6 +298,7 @@ test("mobile reader has deterministic chrome and true chapter starts", async ({
 	// The same phone reader remains active after a landscape rotation.
 	await page.setViewportSize({ width: 844, height: 390 });
 	await expect(page.locator(".reader-botbar")).toHaveCSS("display", "flex");
+	await expect(page.locator(".reader-botbar button")).toHaveCount(4);
 	await expect(page.locator(".reader-topbar")).toHaveCSS("position", "fixed");
 	await expect(page.locator(".reader-top-progress")).toHaveCSS(
 		"display",
