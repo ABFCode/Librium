@@ -99,4 +99,4 @@ Active development. Expect breaking changes while the new stack stabilizes.
 
 ## License
 
-Apache License 2.0. See `LICENSE`.
+GNU Affero General Public License v3.0 or later. See `LICENSE`.
