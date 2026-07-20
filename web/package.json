@@ -29,7 +29,7 @@
 		"@tanstack/react-devtools": "^0.10.8",
 		"@tanstack/react-router": "^1.170.17",
 		"@tanstack/react-router-devtools": "^1.167.0",
-		"@tanstack/react-virtual": "^3.14.5",
+		"@tanstack/react-virtual": "^3.14.6",
 		"@tanstack/router-plugin": "^1.168.19",
 		"better-auth": "^1.6.23",
 		"convex": "^1.42.1",
