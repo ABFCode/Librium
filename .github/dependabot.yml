@@ -11,8 +11,14 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      development-dependencies:
-        dependency-type: development
+      # One PR per week for all minor/patch npm bumps (production + dev).
+      # Majors still open individually so breaking changes get a real review.
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: github-actions
     directory: /
@@ -24,3 +30,8 @@ updates:
     open-pull-requests-limit: 5
     cooldown:
       default-days: 7
+    groups:
+      # One PR for all GitHub Actions bumps (majors here are routine/low-risk).
+      github-actions:
+        patterns:
+          - "*"
