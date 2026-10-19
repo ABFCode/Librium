@@ -11,6 +11,10 @@ updates:
     cooldown:
       default-days: 7
     groups:
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
       # One PR per week for all minor/patch npm bumps (production + dev).
       # Majors still open individually so breaking changes get a real review.
       npm-minor-patch:
@@ -31,6 +35,10 @@ updates:
     cooldown:
       default-days: 7
     groups:
+      github-actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
       # One PR for all GitHub Actions bumps (majors here are routine/low-risk).
       github-actions:
         patterns:
