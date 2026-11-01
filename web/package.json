@@ -31,7 +31,7 @@
 		"@tanstack/react-router-devtools": "^1.167.2",
 		"@tanstack/react-virtual": "^3.14.21",
 		"@tanstack/router-plugin": "^1.168.47",
-		"better-auth": "~1.6.33",
+		"better-auth": "~1.7.7",
 		"convex": "^1.47.0",
 		"dexie": "^4.4.6",
 		"dexie-react-hooks": "^4.4.0",
